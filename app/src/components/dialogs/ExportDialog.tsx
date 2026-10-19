@@ -1,7 +1,6 @@
 import { useState, useId } from "react";
 import { Store } from "@/store/store";
 import { Scene } from "@/lib/render/scene";
-import { Tag } from "@/store/tag";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -52,8 +51,6 @@ export function ExportDialog({ open, onOpenChange }: DialogProps) {
 
 	const baseName = fileName || map.name || "export";
 
-	const tagsJson = () => JSON.stringify(Object.fromEntries(Tag.visible().map((t) => [t.id, t])));
-
 	const jsonPath = () =>
 		cmd.storeExport(selector, {
 			format: "json",
@@ -61,11 +58,10 @@ export function ExportDialog({ open, onOpenChange }: DialogProps) {
 			exportUnpanned: bypassUnpanned,
 			shape,
 			mapName: map.name,
-			tagsJson: tagsJson(),
 			extraFieldsJson: JSON.stringify(getAllFieldDefs()),
 		});
 	const csvPath = () => cmd.storeExport(selector, { format: "csv" });
-	const geojsonPath = () => cmd.storeExport(selector, { format: "geojson", tagsJson: tagsJson() });
+	const geojsonPath = () => cmd.storeExport(selector, { format: "geojson" });
 
 	const guard = (run: () => Promise<void>) => async () => {
 		try {

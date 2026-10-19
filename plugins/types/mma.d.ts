@@ -1517,18 +1517,14 @@ type ExportFormat =
 /**  A `{name, customCoordinates}` map file with its tags and field definitions. */
 ({
     format: "json";
-} & JsonExport) | (
+} & JsonExport) | 
 /**  A minimal lat/lng CSV file. */
-({
+{
     format: "csv";
-}) & {
-    tagsJson?: never;
-}) | 
+} | 
 /**  A GeoJSON FeatureCollection of points, each carrying its tag names in `properties.tags`. */
 {
     format: "geojson";
-    /**  Serialized `{id: {name, color}}` tag definitions from the store. */
-    tagsJson: string;
 };
 /**  Progress of a bulk export, emitted once per map. @unstable */
 type ExportProgress = {
@@ -1798,11 +1794,6 @@ type IssueThread = {
 /**  A map-making JSON export: how its coordinates render, and the map they belong to. @unstable */
 type JsonExport = {
     mapName: string;
-    /**
-     *  Serialized `{id: {name, color}}` tag definitions from the store, used to
-     *  convert numeric tag IDs back to human-readable names in the output.
-     */
-    tagsJson: string;
     extraFieldsJson: string | null;
 } & CoordOpts;
 /**  How a field value becomes a group key, for `storeGroupBy` and `storeCountBy`. */

@@ -56,7 +56,6 @@ describe("JSON import/export round-trip", () => {
 					exportUnpanned: true,
 					shape: "local",
 					mapName: map.name,
-					tagsJson: JSON.stringify(api.Tag.all()),
 					extraFieldsJson: null,
 				},
 			);
@@ -107,7 +106,6 @@ describe("JSON import/export round-trip", () => {
 					exportUnpanned: true,
 					shape: "local",
 					mapName: map.name,
-					tagsJson: JSON.stringify(api.Tag.all()),
 					extraFieldsJson: null,
 				},
 			);
@@ -138,7 +136,6 @@ describe("JSON import/export round-trip", () => {
 					exportUnpanned: true,
 					shape: "local",
 					mapName: map.name,
-					tagsJson: JSON.stringify(api.Tag.all()),
 					extraFieldsJson: null,
 				},
 			);
@@ -166,7 +163,6 @@ describe("JSON import/export round-trip", () => {
 					exportUnpanned: true,
 					shape: "local",
 					mapName: map.name,
-					tagsJson: JSON.stringify(api.Tag.all()),
 					extraFieldsJson: null,
 				},
 			);
@@ -252,10 +248,7 @@ describe("GeoJSON export", () => {
 	});
 	it("GeoJSON export produces valid FeatureCollection", async () => {
 		const result = await withApi(async (api) => {
-			const path = await api.cmd.storeExport(
-				{ type: "Everything" },
-				{ format: "geojson", tagsJson: JSON.stringify(api.Tag.all()) },
-			);
+			const path = await api.cmd.storeExport({ type: "Everything" }, { format: "geojson" });
 			const res = await fetch(api.mmaBufUrl(path));
 			const geojson = await res.text();
 			const parsed = JSON.parse(geojson);

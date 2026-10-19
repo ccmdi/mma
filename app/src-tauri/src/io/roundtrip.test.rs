@@ -5,7 +5,7 @@
 
 use super::parse::{parse_csv, parse_file};
 use crate::io::export::{csv_document, export_document, geojson_document, CoordOpts};
-use crate::store::engine::ValueRecord;
+use crate::store::engine::{IncomingRecords, ValueRecord};
 use crate::test_util::tag_ids;
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::{Location, LocationFlags, RawExtra};
@@ -212,19 +212,25 @@ fn view(l: &Location, names: &HashMap<Id<ValueRecord>, String>) -> Value {
     })
 }
 
-fn names(tags: &[ValueRecord]) -> HashMap<Id<ValueRecord>, String> {
-    tags.iter()
+fn names<'a>(tags: impl IntoIterator<Item = &'a ValueRecord>) -> HashMap<Id<ValueRecord>, String> {
+    tags.into_iter()
         .map(|rec| (rec.id, rec.name.clone().unwrap_or_default()))
         .collect()
 }
 
-/// `{id: record}`, the store's tag table as the export commands receive it.
-fn tags_json(tags: &[ValueRecord]) -> String {
-    let m: serde_json::Map<String, Value> = tags
-        .iter()
-        .map(|rec| (rec.id.to_string(), serde_json::to_value(rec).unwrap()))
-        .collect();
-    Value::Object(m).to_string()
+/// The store's records as the export receives them: here only the tags.
+fn tag_records(tags: &[ValueRecord]) -> IncomingRecords {
+    IncomingRecords::from([(
+        "tags".to_string(),
+        tags.iter().map(|rec| (rec.id, rec.clone())).collect(),
+    )])
+}
+
+fn parsed_tags(records: &IncomingRecords) -> Vec<ValueRecord> {
+    records
+        .get("tags")
+        .map(|tags| tags.values().cloned().collect())
+        .unwrap_or_default()
 }
 
 /// [`view`] less what `shape` drops. Country and state codes ride at the top level of every shape.
@@ -296,7 +302,7 @@ fn assert_shape_round_trip(fx: &Fixture, shape: MapShape) {
     let doc = export_document(
         fx.map_name,
         &fx.locations,
-        &tags_json(&fx.tags),
+        &tag_records(&fx.tags),
         fx.fields.clone(),
         &co,
     );
@@ -311,7 +317,8 @@ fn assert_shape_round_trip(fx: &Fixture, shape: MapShape) {
         fx.locations.len(),
         "{name}: row count"
     );
-    let (want, got) = (names(&fx.tags), names(&parsed.tags));
+    let got_tags = parsed_tags(&parsed.records);
+    let (want, got) = (names(&fx.tags), names(&got_tags));
     for (i, (a, b)) in fx.locations.iter().zip(&parsed.locations).enumerate() {
         assert_eq!(
             view(b, &got),
@@ -320,7 +327,7 @@ fn assert_shape_round_trip(fx: &Fixture, shape: MapShape) {
         );
     }
     assert_eq!(
-        tag_view(&parsed.tags, MapShape::Local),
+        tag_view(&got_tags, MapShape::Local),
         tag_view(&fx.tags, shape),
         "{name}: tags"
     );
@@ -349,7 +356,7 @@ fn the_csv_keeps_exactly_the_coordinates() {
             );
         }
         assert!(
-            parsed.tags.is_empty() && parsed.fields.is_none(),
+            parsed_tags(&parsed.records).is_empty() && parsed.fields.is_none(),
             "{}",
             fx.name
         );
@@ -359,7 +366,7 @@ fn the_csv_keeps_exactly_the_coordinates() {
 #[test]
 fn the_geojson_carries_points_and_tag_names_and_nothing_else() {
     for fx in catalog() {
-        let doc = geojson_document(&fx.locations, &tags_json(&fx.tags));
+        let doc = geojson_document(&fx.locations, &tag_records(&fx.tags));
         let features = doc["features"].as_array().unwrap();
         assert_eq!(features.len(), fx.locations.len(), "{}", fx.name);
         let want = names(&fx.tags);
@@ -380,4 +387,135 @@ fn the_geojson_carries_points_and_tag_names_and_nothing_else() {
             );
         }
     }
+}
+
+fn habitat(id: u32, name: &str, extra: &Value, order: Option<u32>) -> ValueRecord {
+    ValueRecord {
+        id: Id::new(id),
+        name: Some(name.into()),
+        order,
+        extra: extra.as_object().cloned().unwrap_or_default(),
+    }
+}
+
+/// A map whose plugin field `habitat` interns its values, beside tags.
+fn habitat_map() -> (Vec<Location>, IncomingRecords, Value) {
+    let locations = vec![
+        with_tags(
+            with_extra(loc(1.0, 2.0), &json!({ "habitat": [1, 2] })),
+            &[1],
+        ),
+        with_extra(loc(3.0, 4.0), &json!({ "habitat": [2], "score": 4 })),
+        loc(5.0, 6.0),
+    ];
+    let records = IncomingRecords::from([
+        (
+            "tags".to_string(),
+            HashMap::from([(Id::new(1), tag(1, "Rural", "#3a7fc2", Some(1), &[]))]),
+        ),
+        (
+            "habitat".to_string(),
+            HashMap::from([
+                (
+                    Id::new(1),
+                    habitat(
+                        1,
+                        "Wetland",
+                        &json!({ "color": "#00ff00", "icon": "reed" }),
+                        None,
+                    ),
+                ),
+                (Id::new(2), habitat(2, "Forest", &json!({}), Some(1))),
+            ]),
+        ),
+    ]);
+    let fields = json!({ "habitat": { "type": "array", "label": "Habitat", "interned": true } });
+    (locations, records, fields)
+}
+
+fn habitat_names(parsed: &IncomingRecords, l: &Location) -> Vec<String> {
+    let names = names(parsed["habitat"].values());
+    match l.extra.as_ref().and_then(|e| e.get("habitat")) {
+        Some(Value::Array(ids)) => ids
+            .iter()
+            .map(|id| names[&Id::new(id.as_u64().unwrap() as u32)].clone())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+#[test]
+fn an_interned_field_travels_by_name_with_its_records() {
+    let (locations, records, fields) = habitat_map();
+    let co = CoordOpts {
+        export_zoom: true,
+        export_unpanned: false,
+        shape: MapShape::Local,
+    };
+    let doc = export_document("Habitats", &locations, &records, Some(fields.clone()), &co);
+
+    assert_eq!(
+        doc["customCoordinates"][0]["extra"]["habitat"],
+        json!(["Wetland", "Forest"]),
+        "rows spell the values by name"
+    );
+    assert_eq!(
+        doc["extra"]["habitat"],
+        json!({
+            "Wetland": { "color": [0, 255, 0], "icon": "reed" },
+            "Forest": { "order": 1 }
+        }),
+        "the records travel under extra.<field>, beside extra.tags"
+    );
+    assert!(doc["extra"]["tags"]["Rural"].is_object());
+
+    let parsed = parse_file(&mut doc.to_string().into_bytes());
+    assert_eq!(parsed.fields, Some(fields));
+    let got: Vec<Vec<String>> = parsed
+        .locations
+        .iter()
+        .map(|l| habitat_names(&parsed.records, l))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            vec!["Wetland".to_string(), "Forest".to_string()],
+            vec!["Forest".to_string()],
+            vec![],
+        ]
+    );
+    let by_name: HashMap<String, &ValueRecord> = parsed.records["habitat"]
+        .values()
+        .map(|r| (r.name.clone().unwrap(), r))
+        .collect();
+    assert_eq!(
+        by_name["Wetland"].color().map(|c| c.to_string()),
+        Some("#00ff00".to_string())
+    );
+    assert_eq!(by_name["Wetland"].extra["icon"], "reed");
+    assert_eq!(by_name["Forest"].order, Some(1));
+    assert_eq!(
+        parsed.locations[1]
+            .extra
+            .as_ref()
+            .and_then(|e| e.get("score")),
+        Some(json!(4)),
+        "plain extra values are untouched"
+    );
+}
+
+#[test]
+fn a_shape_without_app_data_carries_no_plugin_interned_field() {
+    let (locations, records, fields) = habitat_map();
+    let co = CoordOpts {
+        export_zoom: true,
+        export_unpanned: false,
+        shape: MapShape::MapMaking,
+    };
+    let doc = export_document("Habitats", &locations, &records, Some(fields), &co);
+    assert!(doc["extra"].get("habitat").is_none());
+    assert!(doc["customCoordinates"][0]["extra"]
+        .get("habitat")
+        .is_none());
+    assert!(doc["extra"]["tags"]["Rural"].is_object());
 }

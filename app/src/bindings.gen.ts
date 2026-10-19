@@ -684,11 +684,9 @@ export type ExportFormat =
 	format: "json",
 } & JsonExport | 
 /**  A minimal lat/lng CSV file. */
-({ format: "csv" }) & { tagsJson?: never } | 
+{ format: "csv" } | 
 /**  A GeoJSON FeatureCollection of points, each carrying its tag names in `properties.tags`. */
-{ format: "geojson"; 
-/**  Serialized `{id: {name, color}}` tag definitions from the store. */
-tagsJson: string };
+{ format: "geojson" };
 
 /**  Progress of a bulk export, emitted once per map. */
 export type ExportProgress = {
@@ -886,11 +884,6 @@ export type IssueThread = {
 /**  A map-making JSON export: how its coordinates render, and the map they belong to. */
 export type JsonExport = {
 	mapName: string,
-	/**
-	 *  Serialized `{id: {name, color}}` tag definitions from the store, used to
-	 *  convert numeric tag IDs back to human-readable names in the output.
-	 */
-	tagsJson: string,
 	extraFieldsJson: string | null,
 } & CoordOpts;
 

@@ -64,7 +64,8 @@ pub(super) fn import_layer(window: &str) -> String {
     format!("import:{window}")
 }
 
-/// Stage rows and tag records in this window's import layer, replacing any import it held.
+/// Stage rows and their interned values' records in this window's import layer, replacing any
+/// import it held. A field the file interns and the map does not arrives spelled by name.
 /// Confirm applies them to the map; cancel discards them.
 pub(super) fn stage_parsed(
     store: &mut engine::Store,
@@ -74,8 +75,28 @@ pub(super) fn stage_parsed(
     store.close_layer(&import_layer(window));
     let run = store.next_id.take_run(parsed.locations.len() as u32);
     let now = util::now_unix();
-    let edits = parsed
-        .locations
+    let ParsedMap {
+        mut locations,
+        mut records,
+        ..
+    } = parsed;
+    let interned: HashSet<String> = store.registry().interned().map(str::to_string).collect();
+    records.retain(|field, held| {
+        if interned.contains(field) {
+            return true;
+        }
+        for loc in &mut locations {
+            let Some(mut extra) = loc.extra.as_ref().map(RawExtra::to_map) else {
+                continue;
+            };
+            if let Some(value) = extra.get_mut(field) {
+                *value = engine::spelled(value, held);
+                loc.extra = RawExtra::from_map(&extra);
+            }
+        }
+        false
+    });
+    let edits = locations
         .into_iter()
         .zip(run.iter())
         .map(|(row, id)| {
@@ -85,10 +106,6 @@ pub(super) fn stage_parsed(
             })
         })
         .collect();
-    let records = engine::IncomingRecords::from([(
-        "tags".to_string(),
-        parsed.tags.into_iter().map(|t| (t.id, t)).collect(),
-    )]);
     store
         .at(&import_target(window))
         .edit(edits, records, &mut None);
@@ -188,9 +205,20 @@ pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<Edito
     let path = preview_positions_path(window);
     fs::write(&path, &pos_buf)?;
 
+    let mut tags: Vec<ValueRecord> = parsed
+        .records
+        .get("tags")
+        .map(|tags| tags.values().cloned().collect())
+        .unwrap_or_default();
+    tags.sort_by(|a, b| {
+        a.order
+            .unwrap_or(u32::MAX)
+            .cmp(&b.order.unwrap_or(u32::MAX))
+            .then_with(|| a.name.cmp(&b.name))
+    });
     let preview = EditorImportPreview {
         location_count: n as u32,
-        tags: parsed.tags.clone(),
+        tags,
         fields,
         warnings: parsed.warnings.clone(),
         preview_positions_path: path.to_string_lossy().into_owned(),
@@ -345,6 +373,14 @@ pub(super) fn confirm_staged(
     };
     let bulk = bulk_tag_ids(&mut tags, tag_names);
     records.insert("tags".to_string(), tags);
+    for field in dropped
+        .iter()
+        .filter_map(|drop| drop.strip_prefix("extra."))
+    {
+        if !store.held_records(&key, field).is_empty() {
+            records.insert(field.to_string(), HashMap::new());
+        }
+    }
     let drops: Vec<&DroppableField> = DROPPABLE_FIELDS
         .iter()
         .filter(|(key, ..)| drop_set.contains(key))

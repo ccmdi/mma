@@ -58,6 +58,10 @@ fn meta_with(tags: &[ValueRecord]) -> HashMap<Id<ValueRecord>, ValueRecord> {
     tags.iter().map(|t| (t.id, t.clone())).collect()
 }
 
+fn tag_table(tags: &[ValueRecord]) -> engine::IncomingRecords {
+    engine::IncomingRecords::from([("tags".to_string(), meta_with(tags))])
+}
+
 #[test]
 fn reconcile_reuses_existing_tag_by_name() {
     let mut meta = meta_with(&[tag(5, "Urban")]);
@@ -207,65 +211,70 @@ fn reconcile_unordered_source_tags_join_the_end_of_the_order() {
 }
 
 #[test]
-fn renumber_ordered_tags_dense_and_leaves_none() {
-    let mut tags = vec![
+fn renumber_order_dense_and_leaves_none() {
+    let mut records = meta_with(&[
         ordered_tag(1, "C", 140),
         tag(2, "Bare"),
         ordered_tag(3, "A", 131),
-    ];
-    renumber_ordered_tags(&mut tags);
-    assert_eq!(tags[0].order, Some(2), "C after A");
-    assert_eq!(tags[1].order, None);
-    assert_eq!(tags[2].order, Some(1), "A first");
+    ]);
+    renumber_order(&mut records);
+    assert_eq!(records[&Id::new(1)].order, Some(2), "C after A");
+    assert_eq!(records[&Id::new(2)].order, None);
+    assert_eq!(records[&Id::new(3)].order, Some(1), "A first");
 }
 
-/// Scan `extra` from a buffer and pull tag meta, as the parse path does internally.
-fn tag_meta(buf: &[u8]) -> HashMap<String, ExtraTagMeta> {
+/// Scan `extra` from a buffer and read `field`'s records, as the parse path does internally.
+fn named_in(buf: &[u8], field: &str) -> HashMap<String, ValueRecord> {
     find_top_level_extra(buf, 0, 0)
-        .as_ref()
-        .map(tag_meta_from_extra)
+        .map(|extra| named_records(&extra, field))
+        .unwrap_or_default()
+}
+
+fn doclinks(record: &ValueRecord) -> Vec<&str> {
+    record
+        .extra
+        .get("doclinks")
+        .and_then(|d| d.as_array())
+        .map(|links| links.iter().filter_map(|l| l.as_str()).collect())
         .unwrap_or_default()
 }
 
 #[test]
-fn tag_meta_reads_color_and_order() {
+fn named_records_read_color_and_order() {
     let json = br#"{"customCoordinates":[],"extra":{"tags":{"Roof":{"color":[255,0,0],"order":3},"Wall":{"color":[0,128,255],"order":1}}}}"#;
-    let meta = tag_meta(json);
+    let meta = named_in(json, "tags");
     assert_eq!(meta.len(), 2);
 
     let roof = &meta["Roof"];
-    assert_eq!(roof.color, Some(Rgb([255, 0, 0])));
+    assert_eq!(roof.color(), Some(Rgb([255, 0, 0])));
     assert_eq!(roof.order, Some(3));
 
     let wall = &meta["Wall"];
-    assert_eq!(wall.color, Some(Rgb([0, 128, 255])));
+    assert_eq!(wall.color(), Some(Rgb([0, 128, 255])));
     assert_eq!(wall.order, Some(1));
 }
 
 #[test]
-fn tag_meta_missing_order() {
+fn named_records_missing_order() {
     let json = br#"{"extra":{"tags":{"NoOrder":{"color":[10,20,30]}}}}"#;
-    let meta = tag_meta(json);
-    let tag = &meta["NoOrder"];
-    assert_eq!(tag.color, Some(Rgb([10, 20, 30])));
+    let tag = &named_in(json, "tags")["NoOrder"];
+    assert_eq!(tag.color(), Some(Rgb([10, 20, 30])));
     assert_eq!(tag.order, None);
 }
 
 #[test]
-fn tag_meta_missing_color() {
+fn named_records_missing_color() {
     let json = br#"{"extra":{"tags":{"OnlyOrder":{"order":5}}}}"#;
-    let meta = tag_meta(json);
-    let tag = &meta["OnlyOrder"];
-    assert_eq!(tag.color, None);
+    let tag = &named_in(json, "tags")["OnlyOrder"];
+    assert_eq!(tag.color(), None);
     assert_eq!(tag.order, Some(5));
 }
 
 #[test]
-fn tag_meta_reads_doclinks_array() {
+fn named_records_read_doclinks_array() {
     let json = br#"{"extra":{"tags":{"Antenna":{"color":[1,2,3],"doclinks":["https://docs.google.com/document/d/abc/edit#heading=h.x1","https://docs.google.com/document/d/def/edit#heading=h.y2"]}}}}"#;
-    let meta = tag_meta(json);
     assert_eq!(
-        meta["Antenna"].doclinks,
+        doclinks(&named_in(json, "tags")["Antenna"]),
         vec![
             "https://docs.google.com/document/d/abc/edit#heading=h.x1",
             "https://docs.google.com/document/d/def/edit#heading=h.y2"
@@ -274,27 +283,24 @@ fn tag_meta_reads_doclinks_array() {
 }
 
 #[test]
-fn tag_meta_accepts_bare_doclink_string() {
-    let json = br#"{"extra":{"tags":{"Pole":{"doclink":"https://docs.google.com/document/d/abc/edit#heading=h.z"}}}}"#;
-    let meta = tag_meta(json);
-    assert_eq!(
-        meta["Pole"].doclinks,
-        vec!["https://docs.google.com/document/d/abc/edit#heading=h.z"]
-    );
-}
-
-#[test]
-fn tag_meta_no_doclinks() {
+fn named_records_no_doclinks() {
     let json = br#"{"extra":{"tags":{"Plain":{"order":1}}}}"#;
-    let meta = tag_meta(json);
-    assert!(meta["Plain"].doclinks.is_empty());
+    assert!(doclinks(&named_in(json, "tags")["Plain"]).is_empty());
 }
 
 #[test]
-fn tag_meta_no_extra() {
+fn named_records_keep_every_other_key() {
+    let json = br##"{"extra":{"habitat":{"Wetland":{"color":"#00ff00","icon":"reed","rank":2}}}}"##;
+    let wetland = &named_in(json, "habitat")["Wetland"];
+    assert_eq!(wetland.color(), Some(Rgb([0, 255, 0])));
+    assert_eq!(wetland.extra["icon"], "reed");
+    assert_eq!(wetland.extra["rank"], 2);
+}
+
+#[test]
+fn named_records_no_extra() {
     let json = br#"{"customCoordinates":[]}"#;
-    let meta = tag_meta(json);
-    assert!(meta.is_empty());
+    assert!(named_in(json, "tags").is_empty());
 }
 
 // -----------------------------------------------------------------------
@@ -481,10 +487,27 @@ fn boundaries_tag_meta_after_brace_heavy_strings() {
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
     assert_eq!(parsed.locations.len(), 1);
-    assert_eq!(parsed.tags.len(), 1);
-    assert_eq!(parsed.tags[0].name.as_deref(), Some("X"));
-    assert_eq!(parsed.tags[0].order, Some(7));
-    assert_eq!(parsed.tags[0].color(), "#010203".parse().ok());
+    let tags = tags_of(&parsed);
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0].name.as_deref(), Some("X"));
+    assert_eq!(tags[0].order, Some(7));
+    assert_eq!(tags[0].color(), "#010203".parse().ok());
+}
+
+/// The tag records a parse produced, by order then name.
+fn tags_of(parsed: &ParsedMap) -> Vec<ValueRecord> {
+    let mut tags: Vec<ValueRecord> = parsed
+        .records
+        .get("tags")
+        .map(|tags| tags.values().cloned().collect())
+        .unwrap_or_default();
+    tags.sort_by(|a, b| {
+        a.order
+            .unwrap_or(u32::MAX)
+            .cmp(&b.order.unwrap_or(u32::MAX))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    tags
 }
 
 /// A nameless map previews as no name at all; naming the placeholder is JS's job.
@@ -509,20 +532,21 @@ fn preview_leaves_an_unnamed_map_nameless() {
 }
 
 #[test]
-fn parsed_tags_sorted_by_order() {
+fn the_preview_lists_tags_by_order() {
     let json = br#"{"name":"test","customCoordinates":[
         {"lat":1,"lng":2,"extra":{"tags":["Beta","Alpha","Gamma"]}},
         {"lat":3,"lng":4,"extra":{"tags":["Alpha"]}}
     ],"extra":{"tags":{"Alpha":{"color":[255,0,0],"order":2},"Beta":{"color":[0,255,0],"order":0},"Gamma":{"color":[0,0,255],"order":1}}}}"#;
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
-    assert_eq!(parsed.tags.len(), 3);
-    assert_eq!(parsed.tags[0].name.as_deref(), Some("Beta"));
-    assert_eq!(parsed.tags[0].order, Some(0));
-    assert_eq!(parsed.tags[1].name.as_deref(), Some("Gamma"));
-    assert_eq!(parsed.tags[1].order, Some(1));
-    assert_eq!(parsed.tags[2].name.as_deref(), Some("Alpha"));
-    assert_eq!(parsed.tags[2].order, Some(2));
+    let tags = build_preview(&parsed, "tags-by-order").unwrap().tags;
+    assert_eq!(tags.len(), 3);
+    assert_eq!(tags[0].name.as_deref(), Some("Beta"));
+    assert_eq!(tags[0].order, Some(0));
+    assert_eq!(tags[1].name.as_deref(), Some("Gamma"));
+    assert_eq!(tags[1].order, Some(1));
+    assert_eq!(tags[2].name.as_deref(), Some("Alpha"));
+    assert_eq!(tags[2].order, Some(2));
 }
 
 // -----------------------------------------------------------------------
@@ -534,10 +558,8 @@ fn parsed_tags_sorted_by_order() {
 fn parse_one(json: &[u8]) -> (Location, Vec<ValueRecord>) {
     let mut buf = json.to_vec();
     let p = parse_single_json_mut(&mut buf);
-    (
-        p.locations.into_iter().next().expect("one location"),
-        p.tags,
-    )
+    let tags = tags_of(&p);
+    (p.locations.into_iter().next().expect("one location"), tags)
 }
 
 #[test]
@@ -1063,7 +1085,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     );
     let parsed = ParsedMap {
         locations: vec![loc_with_tags(1, vec![1]), loc_with_tags(2, vec![1, 2])],
-        tags: vec![tag(1, "Shared"), tag(2, "Unique")],
+        records: tag_table(&[tag(1, "Shared"), tag(2, "Unique")]),
         ..Default::default()
     };
 
@@ -1074,10 +1096,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
             .into_iter()
             .map(mma_algebra::Op::Add)
             .collect(),
-        engine::IncomingRecords::from([(
-            "tags".to_string(),
-            parsed.tags.into_iter().map(|t| (t.id, t)).collect(),
-        )]),
+        parsed.records,
         &mut None,
     );
     let event = feed
@@ -1179,7 +1198,7 @@ fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
     let mut store = store_tagged(&[tag(5, "Shared")]);
     let parsed = ParsedMap {
         locations: vec![loc_with_tags(0, vec![1]), loc_with_tags(0, vec![1, 2])],
-        tags: vec![tag(1, "shared"), tag(2, "Unique")],
+        records: tag_table(&[tag(1, "shared"), tag(2, "Unique")]),
         ..Default::default()
     };
     stage_parsed(&mut store, "tags-win", parsed);
@@ -1208,7 +1227,7 @@ fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
     let mut store = store_tagged(&[]);
     let parsed = ParsedMap {
         locations: vec![loc_with_tags(0, vec![1])],
-        tags: vec![tag(1, "Unwanted")],
+        records: tag_table(&[tag(1, "Unwanted")]),
         ..Default::default()
     };
     stage_parsed(&mut store, "drop-win", parsed);
@@ -1233,7 +1252,7 @@ fn every_field_the_preview_counts_drops_on_confirm() {
     };
     let parsed = ParsedMap {
         locations: vec![carried],
-        tags: vec![tag(1, "Unwanted")],
+        records: tag_table(&[tag(1, "Unwanted")]),
         ..Default::default()
     };
     let counted: Vec<String> = build_preview(&parsed, "every-drop-win")
@@ -1260,7 +1279,7 @@ fn dropping_the_files_tags_still_applies_the_named_tags() {
     let mut store = store_tagged(&[tag(5, "Shared")]);
     let parsed = ParsedMap {
         locations: vec![loc_with_tags(0, vec![1]), loc_with_tags(0, vec![])],
-        tags: vec![tag(1, "Unwanted")],
+        records: tag_table(&[tag(1, "Unwanted")]),
         ..Default::default()
     };
     let names = ["shared", "France"].map(String::from);
@@ -1426,4 +1445,115 @@ fn csv_with_bom_via_parse_file() {
     let parsed = parse_file(&mut buf);
     assert_eq!(parsed.locations.len(), 1);
     assert_eq!(parsed.locations[0].lat, 10.0);
+}
+
+// -----------------------------------------------------------------------
+// A plugin field that interns its values travels by name, like tags
+// -----------------------------------------------------------------------
+
+const HABITAT_FILE: &[u8] = br#"{"name":"Habitats","customCoordinates":[
+    {"lat":1,"lng":2,"extra":{"habitat":["Wetland","Forest"]}},
+    {"lat":3,"lng":4,"extra":{"habitat":["Forest"],"score":4}}
+],"extra":{"fields":{"habitat":{"type":"array","interned":true}},"habitat":{"Wetland":{"color":[0,255,0],"icon":"reed"}}}}"#;
+
+fn habitat_def() -> HashMap<String, maps::FieldDef> {
+    HashMap::from([(
+        "habitat".to_string(),
+        maps::FieldDef {
+            field_type: maps::FieldType::Array,
+            label: None,
+            values: None,
+            comparison: None,
+            interned: true,
+            builtin: None,
+        },
+    )])
+}
+
+fn habitat_names(records: &HashMap<Id<ValueRecord>, ValueRecord>, row: &Location) -> Vec<String> {
+    match row.extra.as_ref().and_then(|e| e.get("habitat")) {
+        Some(serde_json::Value::Array(ids)) => ids
+            .iter()
+            .map(|id| engine::value_name(records, Id::new(id.as_u64().unwrap() as u32)))
+            .collect(),
+        other => panic!("habitat should hold ids, found {other:?}"),
+    }
+}
+
+fn import_into(store: &mut Store, window: &str) -> Vec<Location> {
+    let parsed = parse_single_json_mut(&mut HABITAT_FILE.to_vec());
+    stage_parsed(store, window, parsed);
+    confirm_staged(store, window, &[], &[]).unwrap();
+    store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything)
+}
+
+#[test]
+fn an_import_matches_a_plugin_fields_values_to_the_maps_by_name() {
+    let mut store = Store::new();
+    store.meta = engine::Tracked::new(MapMeta {
+        id: Id::new("test".into()),
+        ..Default::default()
+    });
+    store.field_defs = engine::Tracked::new(habitat_def());
+    // The file numbers Wetland 1 and Forest 2; the map already holds Forest as 1.
+    store.records.insert(
+        "habitat".into(),
+        engine::Tracked::new(meta_with(&[tag(1, "Forest")])),
+    );
+
+    let rows = import_into(&mut store, "habitat-win");
+    let records = store.records["habitat"].clone();
+    assert_eq!(habitat_names(&records, &rows[0]), ["Wetland", "Forest"]);
+    assert_eq!(habitat_names(&records, &rows[1]), ["Forest"]);
+    assert_eq!(records.len(), 2, "Forest is reused, not duplicated");
+    let wetland = records
+        .values()
+        .find(|r| r.name.as_deref() == Some("Wetland"))
+        .unwrap();
+    assert_eq!(wetland.color(), Some(Rgb([0, 255, 0])));
+    assert_eq!(wetland.extra["icon"], "reed");
+}
+
+#[test]
+fn a_field_the_open_map_does_not_intern_arrives_by_name() {
+    let mut store = Store::new();
+    store.meta = engine::Tracked::new(MapMeta {
+        id: Id::new("test".into()),
+        ..Default::default()
+    });
+    let rows = import_into(&mut store, "plain-win");
+    assert_eq!(
+        rows[0].extra.as_ref().and_then(|e| e.get("habitat")),
+        Some(serde_json::json!(["Wetland", "Forest"]))
+    );
+    assert!(!store.records.contains_key("habitat"));
+}
+
+#[test]
+fn a_bulk_import_keeps_every_interned_fields_records() {
+    let conn = Connection::open_in_memory().unwrap();
+    storage::run_migrations_on(&conn).unwrap();
+    let parsed = parse_single_json_mut(&mut HABITAT_FILE.to_vec());
+    let dir = TempDir::new("mma_test_import_habitat");
+    let id = Id::new("habitats".into());
+    write_map_to_db(&conn, parsed, &id, &dir.join("habitats.arrow")).unwrap();
+
+    let records = engine::load_value_records(&conn, &id).unwrap();
+    let mut names: Vec<_> = records["habitat"]
+        .values()
+        .filter_map(|r| r.name.clone())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["Forest", "Wetland"]);
+}
+
+#[test]
+fn a_file_cannot_intern_a_key_the_map_file_keeps_for_itself() {
+    let mut map = parse_single_json_mut(
+        &mut br#"{"customCoordinates":[],"extra":{"fields":{"settings":{"type":"array","interned":true}}}}"#
+            .to_vec(),
+    );
+    assert!(map_extra_json(&mut map).is_err());
 }

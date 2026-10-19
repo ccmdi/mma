@@ -1,6 +1,6 @@
-//! Turning a file into a `ParsedMap`: SIMD JSON object scanning, CSV, zip, tag interning.
+//! Turning a file into a `ParsedMap`: SIMD JSON object scanning, CSV, zip, value interning.
 
-use crate::store::engine::ValueRecord;
+use crate::store::engine::{IncomingRecords, ValueRecord};
 use crate::store::maps::MapSettings;
 use crate::types;
 use crate::types::{
@@ -48,8 +48,8 @@ pub(crate) struct ParsedMap {
     pub(crate) name: String,
     pub(super) folder: Option<String>,
     pub(crate) locations: Vec<Location>,
-    /// Tag records under provisional ids, chunk-merge locals the store remaps.
-    pub(crate) tags: Vec<ValueRecord>,
+    /// Each interned field's records under provisional ids, which the store remaps.
+    pub(crate) records: IncomingRecords,
     pub(super) fields: Option<Value>,
     pub(crate) warnings: Vec<String>,
     /// Map settings carried by the import (`extra.settings`)
@@ -176,12 +176,6 @@ pub(super) fn parse_csv(text: &str) -> ParsedMap {
     }
 }
 
-pub(super) struct ExtraTagMeta {
-    pub(super) color: Option<Rgb>,
-    pub(super) order: Option<u32>,
-    pub(super) doclinks: Vec<String>,
-}
-
 /// Parse the top-level `"extra"` object (sibling of the coordinate array) into a
 /// JSON Value without parsing the entire document. Callers that already know where
 /// the coordinate array ends pass
@@ -200,42 +194,83 @@ pub(super) fn find_top_level_extra(buf: &[u8], start: usize, start_depth: i32) -
     out
 }
 
-/// Tag color/order metadata from a parsed top-level `"extra"."tags"` block.
-pub(super) fn tag_meta_from_extra(extra: &Value) -> HashMap<String, ExtraTagMeta> {
-    let mut meta = HashMap::new();
-    if let Some(tags_obj) = extra.get("tags").and_then(|t| t.as_object()) {
-        for (name, entry) in tags_obj {
-            let color = entry
-                .get("color")
-                .and_then(|c| c.as_array())
-                .and_then(|arr| {
-                    let rgb = Value::Array(arr.get(..3)?.to_vec());
-                    serde_json::from_value::<Rgb>(rgb).ok()
-                });
-            let order = entry.get("order").and_then(Value::as_u64).map(|o| o as u32);
-            // `doclinks` array is the convention; a bare `doclink` string is tolerated.
-            let doclinks = match entry.get("doclinks") {
-                Some(Value::Array(arr)) => arr
-                    .iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect(),
-                _ => entry
-                    .get("doclink")
-                    .and_then(|v| v.as_str())
-                    .map(|s| vec![s.to_string()])
-                    .unwrap_or_default(),
+/// The records a parsed top-level `"extra"` describes for `field` under `"extra".<field>`, by
+/// name and with no id yet. A colour reads as `[r, g, b]` or as a string; every other key is
+/// kept as the file gives it.
+pub(super) fn named_records(extra: &Value, field: &str) -> HashMap<String, ValueRecord> {
+    let Some(block) = extra.get(field).and_then(Value::as_object) else {
+        return HashMap::new();
+    };
+    block
+        .iter()
+        .map(|(name, entry)| {
+            let mut meta = entry.as_object().cloned().unwrap_or_default();
+            let order = meta
+                .remove("order")
+                .and_then(|o| o.as_u64())
+                .map(|o| o as u32);
+            let color = meta.remove("color").and_then(|c| match c {
+                Value::Array(arr) => {
+                    serde_json::from_value::<Rgb>(Value::Array(arr.get(..3)?.to_vec())).ok()
+                }
+                Value::String(s) => s.parse().ok(),
+                _ => None,
+            });
+            if let Some(color) = color {
+                meta.insert("color".into(), color.to_string().into());
+            }
+            let record = ValueRecord {
+                id: Id::default(),
+                name: Some(name.clone()),
+                order,
+                extra: meta,
             };
-            meta.insert(
-                name.clone(),
-                ExtraTagMeta {
-                    color,
-                    order,
-                    doclinks,
-                },
-            );
-        }
+            (name.clone(), record)
+        })
+        .collect()
+}
+
+/// The record for value `name` under `id`: the one `named` describes, else a bare one.
+fn named_record(
+    named: &HashMap<String, ValueRecord>,
+    name: String,
+    id: Id<ValueRecord>,
+) -> ValueRecord {
+    let described = named.get(&name).cloned().unwrap_or_default();
+    ValueRecord {
+        id,
+        name: Some(name),
+        ..described
     }
-    meta
+}
+
+/// Spell `field`'s values on every row as provisional ids instead of the names the file gives,
+/// and return the records those ids stand for. A value that is not a name is dropped.
+fn intern_extra_field(
+    locations: &mut [Location],
+    field: &str,
+    named: &HashMap<String, ValueRecord>,
+) -> HashMap<Id<ValueRecord>, ValueRecord> {
+    let mut ids: HashMap<String, Id<ValueRecord>> = HashMap::new();
+    for loc in locations {
+        let Some(Value::Array(values)) = loc.extra.as_ref().and_then(|e| e.get(field)) else {
+            continue;
+        };
+        let held: Vec<Value> = values
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|name| {
+                let next = Id::new(ids.len() as u32 + 1);
+                ids.entry(name.to_string()).or_insert(next).get().into()
+            })
+            .collect();
+        let mut extra = loc.extra.as_ref().map(RawExtra::to_map).unwrap_or_default();
+        extra.insert(field.to_string(), Value::Array(held));
+        loc.extra = RawExtra::from_map(&extra);
+    }
+    ids.into_iter()
+        .map(|(name, id)| (id, named_record(named, name, id)))
+        .collect()
 }
 
 /// Map settings carried by an import, from a parsed top-level `"extra"."settings"` block.
@@ -777,10 +812,12 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     // array's closing `]` (depth 2, the `]` drops it to 1) instead of rescanning
     // the whole buffer. Parse it once, derive both tag meta and virtual tags.
     let extra_val = find_top_level_extra(buf, arr_start + arr_close, 2);
-    let tag_meta = extra_val
-        .as_ref()
-        .map(tag_meta_from_extra)
-        .unwrap_or_default();
+    let named = |field: &str| {
+        extra_val
+            .as_ref()
+            .map(|extra| named_records(extra, field))
+            .unwrap_or_default()
+    };
     let settings = extra_val
         .as_ref()
         .map(settings_from_extra)
@@ -818,31 +855,23 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     }
     let t_merge = t0.elapsed();
 
-    let mut tags: Vec<ValueRecord> = tags_by_name
+    let tag_meta = named("tags");
+    let mut records = IncomingRecords::from([(
+        "tags".to_string(),
+        tags_by_name
+            .into_iter()
+            .map(|(name, id)| (Id::new(id), named_record(&tag_meta, name, Id::new(id))))
+            .collect(),
+    )]);
+    let declared = fields.as_ref().and_then(Value::as_object);
+    for (field, _) in declared
         .into_iter()
-        .map(|(name, id)| {
-            let meta = tag_meta.get(&name);
-            let mut extra = serde_json::Map::new();
-            if let Some(doclinks) = meta.map(|m| &m.doclinks).filter(|d| !d.is_empty()) {
-                extra.insert("doclinks".into(), serde_json::json!(doclinks));
-            }
-            if let Some(color) = meta.and_then(|m| m.color.as_ref()) {
-                extra.insert("color".into(), color.to_string().into());
-            }
-            ValueRecord {
-                id: Id::new(id),
-                name: Some(name),
-                order: meta.and_then(|m| m.order),
-                extra,
-            }
-        })
-        .collect();
-    tags.sort_by(|a, b| {
-        a.order
-            .unwrap_or(u32::MAX)
-            .cmp(&b.order.unwrap_or(u32::MAX))
-            .then_with(|| a.name.cmp(&b.name))
-    });
+        .flatten()
+        .filter(|(field, def)| *field != "tags" && def.get("interned") == Some(&Value::Bool(true)))
+    {
+        let held = intern_extra_field(&mut locations, field, &named(field));
+        records.insert(field.clone(), held);
+    }
 
     log::debug!(
         "[parse] scan={:.0}ms boundaries={:.0}ms parse={:.0}ms merge={:.0}ms total={:.0}ms objs={}",
@@ -858,7 +887,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
         name,
         folder,
         locations,
-        tags,
+        records,
         fields,
         warnings,
         settings,
@@ -904,19 +933,15 @@ pub(super) fn merge_settings(
     serde_json::from_value(v).unwrap_or(base)
 }
 
-/// Rebase ordered tags to dense 1..k, keeping their relative (order, name)
-/// ordering; unordered tags stay unordered. Source order values are never stored.
-pub(super) fn renumber_ordered_tags(tags: &mut [ValueRecord]) {
-    let mut ordered: Vec<usize> = (0..tags.len())
-        .filter(|&i| tags[i].order.is_some())
+/// Rebase ordered records to dense 1..k, keeping their relative (order, name)
+/// ordering; unordered records stay unordered. Source order values are never stored.
+pub(super) fn renumber_order(records: &mut HashMap<Id<ValueRecord>, ValueRecord>) {
+    let mut ordered: Vec<&mut ValueRecord> = records
+        .values_mut()
+        .filter(|record| record.order.is_some())
         .collect();
-    ordered.sort_by(|&a, &b| {
-        tags[a]
-            .order
-            .cmp(&tags[b].order)
-            .then_with(|| tags[a].name.cmp(&tags[b].name))
-    });
-    for (n, i) in ordered.into_iter().enumerate() {
-        tags[i].order = Some(n as u32 + 1);
+    ordered.sort_by(|a, b| a.order.cmp(&b.order).then_with(|| a.name.cmp(&b.name)));
+    for (n, record) in ordered.into_iter().enumerate() {
+        record.order = Some(n as u32 + 1);
     }
 }

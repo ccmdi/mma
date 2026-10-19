@@ -75,8 +75,10 @@ fn read_source(address: &str) -> AppResult<ParsedMap> {
 }
 
 fn remote_tags(map: &ParsedMap) -> Vec<RemoteTag> {
-    map.tags
-        .iter()
+    map.records
+        .get("tags")
+        .into_iter()
+        .flat_map(HashMap::values)
         .filter_map(|rec| {
             Some(RemoteTag {
                 name: rec.name.clone()?,
@@ -89,8 +91,10 @@ fn remote_tags(map: &ParsedMap) -> Vec<RemoteTag> {
 
 fn normalized(map: ParsedMap) -> Vec<NormalizedSyncLocation> {
     let names: HashMap<Id<ValueRecord>, String> = map
-        .tags
-        .iter()
+        .records
+        .get("tags")
+        .into_iter()
+        .flat_map(HashMap::values)
         .filter_map(|rec| Some((rec.id, rec.name.clone()?)))
         .collect();
     let tag_name = |id: Id<ValueRecord>| names.get(&id).cloned();

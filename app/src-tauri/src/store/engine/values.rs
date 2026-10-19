@@ -90,6 +90,34 @@ pub(crate) fn held_ids(row: &selections::RowRef<'_, '_>, field: &str) -> Vec<Id<
     }
 }
 
+/// The name `id`'s record gives it, else the id itself.
+pub(crate) fn value_name(
+    records: &HashMap<Id<ValueRecord>, ValueRecord>,
+    id: Id<ValueRecord>,
+) -> String {
+    records
+        .get(&id)
+        .and_then(|record| record.name.clone())
+        .unwrap_or_else(|| id.to_string())
+}
+
+/// An interned field's id list with each id spelled as its name. Anything else is returned as is.
+pub(crate) fn spelled(
+    value: &serde_json::Value,
+    records: &HashMap<Id<ValueRecord>, ValueRecord>,
+) -> serde_json::Value {
+    match value {
+        serde_json::Value::Array(ids) => ids
+            .iter()
+            .filter_map(|id| {
+                let id = Id::new(u32::try_from(id.as_u64()?).ok()?);
+                Some(serde_json::Value::String(value_name(records, id)))
+            })
+            .collect(),
+        other => other.clone(),
+    }
+}
+
 /// The records among `records` that `rows` reference, by field.
 pub(crate) fn referenced_records(records: &IncomingRecords, rows: &[Location]) -> IncomingRecords {
     records
@@ -182,6 +210,16 @@ impl<'a> FieldValues<'a> {
             .by_value
             .get(key)
             .map_or(0, |ids| ids.len() as usize)
+    }
+
+    /// The records of the values at least one row holds.
+    pub(crate) fn carried(&self) -> HashMap<Id<ValueRecord>, ValueRecord> {
+        self.records
+            .into_iter()
+            .flatten()
+            .filter(|(id, _)| self.count(&id.to_string()) > 0)
+            .map(|(&id, record)| (id, record.clone()))
+            .collect()
     }
 
     pub(crate) fn record(&self, id: Id<ValueRecord>) -> Option<&'a ValueRecord> {

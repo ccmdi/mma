@@ -924,7 +924,6 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					exportUnpanned: true,
 					shape: "local",
 					mapName: map.name,
-					tagsJson: JSON.stringify(api.Tag.all()),
 					extraFieldsJson: JSON.stringify(api.Store.get().fieldDefs),
 				};
 				const start = performance.now();

@@ -396,7 +396,6 @@ describe("Import — export/reimport tag round-trip", () => {
 					exportUnpanned: true,
 					shape: "local",
 					mapName: map.name,
-					tagsJson: JSON.stringify(api.Tag.all()),
 					extraFieldsJson: null,
 				},
 			);

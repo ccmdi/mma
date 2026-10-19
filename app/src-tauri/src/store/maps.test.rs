@@ -1294,3 +1294,28 @@ fn duplicating_and_deleting_a_map_are_spawned_off_the_main_thread() {
     }
     let _ = (duplicate, delete);
 }
+
+#[test]
+fn no_interned_field_may_take_a_key_the_map_file_keeps_for_itself() {
+    let conn = setup_real_db();
+    for mut mgr in [StoreManager::new(), open_m1(&conn)] {
+        let mut fields = HashMap::new();
+        fields.insert(
+            "settings".to_string(),
+            FieldDef {
+                field_type: FieldType::Array,
+                label: None,
+                values: None,
+                comparison: None,
+                interned: true,
+                builtin: None,
+            },
+        );
+        let patch = Patch::<MapMeta> {
+            id: Id::new("m1".into()),
+            extra: Some(MapExtra { fields }),
+            ..Default::default()
+        };
+        assert!(update_map_meta(&mut mgr, &conn, patch).is_err());
+    }
+}

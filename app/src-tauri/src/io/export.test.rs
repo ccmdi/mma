@@ -11,6 +11,32 @@ use std::fs::File;
 use std::future::Future;
 use std::path::PathBuf;
 
+fn tags_named(names: &[(u32, &str)]) -> IncomingRecords {
+    IncomingRecords::from([(
+        "tags".to_string(),
+        names
+            .iter()
+            .map(|&(id, name)| {
+                let record = ValueRecord {
+                    id: Id::new(id),
+                    name: Some(name.into()),
+                    ..Default::default()
+                };
+                (Id::new(id), record)
+            })
+            .collect(),
+    )])
+}
+
+fn record(name: &str, order: Option<u32>, extra: serde_json::Value) -> ValueRecord {
+    ValueRecord {
+        id: Id::new(1),
+        name: Some(name.into()),
+        order,
+        extra: extra.as_object().cloned().unwrap_or_default(),
+    }
+}
+
 fn make_loc(
     flags: LocationFlags,
     tags: Vec<u32>,
@@ -37,13 +63,13 @@ fn coord_hoists_country_state_and_nests_other_extra() {
     extra.insert("stateCode".into(), json!("CA"));
     extra.insert("note".into(), json!("hi"));
     let l = make_loc(LocationFlags::empty(), vec![1, 99], Some(extra));
-    let id_to_name = HashMap::from([(Id::new(1), "red".to_string())]);
+    let records = tags_named(&[(1, "red")]);
     let co = CoordOpts {
         export_zoom: false,
         export_unpanned: true,
         shape: MapShape::Local,
     };
-    let v = location_to_coord(&l, &id_to_name, &co);
+    let v = location_to_coord(&l, &records, &co);
 
     assert_eq!(v["heading"], json!(0.001)); // unpanned convention
     assert_eq!(v["zoom"], json!(0.0)); // gated off
@@ -61,13 +87,13 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
     let mut extra = serde_json::Map::new();
     extra.insert("note".into(), json!("hi"));
     let l = make_loc(LocationFlags::LOAD_AS_PANO_ID, vec![1], Some(extra));
-    let id_to_name = HashMap::from([(Id::new(1), "red".to_string())]);
+    let records = tags_named(&[(1, "red")]);
     let co = CoordOpts {
         export_zoom: true,
         export_unpanned: false,
         shape: MapShape::Local,
     };
-    let v = location_to_coord(&l, &id_to_name, &co);
+    let v = location_to_coord(&l, &records, &co);
 
     assert_eq!(v["note"], serde_json::Value::Null); // NOT spread at top level
     assert_eq!(v["extra"]["note"], json!("hi")); // nested instead
@@ -81,51 +107,86 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
 #[test]
 fn unknown_tag_id_falls_back_to_stringified_id() {
     let l = make_loc(LocationFlags::empty(), vec![7], None);
-    let id_to_name = HashMap::new();
+    let records = IncomingRecords::new();
     let co = CoordOpts {
         export_zoom: true,
         export_unpanned: false,
         shape: MapShape::Local,
     };
-    let v = location_to_coord(&l, &id_to_name, &co);
+    let v = location_to_coord(&l, &records, &co);
     assert_eq!(v["extra"]["tags"], json!(["7"]));
 }
 
 #[test]
-fn tag_meta_roundtrips_color_and_order() {
-    let (tag_defs, _) = parse_tag_defs(
-        r##"{"1": {"name": "red", "color": "#ff0000", "order": 3}, "2": {"name": "blue", "color": "#0000ff"}}"##,
+fn record_meta_writes_color_as_rgb_and_order() {
+    let red = record("red", Some(3), json!({ "color": "#ff0000" }));
+    assert_eq!(
+        record_meta(&red, MapShape::Local),
+        json!({ "color": [255, 0, 0], "order": 3 })
     );
-    let meta = tag_color_meta(&tag_defs, MapShape::Local);
-    assert_eq!(meta["red"]["color"], serde_json::json!([255, 0, 0]));
-    assert_eq!(meta["red"]["order"], serde_json::json!(3));
-    assert_eq!(meta["blue"]["color"], serde_json::json!([0, 0, 255]));
-    assert!(meta["blue"].get("order").is_none());
+    let blue = record("blue", None, json!({ "color": "#0000ff" }));
+    assert_eq!(
+        record_meta(&blue, MapShape::Local),
+        json!({ "color": [0, 0, 255] })
+    );
 }
 
 #[test]
-fn tag_meta_roundtrips_doclinks() {
-    let (tag_defs, _) = parse_tag_defs(
-        r##"{"1": {"name": "antenna", "color": "#ff0000", "doclinks": ["https://docs.google.com/document/d/abc/edit#heading=h.x"]}, "2": {"name": "plain", "color": "#0000ff", "doclinks": []}}"##,
+fn record_meta_keeps_every_other_key_only_with_app_data() {
+    let antenna = record(
+        "antenna",
+        Some(2),
+        json!({ "color": "#ff0000", "doclinks": ["https://example.com/doc"], "icon": "mast" }),
     );
-    let meta = tag_color_meta(&tag_defs, MapShape::Local);
     assert_eq!(
-        meta["antenna"]["doclinks"],
-        serde_json::json!(["https://docs.google.com/document/d/abc/edit#heading=h.x"])
+        record_meta(&antenna, MapShape::Local),
+        json!({
+            "color": [255, 0, 0],
+            "order": 2,
+            "doclinks": ["https://example.com/doc"],
+            "icon": "mast"
+        })
     );
-    // Empty doclinks are omitted from the export block entirely.
-    assert!(meta["plain"].get("doclinks").is_none());
+    assert_eq!(
+        record_meta(&antenna, MapShape::MapMaking),
+        json!({ "color": [255, 0, 0], "order": 2 })
+    );
 }
 
 #[test]
-fn tag_meta_keeps_a_tag_without_a_color() {
-    let (tag_defs, _) = parse_tag_defs(
-        r##"{"1": {"name": "plain", "order": 2, "doclinks": ["https://example.com/doc"]}}"##,
+fn record_meta_keeps_a_value_without_a_color() {
+    let plain = record(
+        "plain",
+        Some(2),
+        json!({ "doclinks": ["https://example.com/doc"] }),
     );
-    let meta = tag_color_meta(&tag_defs, MapShape::Local);
     assert_eq!(
-        meta["plain"],
-        serde_json::json!({"order": 2, "doclinks": ["https://example.com/doc"]})
+        record_meta(&plain, MapShape::Local),
+        json!({"order": 2, "doclinks": ["https://example.com/doc"]})
+    );
+}
+
+#[test]
+fn rows_spell_every_interned_field_by_name() {
+    let mut extra = serde_json::Map::new();
+    extra.insert("habitat".into(), json!([2, 9]));
+    extra.insert("score".into(), json!([2, 9]));
+    let l = make_loc(LocationFlags::empty(), vec![], Some(extra));
+    let records = IncomingRecords::from([(
+        "habitat".to_string(),
+        HashMap::from([(Id::new(2), record("Forest", None, json!({})))]),
+    )]);
+    let co = CoordOpts {
+        export_zoom: true,
+        export_unpanned: false,
+        shape: MapShape::Local,
+    };
+    let v = location_to_coord(&l, &records, &co);
+    assert_eq!(v["extra"]["habitat"], json!(["Forest", "9"]));
+    assert_eq!(
+        v["extra"]["score"],
+        json!([2, 9]),
+        "a field that interns nothing keeps its values"
     );
 }
 

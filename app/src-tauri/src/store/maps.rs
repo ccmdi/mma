@@ -362,7 +362,34 @@ fn modernize_field_defs(raw: &mut serde_json::Value) {
     }
 }
 
+/// Keys a map file's top-level `extra` uses for itself. An interned field's records travel
+/// under `extra.<field>`, so no interned field may take one of these.
+const FILE_EXTRA_KEYS: [&str; 3] = ["fields", "settings", "infoCoordinates"];
+
+/// Refuse any of `interned` that a map file's top-level `extra` keeps for itself.
+pub(crate) fn check_interned_keys<'a>(
+    interned: impl IntoIterator<Item = &'a str>,
+) -> AppResult<()> {
+    match interned
+        .into_iter()
+        .find(|key| FILE_EXTRA_KEYS.contains(key))
+    {
+        Some(key) => Err(AppError(format!(
+            "an interned field cannot be named '{key}'"
+        ))),
+        None => Ok(()),
+    }
+}
+
 impl MapExtra {
+    /// The fields whose values the map interns.
+    fn interned(&self) -> impl Iterator<Item = &str> {
+        self.fields
+            .iter()
+            .filter(|(_, def)| def.interned)
+            .map(|(key, _)| key.as_str())
+    }
+
     /// Parse from the `maps.extra` JSON column. Field defs registered before ingest
     /// canonicalized keys can carry escapes and match no location, so decode them
     /// here; the next def write persists the repair. Default on invalid JSON.
@@ -909,6 +936,9 @@ fn update_map_meta(
     conn: &Connection,
     patch: Patch<MapMeta>,
 ) -> AppResult<Option<engine::Mutation>> {
+    if let Some(extra) = &patch.extra {
+        check_interned_keys(extra.interned())?;
+    }
     let Ok(store) = mgr.store_for_map(&patch.id) else {
         storage::patch_row(
             conn,

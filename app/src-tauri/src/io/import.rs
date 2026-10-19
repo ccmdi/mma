@@ -52,7 +52,7 @@ impl From<&ParsedMap> for ImportPreviewEntry {
             name: (!m.name.is_empty()).then(|| m.name.clone()),
             folder: m.folder.clone(),
             location_count: m.locations.len() as u32,
-            tag_count: m.tags.len() as u32,
+            tag_count: m.records.get("tags").map_or(0, |tags| tags.len() as u32),
             warnings: m.warnings.clone(),
         }
     }
@@ -76,6 +76,12 @@ fn map_extra_json(map: &mut ParsedMap) -> AppResult<String> {
         .take()
         .and_then(|f| f.as_object().cloned())
         .unwrap_or_default();
+    maps::check_interned_keys(
+        fields
+            .iter()
+            .filter(|(_, def)| def.get("interned") == Some(&serde_json::Value::Bool(true)))
+            .map(|(key, _)| key.as_str()),
+    )?;
     let extras: Vec<&RawExtra> = map
         .locations
         .iter()
@@ -99,10 +105,10 @@ fn write_map_to_db(
     map_id: &Id<MapMeta, String>,
     arrow_path: &Path,
 ) -> AppResult<ImportedMapInfo> {
-    renumber_ordered_tags(&mut map.tags);
+    map.records.values_mut().for_each(renumber_order);
     let now = now_iso();
     let loc_count = map.locations.len() as u32;
-    let tag_count = map.tags.len() as u32;
+    let tag_count = map.records.get("tags").map_or(0, |tags| tags.len() as u32);
 
     let extra_json = map_extra_json(&mut map)?;
 
@@ -124,13 +130,12 @@ fn write_map_to_db(
         "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, location_count, created_at, updated_at) VALUES (?1, ?2, '', ?3, ?4, '\"auto\"', ?5, ?6, ?7, ?8)",
         rusqlite::params![map_id.raw(), map.name, map.folder, settings_json, extra_json, loc_count, now, now],
     )?;
-    if !map.tags.is_empty() {
-        engine::save_value_records(
-            &tx,
-            map_id,
-            "tags",
-            &map.tags.iter().map(|t| (t.id, t.clone())).collect(),
-        )?;
+    for (field, records) in map
+        .records
+        .iter()
+        .filter(|(_, records)| !records.is_empty())
+    {
+        engine::save_value_records(&tx, map_id, field, records)?;
     }
 
     tx.commit()?;
