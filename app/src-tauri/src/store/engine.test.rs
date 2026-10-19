@@ -2595,44 +2595,6 @@ fn subscribing_sends_the_scene_to_every_watching_window() {
 }
 
 #[test]
-fn a_store_replacing_another_draws_its_scene_for_the_windows_watching_the_old_one() {
-    let mut old = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    let watcher = Captured::default();
-    old.subscribe_frames(
-        WindowLabel("a".into()),
-        watcher.sink(),
-        &RenderRequest::default(),
-    );
-    let feed = FeedCapture::attach(&mut old);
-    let mut new = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, -30.0, -40.0)]);
-
-    let status = new.open_status();
-    new.adopt_watchers(old, &status);
-
-    let held = feed.last();
-    assert!(
-        held.patch.iter().all(
-            |op| matches!(op, PatchOp::Replace { path, .. } if path.matches('/').count() == 1)
-        ),
-        "each part of what the window held is replaced"
-    );
-    assert!(touched(&held, &["selectionOrder"]) && touched(&held, &["fieldValues"]));
-    assert_eq!(shipped::<usize>(&held, &["locationCount"]), Some(2));
-
-    let frame = watcher.last();
-    assert_eq!(frame.kind, FrameKind::REPLACE);
-    assert_eq!(frame.version, new.version);
-    let ids: usize = frame.cells.iter().map(|c| c.add.key.len()).sum();
-    assert_eq!(ids, 2, "the new store's rows, not the old one's");
-    undoable(&mut new, vec![], vec![loc(3, 0.0, 0.0)]);
-    assert_eq!(
-        watcher.last().kind,
-        FrameKind::PATCH,
-        "later edits reach it too"
-    );
-}
-
-#[test]
 fn an_add_reports_the_id_its_first_location_was_given() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Ids::above([Id::new(1)]);

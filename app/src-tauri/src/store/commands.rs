@@ -53,37 +53,44 @@ async fn open_claimed_map(
 ) -> AppResult<StoreStatus> {
     let files = state.lock()?.files(&map_id);
     let _writing = files.lock().await;
+    let live = state.lock()?.stores.contains_key(&map_id);
     let map_id2 = map_id.clone();
-    let mut store = task::spawn_blocking(move || {
+    let loaded = task::spawn_blocking(move || {
         let db = storage::open_db()?;
         if map_id2.raw() == SCRATCH_MAP_ID {
             scratch_map_row(&db)?;
         }
-        let mut store = load_store(&map_id2)?;
+        let mut loaded = (!live).then(|| load_store(&map_id2)).transpose()?;
         let now = now_iso();
         db.execute(
             "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
             rusqlite::params![now, map_id2.raw()],
         )?;
-        store.meta = Tracked::new(MapMeta {
-            last_opened_at: Some(now),
-            ..(*store.meta).clone()
-        });
-        AppResult::Ok(store)
+        if let Some(store) = &mut loaded {
+            store.meta = Tracked::new(MapMeta {
+                last_opened_at: Some(now),
+                ..(*store.meta).clone()
+            });
+        }
+        AppResult::Ok(loaded)
     })
     .await??;
     let mut mgr = state.lock()?;
-    let status = store.open_status();
-    store.dependents = mgr.providers.dependents();
+    let dependents = mgr.providers.dependents();
     mgr.window_map.insert(label.clone(), map_id.clone());
     for other in mgr.stores.values_mut() {
         other.changes.remove(label);
     }
-    if let Some(replaced) = mgr.stores.remove(&map_id) {
-        store.adopt_watchers(replaced, &status);
-    }
+    let store = match loaded {
+        Some(mut store) => {
+            store.dependents = dependents;
+            mgr.stores.entry(map_id).or_insert(store)
+        }
+        None => mgr.store_for_map(&map_id)?,
+    };
+    store.announce();
+    let status = store.open_status();
     store.changes.insert(label.clone(), changes);
-    mgr.stores.insert(map_id, store);
     Ok(status)
 }
 

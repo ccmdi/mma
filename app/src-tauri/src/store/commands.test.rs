@@ -510,6 +510,38 @@ fn add_one(state: &StoreState, map: &Id<MapMeta, String>) -> u64 {
 }
 
 #[test]
+fn opening_an_open_map_in_another_window_shares_its_live_store() {
+    let map = storage::tests::map_on_disk("open-twice");
+    let state = StoreState::new(StoreManager::new());
+    let open = |w: &str, changes| {
+        async_runtime::block_on(open_claimed_map(
+            &WindowLabel(w.into()),
+            &state,
+            map.clone(),
+            changes,
+        ))
+        .unwrap()
+    };
+    let (a, got_a) = change_versions();
+    open("a", a);
+    add_one(&state, &map);
+    let next_id = state.lock().unwrap().stores[&map].next_id.clone();
+
+    let (b, got_b) = change_versions();
+    let status = open("b", b);
+    assert_eq!(status.derived.location_count, 1);
+    {
+        let mgr = state.lock().unwrap();
+        assert_eq!(mgr.stores[&map].next_id, next_id);
+        assert!(mgr.stores[&map].is_unsaved());
+    }
+
+    let version = add_one(&state, &map);
+    assert_eq!(got_a.lock().unwrap().last(), Some(&version));
+    assert_eq!(*got_b.lock().unwrap(), [version]);
+}
+
+#[test]
 fn opening_a_map_delivers_every_later_change_to_the_window() {
     let map = storage::tests::map_on_disk("open-feeds");
     let state = StoreState::new(StoreManager::new());
