@@ -4,6 +4,28 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { ensureBenchmarkFixture, summarizeDurations, runBenchmark } from "../perf/benchmarkHarness";
 
+vi.mock("../perf/processTelemetry", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../perf/processTelemetry")>()),
+	measureProcessTree: async <T>(action: () => Promise<T> | T) => ({
+		result: await action(),
+		telemetry: {
+			appCpuMs: null,
+			containerCpuMs: null,
+			baselineRssBytes: null,
+			peakRssBytes: null,
+			finalRssBytes: null,
+			baselinePssBytes: null,
+			peakPssBytes: null,
+			finalPssBytes: null,
+			baselineContainerMemoryBytes: null,
+			peakContainerMemoryBytes: null,
+			finalContainerMemoryBytes: null,
+			maxProcessCount: null,
+			elapsedWallMs: 0,
+		},
+	}),
+}));
+
 let directory: string;
 beforeEach(async () => {
 	directory = await mkdtemp(path.join(tmpdir(), "mma-benchmark-audit-"));
