@@ -319,11 +319,24 @@ impl Store {
         let delta = RecordDelta::between(&before, &after);
         let records =
             RecordDeltas::from_iter((!delta.is_empty()).then(|| (field.to_string(), delta)));
+        let mut settled = (*self.meta).clone();
+        let meta = if settled
+            .settings
+            .remap_values(field, |id| survivor(&applied.redirects, id))
+        {
+            Change::from_iter([mma_algebra::Transition::new(
+                Some((*self.meta).clone()),
+                Some(settled),
+            )])
+        } else {
+            Change::default()
+        };
         let mutation = self.write(
             patches.into_iter().map(Op::Put),
             &mut None,
             Entry {
                 records,
+                meta,
                 ..Default::default()
             },
         );
@@ -344,16 +357,6 @@ impl Store {
             return Ok(Vec::new());
         }
         let to = self.registry().assign(field)?;
-        let resolve = |mut id: Id<ValueRecord>| {
-            let mut seen = HashSet::new();
-            while let Some(&next) = merges.get(&id) {
-                if !seen.insert(id) {
-                    break;
-                }
-                id = next;
-            }
-            id
-        };
         let mut patches: Vec<Patch<Location>> = Vec::new();
         let mut err: Option<AppError> = None;
         {
@@ -364,7 +367,7 @@ impl Store {
                 }
                 let mut next: Vec<Id<ValueRecord>> = Vec::with_capacity(current.len());
                 for &id in &current {
-                    let mapped = resolve(id);
+                    let mapped = survivor(merges, id);
                     if !next.contains(&mapped) {
                         next.push(mapped);
                     }
@@ -381,4 +384,19 @@ impl Store {
             None => Ok(patches),
         }
     }
+}
+
+/// Where a merged value ends up, following merge chains to their final target.
+fn survivor(
+    merges: &HashMap<Id<ValueRecord>, Id<ValueRecord>>,
+    mut id: Id<ValueRecord>,
+) -> Id<ValueRecord> {
+    let mut seen = HashSet::new();
+    while let Some(&next) = merges.get(&id) {
+        if !seen.insert(id) {
+            break;
+        }
+        id = next;
+    }
+    id
 }

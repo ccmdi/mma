@@ -3742,6 +3742,54 @@ fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
 }
 
 #[test]
+fn a_tag_merge_moves_the_map_hotkeys_and_aliases_that_named_it() {
+    use crate::store::maps::{MapKeyAction, MapKeyBinding};
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![])]);
+    let ids = store
+        .edit_values("tags", adds(&["A", "B", "C"]))
+        .unwrap()
+        .keys;
+    let (a, b, c) = (ids[0], ids[1], ids[2]);
+    tag_onto(&mut store, a.get(), &[1]);
+    {
+        let settings = &mut store.meta.edit().settings;
+        settings.key_bindings = vec![
+            MapKeyBinding {
+                key: "1".into(),
+                action: MapKeyAction::ApplyTag { tag_id: a.get() },
+            },
+            MapKeyBinding {
+                key: "2".into(),
+                action: MapKeyAction::ApplyTag { tag_id: c.get() },
+            },
+        ];
+        settings.aliases = HashMap::from([("Elsewhere/A".to_string(), a.get())]);
+    }
+
+    store
+        .edit_values(
+            "tags",
+            vec![Op::Put(Patch::<ValueRecord> {
+                name: Field::Set("b".into()),
+                ..value_put(a.get())
+            })],
+        )
+        .unwrap();
+
+    let settings = &store.meta.settings;
+    assert_eq!(
+        settings.key_bindings[0].action,
+        MapKeyAction::ApplyTag { tag_id: b.get() }
+    );
+    assert_eq!(
+        settings.key_bindings[1].action,
+        MapKeyAction::ApplyTag { tag_id: c.get() },
+        "a binding to an unmerged tag stays put"
+    );
+    assert_eq!(settings.aliases["Elsewhere/A"], b.get());
+}
+
+#[test]
 fn edit_values_that_change_nothing_record_no_undo_step() {
     let mut store = setup_store_with(&[]);
     store.edit_values("tags", adds(&["A"])).unwrap();

@@ -110,6 +110,35 @@ pub struct MapSettings {
     pub plugin_data: HashMap<String, HashMap<String, serde_json::Value>>,
 }
 
+impl MapSettings {
+    /// Point the settings' references to `field`'s values (tag hotkeys and tag aliases) at
+    /// what `resolve` maps each value to. True when any reference moved.
+    pub(crate) fn remap_values(
+        &mut self,
+        field: &str,
+        resolve: impl Fn(Id<engine::ValueRecord>) -> Id<engine::ValueRecord>,
+    ) -> bool {
+        if field != "tags" {
+            return false;
+        }
+        let mut moved = false;
+        let mut remap = |id: &mut u32| {
+            let to = resolve(Id::new(*id)).get();
+            moved |= to != *id;
+            *id = to;
+        };
+        for binding in &mut self.key_bindings {
+            if let MapKeyAction::ApplyTag { tag_id } = &mut binding.action {
+                remap(tag_id);
+            }
+        }
+        for tag_id in self.aliases.values_mut() {
+            remap(tag_id);
+        }
+        moved
+    }
+}
+
 wire_str_enum! {
     /// A capture of a pano's timeline to settle on.
     derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)
