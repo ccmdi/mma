@@ -124,6 +124,34 @@ describe("resuming a session", () => {
 		expect(Review.session()).toEqual(Review.prune(s, new Set([3])).session);
 		Review.cancel();
 	});
+
+	it("re-reviewing a selection offers its new matches and appends them to the end", async () => {
+		const mapState = store.mapState;
+		store.mapState = { mapId: "m", map: { settings: {} } };
+		store.liveIds = [1, 2, 3, 4, 5];
+		vi.mocked(cmd.storeReviewList).mockResolvedValueOnce([mk([1, 2, 3], 2, [1])]);
+
+		await Review.begin([1, 2, 3, 4, 5], { key: "tag:1", selector: { type: "Filter" } } as never);
+		await Review.appendNewMatches();
+
+		expect(Review.session()?.order).toEqual([1, 2, 3, 4, 5]);
+		expect(Review.session()?.cursorId).toBe(2);
+		await Review.appendNewMatches();
+		expect(Review.session()?.order).toEqual([1, 2, 3, 4, 5]);
+		Review.cancel();
+		store.mapState = mapState;
+	});
+
+	it("resuming from the session list offers nothing new", async () => {
+		const mapState = store.mapState;
+		store.mapState = { mapId: "m", map: { settings: {} } };
+		store.liveIds = [1, 2, 3, 4, 5];
+		await Review.resume(mk([1, 2, 3], 1));
+		await Review.appendNewMatches();
+		expect(Review.session()?.order).toEqual([1, 2, 3]);
+		Review.cancel();
+		store.mapState = mapState;
+	});
 });
 
 describe("deleting the current location", () => {

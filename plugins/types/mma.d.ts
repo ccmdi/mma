@@ -5485,8 +5485,13 @@ declare const Review: {
     /** Review the selected locations. With one active selection, the review belongs to it and
      *  resumes with it. @unstable */
     beginSelected: () => Promise<void>;
-    /** Make a saved session the active one, dropping locations that no longer exist. @unstable */
-    resume: (s: ReviewSession) => Promise<void>;
+    /** Make a saved session the active one, dropping locations that no longer exist. Given
+     *  the selection's current matches, any its worklist lacks are offered as new matches. @unstable */
+    resume: (s: ReviewSession, currentMatches?: number[]) => Promise<void>;
+    /** Reactive new matches of the active session's selection, not yet in its worklist. @unstable */
+    useNewMatches: () => number[];
+    /** Append the new matches to the end of the worklist, in the map's review order. @unstable */
+    appendNewMatches: () => Promise<void>;
     /** Mark the current location reviewed and step to the next one. @unstable */
     next: () => Promise<void>;
     /** Step back to the previous location in the session. @unstable */

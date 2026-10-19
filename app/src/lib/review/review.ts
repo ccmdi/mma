@@ -31,9 +31,12 @@ function reviewSelector(sessionId: string, mode: ReviewMode, locations: number[]
 }
 
 let session: ReviewSession | null = null;
+// Locations the resumed session's selection matches now but its frozen worklist predates.
+let newMatches: number[] = [];
 
 function setSession(next: ReviewSession | null): void {
 	if (session && session.id !== next?.id) saves.flush();
+	if (session?.id !== next?.id) newMatches = [];
 	session = next;
 	emit("review:changed");
 	if (next) {
@@ -239,7 +242,7 @@ export const Review = {
 			try {
 				const [existing] = await cmd.storeReviewList(mapId, "active", sourceKey);
 				if (existing) {
-					await Review.resume(existing);
+					await Review.resume(existing, ids);
 					return;
 				}
 			} catch (e) {
@@ -287,8 +290,9 @@ export const Review = {
 		const ids = [...Scene.selected()];
 		return Review.begin(ids, active.length === 1 ? active[0] : undefined);
 	},
-	/** Make a saved session the active one, dropping locations that no longer exist. */
-	resume: async (s: ReviewSession): Promise<void> => {
+	/** Make a saved session the active one, dropping locations that no longer exist. Given
+	 *  the selection's current matches, any its worklist lacks are offered as new matches. */
+	resume: async (s: ReviewSession, currentMatches?: number[]): Promise<void> => {
 		let v: ReviewSession | null = s;
 		try {
 			const liveIds = new Set(
@@ -303,7 +307,28 @@ export const Review = {
 			return;
 		}
 		setSession(v);
+		if (currentMatches) {
+			const queued = new Set(v.order);
+			newMatches = currentMatches.filter((id) => !queued.has(id));
+			if (newMatches.length > 0) emit("review:changed");
+		}
 		await gotoCursor(v);
+	},
+	/** Reactive new matches of the active session's selection, not yet in its worklist. */
+	useNewMatches: (): number[] => {
+		return useEventValue("review:changed", () => newMatches);
+	},
+	/** Append the new matches to the end of the worklist, in the map's review order. */
+	appendNewMatches: async (): Promise<void> => {
+		const s = session;
+		const map = Store.get().map;
+		if (!s || !map || newMatches.length === 0) return;
+		const worklist: Selector = { type: "Locations", locations: newMatches, name: null };
+		const added = await Query.read(reviewOrdering(worklist, map.settings.reviewOrder), {
+			kind: "ids",
+		});
+		newMatches = [];
+		setSession({ ...s, order: [...s.order, ...added] });
 	},
 	/** Mark the current location reviewed and step to the next one. */
 	next: async (): Promise<void> => {

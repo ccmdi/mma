@@ -57,6 +57,10 @@
 	"Add to map": "Add to map",
 	"Add value": "Add value",
 	"Add {n} found in data": "Add {n} found in data",
+	"Add {n} locations that now match this selection to the end": {
+		"one": "Add {n} location that now matches this selection to the end",
+		"other": "Add {n} locations that now match this selection to the end"
+	},
 	"Added": "Added",
 	"Added {n} locations": {
 		"one": "Added {n} location",

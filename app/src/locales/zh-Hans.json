@@ -52,6 +52,9 @@
 	"Add to map": "添加到地图",
 	"Add value": "添加值",
 	"Add {n} found in data": "添加数据中发现的 {n} 个",
+	"Add {n} locations that now match this selection to the end": {
+		"other": "将现在符合此选择的 {n} 个位置添加到末尾"
+	},
 	"Added": "已添加",
 	"Added {n} locations": {
 		"other": "已添加 {n} 个位置"

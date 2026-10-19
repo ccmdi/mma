@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Review } from "@/lib/review/review";
-import { mdiClose } from "@mdi/js";
+import { mdiClose, mdiPlaylistPlus } from "@mdi/js";
 import { t } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 import { IconButton } from "@/components/primitives/IconButton";
@@ -9,6 +9,7 @@ import { IconButton } from "@/components/primitives/IconButton";
  *  preview; the rest of LocationPreview only calls Review.next/prev/deleteCurrent. */
 export const ReviewBar = memo(function ReviewBar() {
 	const s = Review.useSession();
+	const newMatches = Review.useNewMatches();
 	if (!s) return null;
 
 	const pos = Review.index(s) + 1;
@@ -28,6 +29,23 @@ export const ReviewBar = memo(function ReviewBar() {
 				<Trans msg="{count} reviewed" count={<span className="mono">{s.reviewed.length}</span>} />
 			</span>
 			<span style={{ display: "flex", alignItems: "center", gap: ".5rem" }}>
+				{newMatches.length > 0 && (
+					<IconButton
+						icon={mdiPlaylistPlus}
+						size={16}
+						label={t(
+							{
+								one: "Add {n} location that now matches this selection to the end",
+								other: "Add {n} locations that now match this selection to the end",
+							},
+							{ n: newMatches.length },
+						)}
+						tooltipSide="bottom"
+						onClick={() => void Review.appendNewMatches()}
+					>
+						<span className="mono">+{newMatches.length}</span>
+					</IconButton>
+				)}
 				<IconButton
 					icon={mdiClose}
 					size={16}

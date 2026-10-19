@@ -8914,6 +8914,16 @@ Review.advance(s: ReviewSession): {
 Mark the current cursor reviewed and step forward. `done` is true when the
 session has no remaining items.
 
+#### Review.appendNewMatches
+
+`unstable` · since v0.12.2
+
+```ts
+Review.appendNewMatches(): Promise<void>
+```
+
+Append the new matches to the end of the worklist, in the map's review order.
+
 #### Review.begin
 
 `unstable` · since v0.12.0
@@ -9073,10 +9083,11 @@ Rename a review session.
 `unstable` · since v0.12.0
 
 ```ts
-Review.resume(s: ReviewSession): Promise<void>
+Review.resume(s: ReviewSession, currentMatches?: number[]): Promise<void>
 ```
 
-Make a saved session the active one, dropping locations that no longer exist.
+Make a saved session the active one, dropping locations that no longer exist. Given
+the selection's current matches, any its worklist lacks are offered as new matches.
 
 #### Review.retreat
 
@@ -9137,6 +9148,16 @@ Review.sessions(status?: "active" | "done"): Promise<ReviewSession[]>
 ```
 
 Review sessions for the open map, optionally filtered by status.
+
+#### Review.useNewMatches
+
+`unstable` · since v0.12.2
+
+```ts
+Review.useNewMatches(): number[]
+```
+
+Reactive new matches of the active session's selection, not yet in its worklist.
 
 #### Review.useSession
 

@@ -52,6 +52,9 @@
 	"Add to map": "マップに追加",
 	"Add value": "値を追加",
 	"Add {n} found in data": "データ内で見つかった {n} 件を追加",
+	"Add {n} locations that now match this selection to the end": {
+		"other": "この選択に新たに一致した {n} 件の地点を末尾に追加"
+	},
 	"Added": "追加",
 	"Added {n} locations": {
 		"other": "{n} 件の地点を追加しました"

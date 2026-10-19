@@ -57,6 +57,10 @@
 	"Add to map": "Zur Karte hinzufügen",
 	"Add value": "Wert hinzufügen",
 	"Add {n} found in data": "{n} aus den Daten hinzufügen",
+	"Add {n} locations that now match this selection to the end": {
+		"one": "{n} Standort, der jetzt zu dieser Auswahl passt, ans Ende anhängen",
+		"other": "{n} Standorte, die jetzt zu dieser Auswahl passen, ans Ende anhängen"
+	},
 	"Added": "Hinzugefügt",
 	"Added {n} locations": {
 		"one": "{n} Standort hinzugefügt",

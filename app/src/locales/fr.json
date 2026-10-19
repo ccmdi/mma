@@ -62,6 +62,11 @@
 	"Add to map": "Ajouter à la carte",
 	"Add value": "Ajouter une valeur",
 	"Add {n} found in data": "Ajouter les {n} valeurs trouvées dans les données",
+	"Add {n} locations that now match this selection to the end": {
+		"one": "Ajouter à la fin {n} lieu qui correspond maintenant à cette sélection",
+		"many": "Ajouter à la fin {n} lieux qui correspondent maintenant à cette sélection",
+		"other": "Ajouter à la fin {n} lieux qui correspondent maintenant à cette sélection"
+	},
 	"Added": "Ajouté",
 	"Added {n} locations": {
 		"one": "{n} lieu ajouté",

@@ -67,6 +67,12 @@
 	"Add to map": "Dodaj do mapy",
 	"Add value": "Dodaj wartość",
 	"Add {n} found in data": "Dodaj {n} znalezionych w danych",
+	"Add {n} locations that now match this selection to the end": {
+		"one": "Dodaj na końcu {n} lokalizację, która teraz pasuje do tego zaznaczenia",
+		"few": "Dodaj na końcu {n} lokalizacje, które teraz pasują do tego zaznaczenia",
+		"many": "Dodaj na końcu {n} lokalizacji, które teraz pasują do tego zaznaczenia",
+		"other": "Dodaj na końcu {n} lokalizacji, które teraz pasują do tego zaznaczenia"
+	},
 	"Added": "Dodano",
 	"Added {n} locations": {
 		"one": "Dodano {n} lokalizację",
