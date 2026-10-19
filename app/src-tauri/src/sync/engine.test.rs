@@ -64,8 +64,8 @@ fn row(local_id: u32, remote_id: i64, hash: String) -> RemoteMappingRow {
     }
 }
 
-fn no_tags() -> HashMap<Id<ValueRecord>, String> {
-    HashMap::new()
+fn no_tags() -> IncomingRecords {
+    IncomingRecords::from([("tags".to_string(), HashMap::new())])
 }
 
 // --- recording fake provider -----------------------------------------------
@@ -88,6 +88,14 @@ const STABLE: ProviderSpec = ProviderSpec {
     shape: MapShape::MapMaking,
 };
 
+/// A source that keeps app data, as a map file does.
+const LOCAL: ProviderSpec = ProviderSpec {
+    id: "fake",
+    identity: IdentityModel::Stable,
+    direction: SyncDirection::Bidirectional,
+    shape: MapShape::Local,
+};
+
 const POSITIONAL: ProviderSpec = ProviderSpec {
     id: "fake",
     identity: IdentityModel::Positional,
@@ -100,7 +108,7 @@ struct Fake {
     items: RefCell<Vec<Raw>>,
     next_rid: Cell<i64>,
     pushes: RefCell<Vec<Recorded>>,
-    catalog: Vec<RemoteTag>,
+    catalog: IncomingRecords,
 }
 
 impl Fake {
@@ -110,7 +118,7 @@ impl Fake {
             items: RefCell::new(initial),
             next_rid: Cell::new(1000),
             pushes: RefCell::new(Vec::new()),
-            catalog: Vec::new(),
+            catalog: IncomingRecords::new(),
         }
     }
     fn stable(initial: Vec<Raw>) -> Self {
@@ -173,7 +181,7 @@ impl SyncProvider for Fake {
     }
     fn pull(&self, _remote_map_id: &str) -> AppResult<RemoteSnapshot<Raw>> {
         Ok(RemoteSnapshot {
-            tags: self.catalog.clone(),
+            records: self.catalog.clone(),
             locations: self.items(),
             token: None,
         })
@@ -323,7 +331,7 @@ fn drive(
     provider: &Fake,
     locs: &[Location],
     mapping: &[RemoteMappingRow],
-    tags: &HashMap<Id<ValueRecord>, String>,
+    tags: &IncomingRecords,
     first_sync: Option<FirstSyncMode>,
     resolutions: &[(IdentityKey, ResolutionSide)],
     sink: &mut MemSink,
@@ -335,7 +343,7 @@ fn drive(
         local_locs: locs,
         remote: snapshot,
         mapping,
-        tag_names: tags,
+        records: tags,
         first_sync,
         resolutions,
     };
@@ -348,7 +356,7 @@ fn sync(
     provider: &Fake,
     locs: &[Location],
     mapping: &[RemoteMappingRow],
-    tags: &HashMap<Id<ValueRecord>, String>,
+    tags: &IncomingRecords,
     sink: &mut MemSink,
 ) -> ReconcileOutcome {
     drive(provider, locs, mapping, tags, None, &[], sink)
@@ -435,6 +443,24 @@ fn pull_create_returns_instruction_with_hash_and_handle() {
     assert!(sink.rows().is_empty());
 }
 
+fn look(name: &str, color: Option<&str>, order: Option<u32>) -> ValueRecord {
+    ValueRecord {
+        name: Some(name.into()),
+        order,
+        extra: color
+            .map(|c| serde_json::Map::from_iter([("color".to_string(), c.into())]))
+            .unwrap_or_default(),
+        ..Default::default()
+    }
+}
+
+fn needed<'a>(out: &'a ReconcileOutcome, field: &str, name: &str) -> &'a ValueRecord {
+    out.needed_records[field]
+        .iter()
+        .find(|r| r.name.as_deref() == Some(name))
+        .unwrap_or_else(|| panic!("{field} {name} is needed"))
+}
+
 #[test]
 fn pull_create_reports_needed_tags() {
     let provider = Fake::stable(vec![raw(
@@ -448,14 +474,13 @@ fn pull_create_reports_needed_tags() {
 
     let out = sync(&provider, &[], &[], &no_tags(), &mut sink);
 
-    assert_eq!(out.needed_tags.len(), 1);
-    assert_eq!(out.needed_tags[0].name, "blue");
-    assert_eq!(out.needed_tags[0].color, None);
+    assert_eq!(out.needed_records["tags"].len(), 1);
+    assert_eq!(needed(&out, "tags", "blue").color(), None);
     assert_eq!(out.pull_creates.len(), 1);
 }
 
 #[test]
-fn needed_tags_adopt_the_source_catalog_in_its_order() {
+fn needed_tags_adopt_the_source_catalogs_look() {
     let mut provider = Fake::stable(vec![raw(
         |n| {
             n.lat = 5.0;
@@ -463,26 +488,65 @@ fn needed_tags_adopt_the_source_catalog_in_its_order() {
         },
         Some(7),
     )]);
-    provider.catalog = vec![
-        RemoteTag {
-            name: "blue".into(),
-            color: Some("#0000ff".into()),
-            order: Some(2),
-        },
-        RemoteTag {
-            name: "red".into(),
-            color: Some("#ff0000".into()),
-            order: Some(1),
-        },
-    ];
+    provider.catalog = IncomingRecords::from([(
+        "tags".to_string(),
+        HashMap::from([
+            (Id::new(1), look("blue", Some("#0000ff"), Some(2))),
+            (Id::new(2), look("red", Some("#ff0000"), Some(1))),
+        ]),
+    )]);
     let mut sink = MemSink::new();
 
     let out = sync(&provider, &[], &[], &no_tags(), &mut sink);
 
-    let names: Vec<&str> = out.needed_tags.iter().map(|t| t.name.as_str()).collect();
-    assert_eq!(names, vec!["red", "blue", "loose"]);
-    assert_eq!(out.needed_tags[0].color.as_deref(), Some("#ff0000"));
-    assert_eq!(out.needed_tags[2].color, None);
+    assert_eq!(out.needed_records["tags"].len(), 3);
+    assert_eq!(needed(&out, "tags", "red").color(), "#ff0000".parse().ok());
+    assert_eq!(needed(&out, "tags", "red").order, Some(1));
+    assert_eq!(needed(&out, "tags", "loose").color(), None);
+}
+
+#[test]
+fn a_pull_needs_the_values_of_every_field_the_map_interns() {
+    let mut provider = Fake::new(
+        &LOCAL,
+        vec![raw(
+            |n| {
+                n.lat = 5.0;
+                n.extra =
+                    serde_json::json!({ "habitat": ["Wetland", "Forest"], "note": ["Wetland"] })
+                        .as_object()
+                        .cloned();
+            },
+            Some(7),
+        )],
+    );
+    provider.catalog = IncomingRecords::from([(
+        "habitat".to_string(),
+        HashMap::from([(Id::new(1), look("Wetland", Some("#00ff00"), None))]),
+    )]);
+    let forest = ValueRecord {
+        id: Id::new(1),
+        ..look("Forest", None, None)
+    };
+    let mut records = no_tags();
+    records.insert("habitat".into(), HashMap::from([(Id::new(1), forest)]));
+    let mut sink = MemSink::new();
+
+    let out = sync(&provider, &[], &[], &records, &mut sink);
+
+    assert_eq!(
+        out.needed_records["habitat"].len(),
+        1,
+        "Forest exists already"
+    );
+    assert_eq!(
+        needed(&out, "habitat", "Wetland").color(),
+        "#00ff00".parse().ok()
+    );
+    assert!(
+        !out.needed_records.contains_key("note"),
+        "a field the map does not intern needs nothing"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -929,7 +993,7 @@ impl SyncProvider for ChunkedFake {
     }
     fn pull(&self, _remote_map_id: &str) -> AppResult<RemoteSnapshot<Raw>> {
         Ok(RemoteSnapshot {
-            tags: vec![],
+            records: IncomingRecords::new(),
             locations: vec![],
             token: None,
         })
@@ -976,7 +1040,7 @@ fn commits_each_chunk_as_it_lands_and_does_not_rewrite_them_at_the_end() {
         local_locs: &locs,
         remote: snapshot,
         mapping: &[],
-        tag_names: &no_tags(),
+        records: &no_tags(),
         first_sync: None,
         resolutions: &[],
     };
@@ -1044,7 +1108,7 @@ impl SyncProvider for PartialPushFake {
     }
     fn pull(&self, _remote_map_id: &str) -> AppResult<RemoteSnapshot<Raw>> {
         Ok(RemoteSnapshot {
-            tags: vec![],
+            records: IncomingRecords::new(),
             locations: self.items.borrow().clone(),
             token: None,
         })
@@ -1102,7 +1166,7 @@ fn partial_push_failure_preserves_committed_mapping_and_retries_cleanly() {
         local_locs: &locs,
         remote: snapshot,
         mapping: &[],
-        tag_names: &no_tags(),
+        records: &no_tags(),
         first_sync: None,
         resolutions: &[],
     };
@@ -1125,7 +1189,7 @@ fn partial_push_failure_preserves_committed_mapping_and_retries_cleanly() {
         local_locs: &locs,
         remote: snap2,
         mapping: &mapping,
-        tag_names: &no_tags(),
+        records: &no_tags(),
         first_sync: None,
         resolutions: &[],
     };
@@ -1217,7 +1281,7 @@ fn content_keyed_entries_never_produce_held_rows_or_mapping_deletes() {
         local_locs: &locs,
         remote: snap_a,
         mapping: &mapping,
-        tag_names: &no_tags(),
+        records: &no_tags(),
         first_sync: None,
         resolutions: &[],
     })
@@ -1235,7 +1299,7 @@ fn content_keyed_entries_never_produce_held_rows_or_mapping_deletes() {
         local_locs: &locs,
         remote: snap_b,
         mapping: &[],
-        tag_names: &no_tags(),
+        records: &no_tags(),
         first_sync: None,
         resolutions: &[],
     })
@@ -1270,7 +1334,7 @@ fn empty_remote_snapshot_with_a_nonempty_mapping_refuses_the_sync() {
         local_locs: &locs,
         remote: provider.pull("r").unwrap(),
         mapping: &mapping,
-        tag_names: &no_tags(),
+        records: &no_tags(),
         first_sync: None,
         resolutions: &[],
     });
@@ -1479,7 +1543,7 @@ fn pull_only_refuses_to_mirror_from_local() {
         local_locs: &[loc(1, |l| l.lat = 2.0)],
         remote: provider.pull("r").unwrap(),
         mapping: &[],
-        tag_names: &no_tags(),
+        records: &no_tags(),
         first_sync: Some(FirstSyncMode::MirrorFromLocal),
         resolutions: &[],
     })
@@ -1517,18 +1581,13 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         pulled: SideCounts::default(),
         adopted: 0,
         conflicts: Vec::new(),
-        needed_tags: vec![
-            RemoteTag {
-                name: "New".into(),
-                color: Some("#123456".into()),
-                order: Some(10),
-            },
-            RemoteTag {
-                name: "Second".into(),
-                color: None,
-                order: Some(2),
-            },
-        ],
+        needed_records: HashMap::from([(
+            "tags".to_string(),
+            vec![
+                look("New", Some("#123456"), Some(10)),
+                look("Second", None, Some(2)),
+            ],
+        )]),
         pull_creates: vec![PullCreate {
             fields: norm(|n| {
                 n.lat = 9.0;
@@ -1585,6 +1644,81 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
 }
 
 #[test]
+fn a_pull_lands_a_plugin_fields_values_by_name_with_the_sources_look() {
+    use crate::store::engine::{Store, Tracked};
+    use crate::store::maps::{FieldDef, FieldType};
+    let mut store = Store::new();
+    store.meta = Tracked::new(MapMeta {
+        id: Id::new("sync-test".into()),
+        ..Default::default()
+    });
+    store.batch = Some(arrow::locations_to_batch(&[]));
+    store.field_defs = Tracked::new(HashMap::from([(
+        "habitat".to_string(),
+        FieldDef {
+            field_type: FieldType::Array,
+            label: None,
+            values: None,
+            comparison: None,
+            interned: true,
+            builtin: None,
+        },
+    )]));
+    let forest = ValueRecord {
+        id: Id::new(1),
+        ..look("Forest", None, None)
+    };
+    store.records.insert(
+        "habitat".into(),
+        Tracked::new(HashMap::from([(Id::new(1), forest)])),
+    );
+
+    let out = ReconcileOutcome {
+        pushed: SideCounts::default(),
+        pulled: SideCounts::default(),
+        adopted: 0,
+        conflicts: Vec::new(),
+        needed_records: HashMap::from([(
+            "habitat".to_string(),
+            vec![look("Wetland", Some("#00ff00"), None)],
+        )]),
+        pull_creates: vec![PullCreate {
+            fields: norm(|n| {
+                n.extra =
+                    serde_json::json!({ "habitat": ["Wetland", "Forest"], "note": ["Wetland"] })
+                        .as_object()
+                        .cloned();
+            }),
+            remote_id: 77,
+            hash: "h-create".into(),
+        }],
+        pull_updates: Vec::new(),
+        pull_delete_ids: Vec::new(),
+        mirror_local_delete_ids: Vec::new(),
+    };
+
+    let (mutation, _) = apply_pull(&mut store, &out).unwrap();
+    let created = store
+        .get_loc_by_id(mutation.expect("the pull landed").keys[0])
+        .unwrap();
+    let records = store.records["habitat"].clone();
+    let extra = created.extra.as_ref().unwrap();
+    let names = crate::store::engine::spelled(&extra.get("habitat").unwrap(), &records);
+    assert_eq!(names, serde_json::json!(["Wetland", "Forest"]));
+    assert_eq!(records.len(), 2, "Forest is the map's own, Wetland is new");
+    let wetland = records
+        .values()
+        .find(|r| r.name.as_deref() == Some("Wetland"))
+        .unwrap();
+    assert_eq!(wetland.color(), "#00ff00".parse().ok());
+    assert_eq!(
+        extra.get("note"),
+        Some(serde_json::json!(["Wetland"])),
+        "a field the map does not intern keeps its names"
+    );
+}
+
+#[test]
 fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
     use crate::store::engine::{Store, Tracked, ValueRecord};
     let mut store = Store::new();
@@ -1619,7 +1753,7 @@ fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
         pulled: SideCounts::default(),
         adopted: 0,
         conflicts: Vec::new(),
-        needed_tags: Vec::new(),
+        needed_records: HashMap::new(),
         pull_creates: vec![PullCreate {
             fields: norm(|n| n.tags = vec!["Pulled".into()]),
             remote_id: 77,

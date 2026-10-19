@@ -11,7 +11,7 @@ pub(crate) mod log;
 pub(crate) mod map_making;
 pub(crate) mod remote_mapping;
 
-use crate::store::engine::ValueRecord;
+use crate::store::engine::{spelled, IncomingRecords, ValueRecord};
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::{wire_str_enum, AppResult, Location, LocationFlags};
 use mma_algebra::{canonical, Id, Patch};
@@ -187,13 +187,12 @@ pub fn canon_tags(names: impl IntoIterator<Item = String>) -> Vec<String> {
     set.into_iter().collect()
 }
 
-/// Project a location onto the synced contract, resolving tag ids to names (unknown ids are
-/// dropped), stripping undeclared flag bits, reading an empty pano id as none, and dropping
-/// null fields, which a merge patch cannot tell from absent ones.
-pub fn local_to_normalized(
-    loc: &Location,
-    tag_name: &impl Fn(Id<ValueRecord>) -> Option<String>,
-) -> NormalizedSyncLocation {
+/// Project a location onto the synced contract, spelling every interned value by the name
+/// `records` gives it (unknown tag ids are dropped), stripping undeclared flag bits, reading an
+/// empty pano id as none, and dropping null fields, which a merge patch cannot tell from absent
+/// ones.
+pub fn local_to_normalized(loc: &Location, records: &IncomingRecords) -> NormalizedSyncLocation {
+    let tags = records.get("tags");
     NormalizedSyncLocation {
         lat: loc.lat,
         lng: loc.lng,
@@ -206,25 +205,50 @@ pub fn local_to_normalized(
             .filter(|p| !p.is_empty())
             .map(Into::into),
         flags: sync_flags(loc.flags.bits()),
-        tags: canon_tags(loc.tags.iter().filter_map(|&id| tag_name(id))),
+        tags: canon_tags(loc.tags.iter().filter_map(|id| tags?.get(id)?.name.clone())),
         extra: loc
             .extra
             .as_ref()
             .map(|e| {
                 let mut m = e.to_map();
                 m.retain(|_, v| !v.is_null());
+                for (key, value) in &mut m {
+                    if let Some(held) = records.get(key) {
+                        *value = spelled(value, held);
+                    }
+                }
                 m
             })
             .filter(|m| !m.is_empty()),
     }
 }
 
-/// A patch to the synced contract as a patch to local row `id`, resolving tag names to ids.
+/// A patch to the synced contract as a patch to local row `id`, resolving every interned value's
+/// name to an id through `value_of(field, name)`, which answers null for a field the map does not
+/// intern.
 pub fn normalized_to_local(
     id: Id<Location>,
     p: &Patch<NormalizedSyncLocation>,
-    tag_of: &mut impl FnMut(&str) -> Id<ValueRecord>,
+    value_of: &mut impl FnMut(&str, &str) -> Option<Id<ValueRecord>>,
 ) -> Patch<Location> {
+    let mut ids_of = |field: &str, value: &Value| -> Option<Value> {
+        value
+            .as_array()?
+            .iter()
+            .map(|name| Some(value_of(field, name.as_str()?)?.get().into()))
+            .collect::<Option<Vec<Value>>>()
+            .map(Value::Array)
+    };
+    let extra = p.extra.clone().map(|extra| {
+        extra.map(|mut m| {
+            for (key, value) in &mut m {
+                if let Some(ids) = ids_of(key, value) {
+                    *value = ids;
+                }
+            }
+            Value::Object(m)
+        })
+    });
     Patch::<Location> {
         id,
         lat: p.lat,
@@ -237,8 +261,8 @@ pub fn normalized_to_local(
         tags: p
             .tags
             .as_ref()
-            .map(|names| names.iter().map(|t| tag_of(t)).collect()),
-        extra: p.extra.clone().map(|extra| extra.map(Value::Object)),
+            .map(|names| names.iter().filter_map(|t| value_of("tags", t)).collect()),
+        extra,
         ..Default::default()
     }
 }
@@ -314,22 +338,9 @@ wire_str_enum! {
 pub struct RemoteSnapshot<R> {
     pub locations: Vec<R>,
     pub token: Option<i64>,
-    /// The source's tag catalog, for the look a tag a pull creates should adopt.
-    /// Empty when the source carries none.
-    pub tags: Vec<RemoteTag>,
-}
-
-/// A tag as the source of a pull describes it. A tag the sync creates takes this
-/// look; a tag that already exists keeps its own.
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoteTag {
-    /// The tag's name.
-    pub name: String,
-    /// The tag's color; null when the source names none.
-    pub color: Option<String>,
-    /// The tag's position in the source's ordering; null when the source keeps none.
-    pub order: Option<u32>,
+    /// The source's records for each interned field, for the look a value a pull creates
+    /// should adopt; a value that already exists keeps its own. Empty when the source carries none.
+    pub records: IncomingRecords,
 }
 
 /// One entry of the full desired remote state. `local_id` is `None` for remote-only

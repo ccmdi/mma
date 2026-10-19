@@ -2,10 +2,7 @@
 //! read with the import parser and normalized exactly as local locations are, so both sides of
 //! the diff come from the same code.
 
-use crate::store::engine::ValueRecord;
-use mma_algebra::Id;
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::fs;
 
 use serde::Serialize;
@@ -14,7 +11,7 @@ use crate::io::import::parse::{parse_file, ParsedMap};
 use crate::net::proxy;
 use crate::sync::{
     local_to_normalized, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch, PushedId,
-    RemoteSnapshot, RemoteTag, SyncDirection, SyncProvider,
+    RemoteSnapshot, SyncDirection, SyncProvider,
 };
 use crate::types::shape::MapShape;
 use crate::types::{AppError, AppResult};
@@ -74,33 +71,10 @@ fn read_source(address: &str) -> AppResult<ParsedMap> {
     Ok(map)
 }
 
-fn remote_tags(map: &ParsedMap) -> Vec<RemoteTag> {
-    map.records
-        .get("tags")
-        .into_iter()
-        .flat_map(HashMap::values)
-        .filter_map(|rec| {
-            Some(RemoteTag {
-                name: rec.name.clone()?,
-                color: rec.color().map(|c| c.to_string()),
-                order: rec.order,
-            })
-        })
-        .collect()
-}
-
-fn normalized(map: ParsedMap) -> Vec<NormalizedSyncLocation> {
-    let names: HashMap<Id<ValueRecord>, String> = map
-        .records
-        .get("tags")
-        .into_iter()
-        .flat_map(HashMap::values)
-        .filter_map(|rec| Some((rec.id, rec.name.clone()?)))
-        .collect();
-    let tag_name = |id: Id<ValueRecord>| names.get(&id).cloned();
+fn normalized(map: &ParsedMap) -> Vec<NormalizedSyncLocation> {
     map.locations
-        .into_iter()
-        .map(|loc| local_to_normalized(&loc, &tag_name))
+        .iter()
+        .map(|loc| local_to_normalized(loc, &map.records))
         .collect()
 }
 
@@ -126,8 +100,8 @@ impl SyncProvider for FileProvider {
     fn pull(&self, address: &str) -> AppResult<RemoteSnapshot<NormalizedSyncLocation>> {
         let map = read_source(address)?;
         Ok(RemoteSnapshot {
-            tags: remote_tags(&map),
-            locations: normalized(map),
+            locations: normalized(&map),
+            records: map.records,
             token: None,
         })
     }

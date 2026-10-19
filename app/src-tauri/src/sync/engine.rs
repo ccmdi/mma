@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::store::engine::{Mutation, Store, StoreState, ValueRecord};
+use crate::store::engine::{IncomingRecords, Mutation, Store, StoreState, ValueRecord};
 use crate::store::storage;
 use crate::sync::diff::{compute_sync_plan, summarize};
 use crate::sync::file::FileProvider;
@@ -20,7 +20,7 @@ use crate::sync::remote_mapping::{self, RemoteMappingRow};
 use crate::sync::{
     normalized_to_local, parse_local_key, sync_hash, Conflict, DesiredEntry, FirstSyncMode,
     IdentityKey, IdentityModel, Location, NormalizedSyncLocation, ProviderSpec, PushBatch,
-    PushedId, RemoteSnapshot, RemoteTag, SideCounts, SyncDirection, SyncPlan, SyncProvider,
+    PushedId, RemoteSnapshot, SideCounts, SyncDirection, SyncPlan, SyncProvider,
 };
 use crate::types::shape::MapPart;
 use mma_algebra::{Edit, Id, Op, Patch, Patchable};
@@ -67,7 +67,7 @@ pub struct ReconcileOutcome {
     pub pulled: SideCounts,
     pub adopted: u32,
     pub conflicts: Vec<Conflict>,
-    pub needed_tags: Vec<RemoteTag>,
+    pub needed_records: HashMap<String, Vec<ValueRecord>>,
     pub pull_creates: Vec<PullCreate>,
     pub pull_updates: Vec<PullUpdate>,
     pub pull_delete_ids: Vec<Id<Location>>,
@@ -95,8 +95,8 @@ pub(crate) struct ReconcileInput<'a, P: SyncProvider> {
     pub local_locs: &'a [Location],
     pub remote: RemoteSnapshot<P::Raw>,
     pub mapping: &'a [RemoteMappingRow],
-    /// tag id -> name of the open map.
-    pub tag_names: &'a HashMap<Id<ValueRecord>, String>,
+    /// Every field the open map interns, with its records.
+    pub records: &'a IncomingRecords,
     pub first_sync: Option<FirstSyncMode>,
     pub resolutions: &'a [(IdentityKey, ResolutionSide)],
 }
@@ -107,7 +107,7 @@ pub(crate) struct PlannedReconcile<R> {
     pub counts_pull: SideCounts,
     pub conflicts: Vec<Conflict>,
     pub adopted: u32,
-    pub needed_tags: Vec<RemoteTag>,
+    pub needed_records: HashMap<String, Vec<ValueRecord>>,
     pub pull_creates: Vec<PullCreate>,
     pub pull_updates: Vec<PullUpdate>,
     pub pull_delete_ids: Vec<Id<Location>>,
@@ -217,13 +217,12 @@ pub(crate) fn plan<P: SyncProvider>(
         ));
     }
 
-    let tag_name = |id: Id<ValueRecord>| input.tag_names.get(&id).cloned();
     let keyed = build_keyed_inputs(
         provider,
         input.local_locs,
         &input.remote.locations,
         input.mapping,
-        &tag_name,
+        input.records,
     );
     let mut plan = compute_sync_plan(&keyed.base, &keyed.local, &keyed.remote);
 
@@ -302,35 +301,45 @@ pub(crate) fn plan<P: SyncProvider>(
         held.extend(kept_local.delete);
     }
 
-    // Local tags the incoming pulls reference that don't exist yet (created by the apply step).
-    // Each carries the source catalog's look, and the batch follows the source's ordering.
-    let name_set: HashSet<&str> = input.tag_names.values().map(String::as_str).collect();
-    let mut needed_tags: Vec<RemoteTag> = Vec::new();
-    if provider.spec().shape.keeps(MapPart::Tags) {
-        let catalog: HashMap<&str, &RemoteTag> = input
-            .remote
-            .tags
-            .iter()
-            .map(|t| (t.name.as_str(), t))
-            .collect();
-        let mut seen: HashSet<String> = HashSet::new();
-        for key in plan.pull.create.iter().chain(plan.pull.update.iter()) {
-            if let Some(n) = keyed.remote.get(key) {
-                for t in &n.tags {
-                    if !name_set.contains(t.as_str()) && seen.insert(t.clone()) {
-                        needed_tags.push(catalog.get(t.as_str()).map_or_else(
-                            || RemoteTag {
-                                name: t.clone(),
-                                color: None,
-                                order: None,
-                            },
-                            |&r| r.clone(),
-                        ));
-                    }
-                }
+    // Local values the incoming pulls reference that don't exist yet (created by the apply step),
+    // each with the look the source's records give it.
+    let mut needed_records: HashMap<String, Vec<ValueRecord>> = HashMap::new();
+    let mut seen: HashSet<(&str, &str)> = HashSet::new();
+    for key in plan.pull.create.iter().chain(plan.pull.update.iter()) {
+        let Some(n) = keyed.remote.get(key) else {
+            continue;
+        };
+        let tags = n.tags.iter().map(|t| ("tags", t.as_str()));
+        let extra = n.extra.iter().flatten().flat_map(|(field, values)| {
+            values
+                .as_array()
+                .filter(|_| input.records.contains_key(field))
+                .into_iter()
+                .flatten()
+                .filter_map(move |v| Some((field.as_str(), v.as_str()?)))
+        });
+        for (field, name) in tags.chain(extra) {
+            let held = input.records.get(field);
+            let known =
+                held.is_some_and(|held| held.values().any(|r| r.name.as_deref() == Some(name)));
+            if known || !seen.insert((field, name)) {
+                continue;
             }
+            let look = input
+                .remote
+                .records
+                .get(field)
+                .and_then(|source| source.values().find(|r| r.name.as_deref() == Some(name)))
+                .cloned()
+                .unwrap_or_default();
+            needed_records
+                .entry(field.to_string())
+                .or_default()
+                .push(ValueRecord {
+                    name: Some(name.to_string()),
+                    ..look
+                });
         }
-        needed_tags.sort_by_key(|t| t.order.unwrap_or(u32::MAX));
     }
 
     // Post-sync content per key. Seeded from the whole local side, not just touched keys: a
@@ -555,7 +564,7 @@ pub(crate) fn plan<P: SyncProvider>(
         counts_pull: counts.pull,
         conflicts: plan.conflicts,
         adopted,
-        needed_tags,
+        needed_records,
         pull_creates,
         pull_updates,
         pull_delete_ids,
@@ -625,7 +634,7 @@ pub(crate) fn execute<P: SyncProvider>(
         },
         adopted: planned.adopted,
         conflicts: planned.conflicts,
-        needed_tags: planned.needed_tags,
+        needed_records: planned.needed_records,
         pull_creates: planned.pull_creates,
         pull_updates: planned.pull_updates,
         pull_delete_ids: planned.pull_delete_ids,
@@ -641,8 +650,8 @@ pub(crate) struct ReconcileRequest<'a> {
     pub map_id: &'a Id<MapMeta, String>,
     pub remote_map_id: &'a str,
     pub local_locs: &'a [Location],
-    /// tag id -> name of the open map.
-    pub tag_names: &'a HashMap<Id<ValueRecord>, String>,
+    /// Every field the open map interns, with its records.
+    pub records: &'a IncomingRecords,
     pub first_sync: Option<FirstSyncMode>,
     pub resolutions: &'a [(IdentityKey, ResolutionSide)],
 }
@@ -667,7 +676,7 @@ fn reconcile_with<P: SyncProvider>(
         local_locs: req.local_locs,
         remote: snapshot,
         mapping,
-        tag_names: req.tag_names,
+        records: req.records,
         first_sync: req.first_sync,
         resolutions: req.resolutions,
     };
@@ -738,7 +747,7 @@ pub async fn sync_reconcile(
     let keeps_extra = PROVIDERS
         .iter()
         .any(|s| s.id == provider && s.shape.keeps(MapPart::AppData));
-    let (local_locs, tag_names) = {
+    let (local_locs, records) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_map(&map_id)?;
         let t = Instant::now();
@@ -755,16 +764,12 @@ pub async fn sync_reconcile(
             pins.len(),
             t.elapsed().as_secs_f64()
         );
-        let names: HashMap<Id<ValueRecord>, String> = store
-            .records
-            .get("tags")
-            .map(|meta| {
-                meta.iter()
-                    .filter_map(|(&id, rec)| Some((id, rec.name.clone()?)))
-                    .collect()
-            })
-            .unwrap_or_default();
-        (pins, names)
+        let records: IncomingRecords = store
+            .registry()
+            .interned()
+            .map(|field| (field.to_string(), store.records(field)))
+            .collect();
+        (pins, records)
     };
     let resolutions = resolutions.unwrap_or_default();
 
@@ -778,7 +783,7 @@ pub async fn sync_reconcile(
                     map_id: &map_id,
                     remote_map_id: &remote_map_id,
                     local_locs: &local_locs,
-                    tag_names: &tag_names,
+                    records: &records,
                     first_sync,
                     resolutions: &resolutions,
                 },
@@ -829,7 +834,7 @@ fn apply_pull(
     store: &mut Store,
     out: &ReconcileOutcome,
 ) -> AppResult<(Option<Mutation>, Vec<RemoteMappingRow>)> {
-    use crate::store::engine::{IncomingRecords, Target, ValueRecord};
+    use crate::store::engine::Target;
     let edit_count = out.pull_creates.len()
         + out.pull_updates.len()
         + out.pull_delete_ids.len()
@@ -837,46 +842,47 @@ fn apply_pull(
     if edit_count == 0 {
         return Ok((None, Vec::new()));
     }
-    let needed: HashMap<&str, &RemoteTag> = out
-        .needed_tags
-        .iter()
-        .map(|t| (t.name.as_str(), t))
-        .collect();
-    let mut records: HashMap<Id<ValueRecord>, ValueRecord> = HashMap::new();
-    let mut pile_of: HashMap<String, Id<ValueRecord>> = HashMap::new();
-    let mut tag_of = |name: &str| -> Id<ValueRecord> {
-        if let Some(&id) = pile_of.get(name) {
-            return id;
+    let interned: HashSet<String> = store.registry().interned().map(str::to_string).collect();
+    let mut records = IncomingRecords::new();
+    let mut piled: HashMap<(String, String), Id<ValueRecord>> = HashMap::new();
+    let mut value_of = |field: &str, name: &str| -> Option<Id<ValueRecord>> {
+        if !interned.contains(field) {
+            return None;
         }
-        let id = Id::new(records.len() as u32 + 1);
-        let tag = needed.get(name);
-        let extra = tag
-            .and_then(|t| t.color.as_deref())
-            .map(|color| serde_json::Map::from_iter([("color".to_string(), color.into())]))
+        let key = (field.to_string(), name.to_string());
+        if let Some(&id) = piled.get(&key) {
+            return Some(id);
+        }
+        let held = records.entry(field.to_string()).or_default();
+        let id = Id::new(held.len() as u32 + 1);
+        let look = out
+            .needed_records
+            .get(field)
+            .and_then(|needed| needed.iter().find(|r| r.name.as_deref() == Some(name)))
+            .cloned()
             .unwrap_or_default();
-        records.insert(
+        held.insert(
             id,
             ValueRecord {
                 id,
                 name: Some(name.into()),
-                order: tag.and_then(|t| t.order),
-                extra,
+                ..look
             },
         );
-        pile_of.insert(name.to_string(), id);
-        id
+        piled.insert(key, id);
+        Some(id)
     };
 
     let mut edits: Vec<Edit<Location>> = Vec::new();
     for c in &out.pull_creates {
-        let row = normalized_to_local(Id::default(), &c.fields.to_patch(), &mut tag_of);
+        let row = normalized_to_local(Id::default(), &c.fields.to_patch(), &mut value_of);
         edits.push(Op::Add(Location::default().patched(&row)));
     }
     for u in &out.pull_updates {
         edits.push(Op::Put(normalized_to_local(
             u.local_id,
             &u.patch,
-            &mut tag_of,
+            &mut value_of,
         )));
     }
     for &id in out
@@ -889,11 +895,7 @@ fn apply_pull(
 
     let result = store
         .at(&Target::Map { id: None })
-        .edit(
-            edits,
-            IncomingRecords::from([("tags".to_string(), records)]),
-            &mut None,
-        )
+        .edit(edits, records, &mut None)
         .mutation;
     let rows = result
         .keys

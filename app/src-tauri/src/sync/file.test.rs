@@ -1,4 +1,5 @@
 use super::*;
+use crate::store::engine::{IncomingRecords, ValueRecord};
 use crate::sync::engine::{plan, ReconcileInput};
 use crate::sync::remote_mapping::RemoteMappingRow;
 use crate::sync::sync_hash;
@@ -44,6 +45,17 @@ fn pull_reads_tags_by_name_and_custom_fields_without_nulls() {
     );
 }
 
+fn by_name<'a>(
+    snap: &'a RemoteSnapshot<NormalizedSyncLocation>,
+    field: &str,
+    name: &str,
+) -> &'a ValueRecord {
+    snap.records[field]
+        .values()
+        .find(|r| r.name.as_deref() == Some(name))
+        .unwrap()
+}
+
 #[test]
 fn pull_carries_the_source_tag_catalog() {
     let path = source(&json!({
@@ -54,12 +66,29 @@ fn pull_carries_the_source_tag_catalog() {
         } }
     }));
     let snap = FileProvider.pull(path.to_str().unwrap()).unwrap();
-    let by_name: HashMap<&str, &RemoteTag> =
-        snap.tags.iter().map(|t| (t.name.as_str(), t)).collect();
-    assert_eq!(by_name["A"].color.as_deref(), Some("#ff0000"));
-    assert_eq!(by_name["A"].order, Some(2));
-    assert_eq!(by_name["B"].color.as_deref(), Some("#00ff00"));
-    assert_eq!(by_name["B"].order, Some(1));
+    assert_eq!(by_name(&snap, "tags", "A").color(), "#ff0000".parse().ok());
+    assert_eq!(by_name(&snap, "tags", "A").order, Some(2));
+    assert_eq!(by_name(&snap, "tags", "B").color(), "#00ff00".parse().ok());
+    assert_eq!(by_name(&snap, "tags", "B").order, Some(1));
+}
+
+#[test]
+fn pull_reads_a_plugin_fields_values_by_name_with_their_records() {
+    let path = source(&json!({
+        "customCoordinates": [coord(1.0, &json!({ "habitat": ["Wetland", "Forest"] }))],
+        "extra": {
+            "fields": { "habitat": { "type": "array", "interned": true } },
+            "habitat": { "Wetland": { "color": [0, 255, 0], "icon": "reed" } }
+        }
+    }));
+    let snap = FileProvider.pull(path.to_str().unwrap()).unwrap();
+    assert_eq!(
+        snap.locations[0].extra,
+        json!({ "habitat": ["Wetland", "Forest"] })
+            .as_object()
+            .cloned()
+    );
+    assert_eq!(by_name(&snap, "habitat", "Wetland").extra["icon"], "reed");
 }
 
 #[test]
@@ -104,7 +133,7 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
         local_locs: &[],
         remote: FileProvider.pull(path.to_str().unwrap()).unwrap(),
         mapping: &[],
-        tag_names: &HashMap::new(),
+        records: &IncomingRecords::new(),
         first_sync: None,
         resolutions: &[],
     })
@@ -138,7 +167,7 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
         local_locs: &[local],
         remote: FileProvider.pull(path.to_str().unwrap()).unwrap(),
         mapping: &mapping,
-        tag_names: &HashMap::new(),
+        records: &IncomingRecords::new(),
         first_sync: None,
         resolutions: &[],
     })

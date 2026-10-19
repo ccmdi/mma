@@ -96,12 +96,20 @@ fn local_to_normalized_strips_virtual_flags_and_resolves_tags() {
         tags: tag_ids([10, 11, 99]),
         ..Default::default()
     };
-    let name = |id: Id<ValueRecord>| match id.get() {
-        10 => Some("zeta".to_string()),
-        11 => Some("alpha".to_string()),
-        _ => None, // unknown ids are dropped
+    let named = |id: u32, name: &str| {
+        let record = ValueRecord {
+            id: Id::new(id),
+            name: Some(name.into()),
+            ..Default::default()
+        };
+        (Id::new(id), record)
     };
-    let n = local_to_normalized(&loc, &name);
+    // 99 has no record, so it is dropped.
+    let records = IncomingRecords::from([(
+        "tags".to_string(),
+        HashMap::from([named(10, "zeta"), named(11, "alpha")]),
+    )]);
+    let n = local_to_normalized(&loc, &records);
     assert_eq!(n.flags, 1);
     assert_eq!(n.tags, vec!["alpha".to_string(), "zeta".to_string()]);
     assert_eq!(n.pano_id.as_deref(), Some("p"));

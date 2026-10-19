@@ -1,4 +1,5 @@
 use super::*;
+use crate::store::engine::{IncomingRecords, ValueRecord};
 use crate::sync::diff::compute_sync_plan;
 use crate::sync::{
     local_to_normalized, sync_hash, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch,
@@ -7,6 +8,7 @@ use crate::sync::{
 use crate::types::shape::MapShape;
 use crate::types::{AppResult, Location, LocationFlags};
 use mma_algebra::Id;
+use std::collections::HashMap;
 
 /// A remote whose raw shape is already the normalized contract, plus an optional real id for the
 /// stable case; keeps the tests about identity, not adaptation.
@@ -112,16 +114,17 @@ fn loc(id: u32, f: impl FnOnce(&mut Location)) -> Location {
     l
 }
 
-fn tag_name(id: Id<ValueRecord>) -> Option<String> {
-    if id.get() == 1 {
-        Some("red".to_string())
-    } else {
-        None
-    }
+fn tag_records() -> IncomingRecords {
+    let red = ValueRecord {
+        id: Id::new(1),
+        name: Some("red".into()),
+        ..Default::default()
+    };
+    IncomingRecords::from([("tags".to_string(), HashMap::from([(Id::new(1), red)]))])
 }
 
 fn hash_of(l: &Location) -> String {
-    sync_hash(&local_to_normalized(l, &tag_name))
+    sync_hash(&local_to_normalized(l, &tag_records()))
 }
 
 /// Plan arrays come from HashSet iteration, so any ordered comparison sorts both sides.
@@ -136,7 +139,7 @@ fn sorted(v: &[IdentityKey]) -> Vec<&str> {
 #[test]
 fn keeps_two_identical_unmapped_local_pins_separate() {
     let dupes = [loc(1, |_| {}), loc(2, |_| {})];
-    let k = build_keyed_inputs(&Fake::stable(), &dupes, &[], &[], &tag_name);
+    let k = build_keyed_inputs(&Fake::stable(), &dupes, &[], &[], &tag_records());
 
     assert_eq!(k.local.len(), 2);
     assert_eq!(k.local_id_of.len(), 2);
@@ -152,7 +155,7 @@ fn converges_only_as_many_duplicates_as_shared() {
         &[loc(1, |_| {}), loc(2, |_| {})],
         &[raw(|_| {})],
         &[],
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -184,7 +187,7 @@ fn positional_holds_identity_when_array_untouched() {
         &[a, b],
         &[raw(|r| r.n.lat = 1.0), raw(|r| r.n.lat = 2.0)],
         &mapping,
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -220,7 +223,7 @@ fn positional_realigns_by_content_hash_on_insert() {
             raw(|r| r.n.lat = 2.0),
         ],
         &mapping,
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -249,7 +252,7 @@ fn positional_keeps_local_id_on_in_place_edit() {
             r.n.heading = 42.0;
         })],
         &mapping,
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -293,7 +296,7 @@ fn positional_recovers_edited_pin_by_pano_after_delete_shift() {
             r.n.heading = 77.0;
         })],
         &mapping,
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -325,7 +328,7 @@ fn positional_distrusts_bare_index_once_length_changed() {
         &[a, b],
         &[raw(|r| r.n.lat = 500.0)],
         &mapping,
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -344,7 +347,7 @@ fn projection_erases_unrepresentable_fields() {
         x.flags = LocationFlags::from_bits_retain(0);
     });
     let projected = {
-        let mut n = local_to_normalized(&l, &tag_name);
+        let mut n = local_to_normalized(&l, &tag_records());
         n.pano_id = None;
         n.tags = vec![];
         n
@@ -361,7 +364,7 @@ fn projection_erases_unrepresentable_fields() {
         &[l],
         &[raw(|r| r.n.pano_id = None)],
         &mapping,
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -384,7 +387,7 @@ fn first_sync_identical_unmapped_pins_converge() {
         x.n.lng = 2.0;
         x.rid = Some(9000);
     });
-    let k = build_keyed_inputs(&Fake::stable(), &[l], &[r], &[], &tag_name);
+    let k = build_keyed_inputs(&Fake::stable(), &[l], &[r], &[], &tag_records());
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
     assert_eq!(plan.converged.len(), 1);
@@ -406,7 +409,7 @@ fn first_sync_one_sided_pins_create_on_correct_side() {
             x.rid = Some(9000);
         })],
         &[],
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -436,7 +439,7 @@ fn mapped_pin_remote_edit_detected_against_base_hash() {
             x.rid = Some(9000);
         })],
         &mapping,
-        &tag_name,
+        &tag_records(),
     );
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
@@ -456,7 +459,7 @@ fn mapped_pin_deleted_remotely_pulls_delete() {
         remote_id: 9000,
         hash: hash_of(&orig),
     }];
-    let k = build_keyed_inputs(&Fake::stable(), &[orig], &[], &mapping, &tag_name); // remote gone
+    let k = build_keyed_inputs(&Fake::stable(), &[orig], &[], &mapping, &tag_records()); // remote gone
     let plan = compute_sync_plan(&k.base, &k.local, &k.remote);
 
     assert_eq!(sorted(&plan.pull.delete), vec!["L:5"]);

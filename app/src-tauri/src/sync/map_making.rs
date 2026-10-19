@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use vali_data::decode::Reader;
 
 use crate::net::proxy;
+use crate::store::engine::IncomingRecords;
 use crate::store::storage;
 use crate::sync::{
     canon_tags, sync_flags, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch,
@@ -169,7 +170,7 @@ impl SyncProvider for MapMakingProvider {
             "application/protobuf",
         )?;
         Ok(RemoteSnapshot {
-            tags: vec![],
+            records: IncomingRecords::new(),
             locations: decode_response(&body).map_err(|e| AppError(format!("{e:#}")))?,
             token: None,
         })
