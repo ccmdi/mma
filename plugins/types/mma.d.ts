@@ -7881,24 +7881,33 @@ declare namespace util {
 declare function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[];
 /** Color for a tag named `name`. An existing tag uses its stored color. */
 declare function tagColorFor(name: string, tags: Tag[]): string;
-/** Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
- *  canonical casing. Returns the original array unchanged if already present. */
-declare function appendTagName(pending: string[], name: string, tags: Tag[]): string[];
+/** Tags staged on a location until it saves: existing tags by id, and typed names that Save creates. */
+export interface PendingTags {
+    ids: number[];
+    names: string[];
+}
+/** Stage typed text as the existing tag it names, ignoring case, or as a name to create.
+ *  Returns `pending` unchanged if already staged. */
+declare function addPendingTag(pending: PendingTags, name: string, tags: Tag[]): PendingTags;
+/** Stage the tag, or unstage it if it is already staged. */
+declare function togglePendingTag(pending: PendingTags, id: number): PendingTags;
+/** The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out. */
+declare function pendingTagIds({ ids, names }: PendingTags): Promise<number[]>;
 /** Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
  *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. */
 declare function displayTagName(name: string): string;
 
-declare const tags_appendTagName: typeof appendTagName;
+/** @unstable */
+export type tags_PendingTags = PendingTags;
+declare const tags_addPendingTag: typeof addPendingTag;
 declare const tags_displayTagName: typeof displayTagName;
+declare const tags_pendingTagIds: typeof pendingTagIds;
 declare const tags_sortTagsByMode: typeof sortTagsByMode;
 declare const tags_tagColorFor: typeof tagColorFor;
+declare const tags_togglePendingTag: typeof togglePendingTag;
 declare namespace tags {
-  export {
-    tags_appendTagName as appendTagName,
-    tags_displayTagName as displayTagName,
-    tags_sortTagsByMode as sortTagsByMode,
-    tags_tagColorFor as tagColorFor,
-  };
+  export { tags_addPendingTag as addPendingTag, tags_displayTagName as displayTagName, tags_pendingTagIds as pendingTagIds, tags_sortTagsByMode as sortTagsByMode, tags_tagColorFor as tagColorFor, tags_togglePendingTag as togglePendingTag };
+  export type { tags_PendingTags as PendingTags };
 }
 
 export type ConstsApi = typeof consts;

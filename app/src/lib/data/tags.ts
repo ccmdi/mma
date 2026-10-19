@@ -1,4 +1,5 @@
 import { Tag } from "@/store/tag";
+import { Edit } from "@/store/edit";
 import type { TagSortMode } from "@/types";
 import { colorForName } from "@/lib/util/color";
 import { getSettings } from "@/store/settings";
@@ -24,13 +25,42 @@ export function tagColorFor(name: string, tags: Tag[]): string {
 	return existing?.color ?? colorForName(name);
 }
 
-/** Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
- *  canonical casing. Returns the original array unchanged if already present. */
-export function appendTagName(pending: string[], name: string, tags: Tag[]): string[] {
+/** Tags staged on a location until it saves: existing tags by id, and typed names that Save creates. */
+export interface PendingTags {
+	ids: number[];
+	names: string[];
+}
+
+/** Stage typed text as the existing tag it names, ignoring case, or as a name to create.
+ *  Returns `pending` unchanged if already staged. */
+export function addPendingTag(pending: PendingTags, name: string, tags: Tag[]): PendingTags {
 	const lower = name.toLowerCase();
-	if (pending.some((n) => n.toLowerCase() === lower)) return pending;
 	const existing = tags.find((t) => t.name.toLowerCase() === lower);
-	return [...pending, existing ? existing.name : name];
+	if (existing) {
+		return pending.ids.includes(existing.id)
+			? pending
+			: { ...pending, ids: [...pending.ids, existing.id] };
+	}
+	return pending.names.some((n) => n.toLowerCase() === lower)
+		? pending
+		: { ...pending, names: [...pending.names, name] };
+}
+
+/** Stage the tag, or unstage it if it is already staged. */
+export function togglePendingTag(pending: PendingTags, id: number): PendingTags {
+	const ids = pending.ids.includes(id) ? pending.ids.filter((i) => i !== id) : [...pending.ids, id];
+	return { ...pending, ids };
+}
+
+/** The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out. */
+export async function pendingTagIds({ ids, names }: PendingTags): Promise<number[]> {
+	const live = ids.filter((id) => Tag.get(id));
+	if (!names.length) return live;
+	const { keys } = await Edit.values(
+		"tags",
+		names.map((name) => ({ add: { id: 0, name } })),
+	);
+	return [...new Set([...live, ...keys])];
 }
 
 let suffixCache: { tags: Tag[]; suffixes: Map<string, string> } | null = null;

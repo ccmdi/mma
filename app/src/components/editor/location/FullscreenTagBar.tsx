@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { mdiChevronDown, mdiChevronUp } from "@mdi/js";
 import { Tag } from "@/store/tag";
-import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
-import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
+import { sortTagsByMode, addPendingTag, togglePendingTag, type PendingTags } from "@/lib/data/tags";
+import { TagPill } from "@/components/primitives/TagPill";
+import { PendingTagPills } from "./PendingTagPills";
 import { useSetting } from "@/store/settings";
 import { persisted, useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { displayTagName } from "@/lib/data/tags";
@@ -19,8 +20,8 @@ export function FullscreenTagBar({
 	onChangeTags,
 	tags,
 }: {
-	pendingTags: string[];
-	onChangeTags: (tags: string[]) => void;
+	pendingTags: PendingTags;
+	onChangeTags: (tags: PendingTags) => void;
 	tags: Tag[];
 }) {
 	const [input, setInput] = useState("");
@@ -35,23 +36,17 @@ export function FullscreenTagBar({
 	const handleAdd = () => {
 		const name = input.trim();
 		if (!name) return;
-		onChangeTags(appendTagName(pendingTags, name, tags));
+		onChangeTags(addPendingTag(pendingTags, name, tags));
 		setInput("");
 	};
 
 	const toggleTag = (t: Tag) => {
-		const lower = t.name.toLowerCase();
-		if (pendingTags.some((n) => n.toLowerCase() === lower)) {
-			onChangeTags(pendingTags.filter((n) => n.toLowerCase() !== lower));
-		} else {
-			onChangeTags([...pendingTags, t.name]);
-		}
+		onChangeTags(togglePendingTag(pendingTags, t.id));
 		setInput("");
 	};
 
-	const pendingLower = new Set(pendingTags.map((n) => n.toLowerCase()));
 	const sorted = sortTagsByMode(tags, tagSortMode, Tag.counts());
-	const available = sorted.filter((t) => !pendingLower.has(t.name.toLowerCase()));
+	const available = sorted.filter((t) => !pendingTags.ids.includes(t.id));
 	const filtered = search(available, input, (t) => [t.name]);
 
 	return (
@@ -63,21 +58,7 @@ export function FullscreenTagBar({
 			<div className="fullscreen-tagbar__row">
 				<div className="fullscreen-tagbar__content">
 					<ul className="tag-list">
-						{pendingTags.map((name) => (
-							<TagPill
-								as="li"
-								key={name}
-								small
-								color={tagColorFor(name, tags)}
-								label={label(name)}
-								button={
-									<TagPillButton
-										variant="delete"
-										onClick={() => onChangeTags(pendingTags.filter((n) => n !== name))}
-									/>
-								}
-							/>
-						))}
+						<PendingTagPills pending={pendingTags} onChange={onChangeTags} />
 					</ul>
 					<AddTagForm
 						value={input}

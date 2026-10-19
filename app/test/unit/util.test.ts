@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import type { Tag } from "@/types";
 import { compareNatural, mmaBufUrl, phaseRate, type PhaseRate } from "@/lib/util/util";
-import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
+import { sortTagsByMode, tagColorFor } from "@/lib/data/tags";
 import { ERROR_CODES } from "@/bindings.consts";
 import { initLocale } from "@/lib/i18n";
 import { colorForName } from "@/lib/util/color";
@@ -53,25 +53,6 @@ describe("tagColorFor", () => {
 
 	it("falls back to the deterministic colorForName for an unknown name", () => {
 		expect(tagColorFor("Gamma", tags)).toBe(colorForName("Gamma"));
-	});
-});
-
-describe("appendTagName", () => {
-	const tags: Tag[] = [
-		{ id: 1, name: "Urban", color: "#000", visible: true, order: null, doclinks: [] },
-	];
-
-	it("appends a brand-new name as typed", () => {
-		expect(appendTagName([], "Coastal", tags)).toEqual(["Coastal"]);
-	});
-
-	it("normalizes to an existing tag's canonical casing", () => {
-		expect(appendTagName([], "urban", tags)).toEqual(["Urban"]);
-	});
-
-	it("dedups case-insensitively, returning the original array unchanged", () => {
-		const pending = ["Urban"];
-		expect(appendTagName(pending, "urban", tags)).toBe(pending);
 	});
 });
 

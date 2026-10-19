@@ -37,7 +37,7 @@ vi.mock("@/lib/review/review", () => ({ Review: { useSession: () => null } }));
 vi.mock("@/store/edit", () => ({ Edit: { locations: h.edits } }));
 vi.mock("@/store/location", () => ({ Location: { addTo: h.addTo, add: async () => {} } }));
 vi.mock("@/store/tag", () => ({
-	Tag: { visible: () => [{ id: 1, name: "a" }], counts: () => ({}) },
+	Tag: { visible: () => [{ id: 1, name: "a" }], names: () => [], counts: () => ({}) },
 }));
 vi.mock("@/store/dialogBus", () => ({ openDialog: h.dialogs }));
 vi.mock("@/lib/sv/panoDownload", () => ({ downloadPano: async () => {} }));
@@ -65,7 +65,7 @@ function mount(origin: string) {
 	const setPendingTags = vi.fn();
 	function Probe() {
 		useLocationHotkeys({
-			pendingTags: [],
+			pendingTags: { ids: [], names: [] },
 			setPendingTags,
 			fullscreenContainerRef: { current: null },
 			panoContainerRef: { current: null },

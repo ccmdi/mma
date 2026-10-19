@@ -4,7 +4,7 @@ import { Store } from "@/store/store";
 import { Query } from "@/store/query";
 import { Tag } from "@/store/tag";
 import { Location } from "@/store/location";
-import { Edit } from "@/store/edit";
+import { pendingTagIds, type PendingTags } from "@/lib/data/tags";
 import { FullscreenTagBar } from "@/components/editor/location/FullscreenTagBar";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
@@ -21,24 +21,22 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 			{ type: "Locations", locations: [locationId], name: null },
 			{ kind: "locations" },
 		);
-		return Tag.names(loc?.tags ?? []);
+		return { ids: loc?.tags ?? [], names: [] };
 	}, [locationId]);
-	const [names, showNames] = useOptimistic(useSticky(tagged, locationId).ok() ?? []);
+	const [pending, showPending] = useOptimistic<PendingTags>(
+		useSticky(tagged, locationId).ok() ?? { ids: [], names: [] },
+	);
 
-	const change = (next: string[]) =>
+	const change = (next: PendingTags) =>
 		startTransition(async () => {
-			showNames(next);
+			showPending(next);
 			try {
-				const { keys: tags } = await Edit.values(
-					"tags",
-					next.map((name) => ({ add: { id: 0, name } })),
-				);
-				await Location.update([{ id: locationId, tags }]);
+				await Location.update([{ id: locationId, tags: await pendingTagIds(next) }]);
 			} catch (e) {
 				toast(e instanceof Error ? e.message : t("Could not update tags"));
 			}
 			await tagged.rerun();
 		});
 
-	return <FullscreenTagBar pendingTags={names} onChangeTags={change} tags={tags} />;
+	return <FullscreenTagBar pendingTags={pending} onChangeTags={change} tags={tags} />;
 }

@@ -3,14 +3,14 @@ import { Store } from "@/store/store";
 import { Location } from "@/store/location";
 import { Editor } from "@/store/editor";
 import { Tag } from "@/store/tag";
-import { Edit } from "@/store/edit";
 import { setPinned } from "@/types";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { AddTagForm } from "@/components/editor/tags/AddTagForm";
 import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
-import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
+import { sortTagsByMode, addPendingTag, pendingTagIds, type PendingTags } from "@/lib/data/tags";
+import { PendingTagPills } from "./PendingTagPills";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { displayTagName } from "@/lib/data/tags";
 import { ReviewBar } from "@/components/editor/location/ReviewBar";
@@ -58,8 +58,8 @@ const TagEditor = memo(function TagEditor({
 	onChangeTags,
 	isImport,
 }: {
-	pendingTags: string[];
-	onChangeTags: React.Dispatch<React.SetStateAction<string[]>>;
+	pendingTags: PendingTags;
+	onChangeTags: React.Dispatch<React.SetStateAction<PendingTags>>;
 	isImport: boolean;
 }) {
 	const [tagInput, setTagInput] = useState("");
@@ -73,29 +73,24 @@ const TagEditor = memo(function TagEditor({
 		[visibleTags, tagSortMode, tagCounts],
 	);
 	const suggestions = useMemo(() => {
-		const pendingLower = new Set(pendingTags.map((n) => n.toLowerCase()));
 		const available = search(allTags, tagInput, (t) => [t.name]).filter(
-			(t) => !pendingLower.has(t.name.toLowerCase()),
+			(t) => !pendingTags.ids.includes(t.id),
 		);
 		return available.slice(0, suggestionLimit || available.length);
 	}, [allTags, pendingTags, tagInput, suggestionLimit]);
 
-	const addPendingTag = (name: string) =>
-		onChangeTags((prev) => appendTagName(prev, name, Tag.visible()));
+	const stageName = (name: string) =>
+		onChangeTags((prev) => addPendingTag(prev, name, Tag.visible()));
 
 	const handleAddTag = () => {
 		const name = tagInput.trim();
 		if (!name) return;
-		addPendingTag(name);
+		stageName(name);
 		setTagInput("");
 	};
 
-	const handleRemoveTag = (name: string) => {
-		onChangeTags((prev) => prev.filter((t) => t !== name));
-	};
-
 	const handleSuggestionClick = (t: Tag) => {
-		addPendingTag(t.name);
+		stageName(t.name);
 		setTagInput("");
 	};
 
@@ -112,16 +107,7 @@ const TagEditor = memo(function TagEditor({
 	return (
 		<>
 			<ul className="tag-list">
-				{pendingTags.map((name) => (
-					<TagPill
-						as="li"
-						key={name}
-						small
-						color={tagColorFor(name, allTags)}
-						label={displayTagName(name)}
-						button={<TagPillButton variant="delete" onClick={() => handleRemoveTag(name)} />}
-					/>
-				))}
+				<PendingTagPills pending={pendingTags} onChange={onChangeTags} />
 				<li>
 					<AddTagForm value={tagInput} onChange={setTagInput} onAdd={handleAddTag} />
 				</li>
@@ -216,14 +202,7 @@ export function LocationPreview() {
 		// and its undo step when it finishes.
 		const saved = await save({
 			...pano.captureView(),
-			tags: pendingTags.length
-				? (
-						await Edit.values(
-							"tags",
-							pendingTags.map((name) => ({ add: { id: 0, name } })),
-						)
-					).keys
-				: [],
+			tags: await pendingTagIds(pendingTags),
 		});
 		if (saved == null) return;
 

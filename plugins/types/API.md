@@ -1690,16 +1690,16 @@ The location pinned to the pano it carries, or unpinned to float on default cove
 
 ## Tags
 
-### appendTagName
+### addPendingTag
 
-`stable` · since v0.10.3
+`stable` · since v0.12.2
 
 ```ts
-appendTagName(pending: string[], name: string, tags: Tag[]): string[]
+addPendingTag(pending: PendingTags, name: string, tags: Tag[]): PendingTags
 ```
 
-Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
-canonical casing. Returns the original array unchanged if already present.
+Stage typed text as the existing tag it names, ignoring case, or as a name to create.
+Returns `pending` unchanged if already staged.
 
 ### displayTagName
 
@@ -1711,6 +1711,16 @@ displayTagName(name: string): string
 
 Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
 the `/`-path to its shortest unique suffix; otherwise returns the name verbatim.
+
+### pendingTagIds
+
+`stable` · since v0.12.2
+
+```ts
+pendingTagIds(props: PendingTags): Promise<number[]>
+```
+
+The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out.
 
 ### sortTagsByMode
 
@@ -1735,6 +1745,16 @@ tagColorFor(name: string, tags: Tag[]): string
 ```
 
 Color for a tag named `name`. An existing tag uses its stored color.
+
+### togglePendingTag
+
+`stable` · since v0.12.2
+
+```ts
+togglePendingTag(pending: PendingTags, id: number): PendingTags
+```
+
+Stage the tag, or unstage it if it is already staged.
 
 ## Legacy
 

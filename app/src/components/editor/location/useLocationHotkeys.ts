@@ -10,7 +10,7 @@ import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
 import { Location } from "@/store/location";
 import { Edit } from "@/store/edit";
-import { sortTagsByMode } from "@/lib/data/tags";
+import { sortTagsByMode, togglePendingTag, type PendingTags } from "@/lib/data/tags";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { getSettings, setSetting, MOVEMENT_CYCLE, MOVEMENT_MODES } from "@/store/settings";
@@ -30,8 +30,8 @@ import { usePano } from "@/lib/hooks/usePano";
 import { Editor } from "@/store/editor";
 
 interface LocationHotkeyDeps {
-	pendingTags: string[];
-	setPendingTags: Dispatch<SetStateAction<string[]>>;
+	pendingTags: PendingTags;
+	setPendingTags: Dispatch<SetStateAction<PendingTags>>;
 	fullscreenContainerRef: RefObject<HTMLDivElement | null>;
 	panoContainerRef: RefObject<HTMLDivElement | null>;
 	handleSave: () => void | Promise<void>;
@@ -124,7 +124,12 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	/** The open location as it is right now: live camera, staged tags. */
 	const dropped = () => {
 		const live = onMap && location && pano.capture();
-		return live ? dropLocation(location, live, live.panoId ?? location.panoId, pendingTags) : null;
+		return live
+			? dropLocation(location, live, live.panoId ?? location.panoId, [
+					...Tag.names(pendingTags.ids),
+					...pendingTags.names,
+				])
+			: null;
 	};
 
 	useHotkey(useBinding("duplicateLocation"), () => {
@@ -190,8 +195,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		const tags = sortTagsByMode(Tag.visible(), getSettings().tagSortMode, Tag.counts());
 		if (idx >= tags.length) return;
 		const tag = tags[idx];
-		const has = pendingTags.includes(tag.name);
-		setPendingTags(has ? pendingTags.filter((t) => t !== tag.name) : [...pendingTags, tag.name]);
+		setPendingTags(togglePendingTag(pendingTags, tag.id));
 	};
 
 	const onApplyTag = useEffectEvent(({ tagId }: { tagId: number }) => {
@@ -199,9 +203,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (!active) return false;
 		const tag = Tag.visible().find((t) => t.id === tagId);
 		if (!tag) return false;
-		setPendingTags((cur) =>
-			cur.includes(tag.name) ? cur.filter((t) => t !== tag.name) : [...cur, tag.name],
-		);
+		setPendingTags((cur) => togglePendingTag(cur, tag.id));
 	});
 
 	const onDropToMap = useEffectEvent(async (mapId: string) => {
