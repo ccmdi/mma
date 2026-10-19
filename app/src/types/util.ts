@@ -182,8 +182,22 @@ export class Loading {
 	}
 }
 
+/** Work stopped before it produced anything, by a newer run or on request. */
+export class Cancelled {
+	readonly status = "cancelled";
+	ok(): null {
+		return null;
+	}
+	map(_f: (value: never) => unknown): this {
+		return this;
+	}
+}
+
 /** A value, or the error that kept it from being produced. */
 export type Result<T, E = Error> = Ok<T> | Err<E>;
+
+/** How a run ended: its result, or cancelled. */
+export type Settled<T, E = Error> = Result<T, E> | Cancelled;
 
 /** A value still being produced, or its result. */
 export type AsyncState<T, E = Error> = Loading | Result<T, E>;

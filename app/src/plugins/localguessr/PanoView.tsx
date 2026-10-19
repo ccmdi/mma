@@ -115,8 +115,8 @@ export function PanoView({
 				return;
 			}
 			const shown = await pano.show(toLocation(round), { concealUntilReady: true });
-			if (cancelled || shown.status === "superseded") return;
-			if (!shown.panoId) {
+			if (cancelled || shown.status === "cancelled") return;
+			if (!shown.value) {
 				setError(t("No panorama found here"));
 				return;
 			}

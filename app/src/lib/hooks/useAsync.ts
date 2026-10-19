@@ -27,7 +27,7 @@ export function useAsync<T>(
 		latest<T>({
 			discard: (value) => discard.current?.(value),
 			publish: (value) => settle(new Ok(value)),
-			failed: (e) => settle(new Err(e instanceof Error ? e : new Error(String(e)))),
+			failed: (error) => settle(new Err(error)),
 		}),
 	);
 	useEffect(() => {

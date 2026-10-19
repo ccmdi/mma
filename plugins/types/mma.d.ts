@@ -3322,6 +3322,22 @@ export type Rename<T, Map extends Record<string, string>> = {
 };
 /** The member(s) of union `U` whose discriminant `D` (default `"type"`) is `V`. @unstable */
 export type Variant<U, V extends U[D], D extends keyof U = "type" & keyof U> = Extract<U, Record<D, V>>;
+/** A value that was produced. */
+declare class Ok<T> {
+    readonly status = "ok";
+    readonly value: T;
+    constructor(value: T);
+    /** The value, or null when there is none. */
+    ok(): T;
+    /** The same state with its value transformed by `f`. */
+    map<U>(f: (value: T) => U): Ok<U>;
+}
+/** Work stopped before it produced anything, by a newer run or on request. */
+declare class Cancelled {
+    readonly status = "cancelled";
+    ok(): null;
+    map(_f: (value: never) => unknown): this;
+}
 
 type Selector = Parameters<Cmd["storeRead"]>[1];
 
@@ -5521,23 +5537,16 @@ export type PanoDestination = string | google.maps.LatLngLiteral;
 export type PanoFrame = CameraFrame & {
     zoom?: number;
 };
-/** `panoId` is the pano put on screen, null when the viewer was sent to coordinates. @unstable */
-export type ShowResult = {
-    status: "shown";
-    panoId: string | null;
-} | {
-    status: "superseded";
-};
 /** @unstable */
 export type PanoEvent = "pov_changed" | "zoom_changed" | "links_changed" | "status_changed" | "pano_changed";
 /** @unstable */
 export type PanoViewer = ReturnType<typeof createPano>;
 /** Create an independent pano viewer with its own camera, requests, listeners and mounts. */
 declare function createPano(): {
-    /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. */
+    /** Resolve and show a location's pano, optionally hidden until it loads; cancelled when overtaken. The value is the pano put on screen, null when sent to coordinates. */
     show: (loc: Location, { concealUntilReady }?: {
         concealUntilReady?: boolean;
-    }) => Promise<ShowResult>;
+    }) => Promise<Ok<string | null> | Cancelled>;
     /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. */
     jump: (to: PanoDestination, frame?: PanoFrame) => void;
     /** Step to the linked pano nearest the camera heading, or its reverse. */
@@ -5611,10 +5620,10 @@ declare function createPano(): {
 };
 /** The app's default pano viewer. @unstable */
 declare const Pano: {
-    /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. @unstable */
+    /** Resolve and show a location's pano, optionally hidden until it loads; cancelled when overtaken. The value is the pano put on screen, null when sent to coordinates. @unstable */
     show: (loc: Location, { concealUntilReady }?: {
         concealUntilReady?: boolean;
-    }) => Promise<ShowResult>;
+    }) => Promise<Ok<string | null> | Cancelled>;
     /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. @unstable */
     jump: (to: PanoDestination, frame?: PanoFrame) => void;
     /** Step to the linked pano nearest the camera heading, or its reverse. @unstable */

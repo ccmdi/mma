@@ -39,12 +39,12 @@ export function usePanoSession() {
 			resetTrail(location.lng, location.lat);
 
 			const shown = await pano.show(location);
-			if (cancelled || shown.status === "superseded") return;
-			if (isPinned(location) && shown.panoId !== location.panoId) {
+			if (cancelled || shown.status === "cancelled") return;
+			if (isPinned(location) && shown.value !== location.panoId) {
 				pano.toast(t("Configured pano ID could not be found. Falling back to lat/lng."), 3000);
 			}
 			// From the resolve result directly: setPano() with the same id fires no status_changed.
-			void edit({ panoId: shown.panoId ?? location.panoId ?? null });
+			void edit({ panoId: shown.value ?? location.panoId ?? null });
 		});
 
 		return () => {

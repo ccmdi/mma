@@ -9580,10 +9580,10 @@ Pano.show(
   props?: {
     concealUntilReady?: boolean;
   },
-): Promise<ShowResult>
+): Promise<Ok<string | null> | Cancelled>
 ```
 
-Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken.
+Resolve and show a location's pano, optionally hidden until it loads; cancelled when overtaken. The value is the pano put on screen, null when sent to coordinates.
 
 #### Pano.showCrosshair
 

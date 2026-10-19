@@ -262,7 +262,7 @@ export function LocationPreview() {
 	const handleReturnToSpawn = useCallback(async () => {
 		const loc = Editor.get().open?.spawn;
 		if (!loc || !pano.exists()) return;
-		if ((await pano.show(loc)).status === "superseded") return;
+		if ((await pano.show(loc)).status === "cancelled") return;
 		await edit((location) => setPinned(location, false));
 	}, [pano, edit]);
 

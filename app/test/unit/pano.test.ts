@@ -4,6 +4,7 @@ import type { Pano } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 import { PANO_ZOOM } from "@/lib/sv/constants";
 import { createLocation } from "@/types";
+import { Cancelled, Ok } from "@/types/util";
 
 const sv = vi.hoisted(() => {
 	class FakePano {
@@ -151,9 +152,9 @@ describe("showing a pano", () => {
 		lookup.resolvePano.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(resolved("B"));
 		const first = pano.show(loc("A"));
 		const second = pano.show(loc("B"));
-		await expect(second).resolves.toEqual({ status: "shown", panoId: "B" });
+		await expect(second).resolves.toEqual(new Ok("B"));
 		slow.resolve(resolved("A"));
-		await expect(first).resolves.toEqual({ status: "superseded" });
+		await expect(first).resolves.toEqual(new Cancelled());
 		expect(live().setPano.mock.calls).toEqual([["B"]]);
 	});
 
@@ -182,14 +183,14 @@ describe("showing a pano", () => {
 		const { pano } = await freshPano();
 		lookup.resolvePano.mockResolvedValueOnce(null).mockResolvedValueOnce(resolved("A"));
 		await pano.show(loc("A"));
-		await expect(pano.show(loc("A"))).resolves.toEqual({ status: "shown", panoId: "A" });
+		await expect(pano.show(loc("A"))).resolves.toEqual(new Ok("A"));
 		expect(lookup.resolvePano).toHaveBeenCalledTimes(2);
 	});
 
 	it("keeps a pinned pano on screen when its lookup fails", async () => {
 		const { pano } = await freshPano();
 		lookup.resolvePano.mockRejectedValueOnce(new Error("offline"));
-		await expect(pano.show(loc("A"))).resolves.toEqual({ status: "shown", panoId: "A" });
+		await expect(pano.show(loc("A"))).resolves.toEqual(new Ok("A"));
 		expect(live().setPano.mock.calls).toEqual([["A"]]);
 	});
 
@@ -202,7 +203,7 @@ describe("showing a pano", () => {
 	it("sends the viewer to the coordinates when nothing resolves", async () => {
 		const { pano } = await freshPano();
 		lookup.resolvePano.mockResolvedValueOnce(null);
-		await expect(pano.show(loc("A"))).resolves.toEqual({ status: "shown", panoId: null });
+		await expect(pano.show(loc("A"))).resolves.toEqual(new Ok(null));
 	});
 
 	it("swaps without hiding or fading unless asked to conceal", async () => {
@@ -224,7 +225,7 @@ describe("jumping", () => {
 		const shown = pano.show(loc("A"));
 		pano.jump("JUMP");
 		pending.resolve(resolved("A"));
-		await expect(shown).resolves.toEqual({ status: "superseded" });
+		await expect(shown).resolves.toEqual(new Cancelled());
 		expect(live().setPano.mock.calls).toEqual([["JUMP"]]);
 	});
 

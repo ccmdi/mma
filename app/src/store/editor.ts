@@ -76,6 +76,7 @@ const openings = latest<Opened | null>({
 					.close()
 					.catch((error) => log.error("[editor] layer close failed:", error))
 			: undefined,
+	failed: (error) => log.error("[editor] open failed:", error),
 });
 
 type DraftPatch = Omit<Patch<Location>, "id">;
@@ -205,10 +206,10 @@ export const Editor = {
 	use: <T>(selector: (s: EditorState) => T): T =>
 		useEventValue("editor:changed", () => selector(state)),
 	/** Reread the current draft. Superseded reads and errors cannot update the next opening. @unstable */
-	refresh: (): Promise<void> => {
+	refresh: async (): Promise<void> => {
 		const open = state.open;
-		if (!open) return Promise.resolve();
-		return refreshes.replace(async () => {
+		if (!open) return;
+		await refreshes.replace(async () => {
 			const [location = null] = await open.layer.read(
 				{ type: "Locations", locations: [open.id], name: null },
 				{ kind: "locations" },
@@ -236,11 +237,11 @@ export const Editor = {
 		return Store.use((s) => name != null && s.writingLayers.includes(name));
 	},
 	/** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
-	openImport: (index: number): Promise<void> => {
+	openImport: async (index: number): Promise<void> => {
 		const preview = Import.staging()?.preview;
-		if (preview == null || index < 0 || index >= preview.keys.len) return Promise.resolve();
+		if (preview == null || index < 0 || index >= preview.keys.len) return;
 		const id = preview.keys.first + index;
-		return openings.replace(async () => {
+		await openings.replace(async () => {
 			const [loc] = await Query.read(
 				{ type: "Locations", locations: [id], name: null },
 				{ kind: "locations" },
@@ -252,9 +253,7 @@ export const Editor = {
 	/** Open an arbitrary location read-only as a seen-preview: loads its pano without
 	 *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
 	preview: (loc: Location) => {
-		void openings
-			.replace(() => openPreview(loc, "seen"))
-			.catch((error) => log.error("[editor] preview failed:", error));
+		void openings.replace(() => openPreview(loc, "seen"));
 	},
 	/** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 	resolve: async (m: MaybeLocation): Promise<Location | null> => {
@@ -298,7 +297,9 @@ export const Editor = {
 		);
 	},
 	/** Open one location from the duplicate-resolution panel in the editor. @unstable */
-	openDuplicate: (loc: Location) => openings.replace(() => opening(loc.id, loc, "map")),
+	openDuplicate: async (loc: Location): Promise<void> => {
+		await openings.replace(() => opening(loc.id, loc, "map"));
+	},
 	/** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
 	removeDuplicate: (id: number) => {
 		update({ duplicateLocations: state.duplicateLocations.filter((l) => l.id !== id) });

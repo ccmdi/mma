@@ -2,7 +2,7 @@ import type * as bindings from "@/bindings.gen";
 import type { CameraFrame, Location } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 import { isPinned, type LocationPOV, type PanoCapture, type PanoView } from "@/types";
-import { clamp } from "@/types/util";
+import { clamp, type Cancelled, type Ok } from "@/types/util";
 import { getSettings, panoDisplayOptions } from "@/store/settings";
 import { google } from "@/lib/sv/opensv";
 import { patchOpenSV, setPanoHovered } from "@/lib/sv/opensvPatch";
@@ -19,14 +19,13 @@ import {
 } from "@/lib/sv/constants";
 import { normalizeHeading, reverseHeading, wrapDeg } from "@/lib/geo/geo";
 import { serial } from "@/lib/util/concurrent";
+import { latest } from "@/lib/util/latest";
 import { toast as showToast } from "@/lib/util/toast";
 import { releaseWebglContexts } from "@/lib/render/webglContexts";
 
 export type Pano = bindings.Pano;
 export type PanoDestination = string | google.maps.LatLngLiteral;
 export type PanoFrame = CameraFrame & { zoom?: number };
-/** `panoId` is the pano put on screen, null when the viewer was sent to coordinates. */
-export type ShowResult = { status: "shown"; panoId: string | null } | { status: "superseded" };
 export type PanoEvent =
 	| "pov_changed"
 	| "zoom_changed"
@@ -124,8 +123,8 @@ function isAt(sv: google.maps.StreetViewPanorama, to: PanoDestination): boolean 
 export function createPano() {
 	const container = createContainer();
 	let viewer: google.maps.StreetViewPanorama | null = null;
-	let latestClaim = 0;
-	let concealedFor: number | null = null;
+	const moves = latest<string | null>();
+	let concealedFor: AbortSignal | null = null;
 	let activeTurn: { target: CameraFrame; stop: () => void } | null = null;
 	const jumpsAhead = serial();
 	const subscribers: Record<PanoEvent, Set<() => void>> = {
@@ -173,8 +172,8 @@ export function createPano() {
 		};
 	}
 
-	function conceal(claim: number) {
-		concealedFor = claim;
+	function conceal(move: AbortSignal) {
+		concealedFor = move;
 		container.style.transition = "none";
 		container.style.opacity = "0";
 	}
@@ -186,13 +185,17 @@ export function createPano() {
 		container.style.opacity = "1";
 	}
 
-	function revealWhenReady(sv: google.maps.StreetViewPanorama, claim: number, to: PanoDestination) {
-		conceal(claim);
+	function revealWhenReady(
+		sv: google.maps.StreetViewPanorama,
+		move: AbortSignal,
+		to: PanoDestination,
+	) {
+		conceal(move);
 		const off = on("status_changed", () => {
 			const outgoing = sv.getStatus() === "OK" && typeof to === "string" && sv.getPano() !== to;
-			if (claim === latestClaim && outgoing) return;
+			if (!move.aborted && outgoing) return;
 			off();
-			if (claim === latestClaim) reveal();
+			if (!move.aborted) reveal();
 		});
 	}
 
@@ -201,17 +204,19 @@ export function createPano() {
 	}
 
 	function reserveJump(): (to: PanoDestination, frame?: PanoFrame) => boolean {
-		const claim = latestClaim;
-		return (to, frame) => {
-			const sv = ensureViewer();
-			if (claim !== latestClaim || !sv) return false;
-			latestClaim++;
-			if (typeof to === "string") sv.setPano(to);
-			else sv.setPosition(to);
-			if (frame) applyFrame(sv, frame);
-			reveal();
-			return true;
-		};
+		return moves.bind(
+			(to: PanoDestination, frame?: PanoFrame) => {
+				const sv = ensureViewer();
+				if (!sv) return false;
+				moves.cancel();
+				if (typeof to === "string") sv.setPano(to);
+				else sv.setPosition(to);
+				if (frame) applyFrame(sv, frame);
+				reveal();
+				return true;
+			},
+			() => false,
+		);
 	}
 
 	function jump(to: PanoDestination, frame?: PanoFrame) {
@@ -221,39 +226,44 @@ export function createPano() {
 	async function show(
 		loc: Location,
 		{ concealUntilReady = false }: { concealUntilReady?: boolean } = {},
-	): Promise<ShowResult> {
-		const claim = ++latestClaim;
-		if (concealUntilReady) conceal(claim);
-		let to: PanoDestination;
-		try {
-			to = (await resolveCached(loc))?.id ?? { lat: loc.lat, lng: loc.lng };
-		} catch (error) {
-			if (!isPinned(loc)) {
-				if (claim === latestClaim) reveal();
-				throw error;
+	): Promise<Ok<string | null> | Cancelled> {
+		const shown = await moves.replace(async (move) => {
+			if (concealUntilReady) conceal(move);
+			let to: PanoDestination;
+			try {
+				to = (await resolveCached(loc))?.id ?? { lat: loc.lat, lng: loc.lng };
+			} catch (error) {
+				if (!isPinned(loc)) throw error;
+				to = loc.panoId;
 			}
-			to = loc.panoId;
-		}
-		if (claim !== latestClaim) return { status: "superseded" };
-		const sv = ensureViewer();
-		if (!sv) {
+			if (move.aborted) return null;
+			const sv = ensureViewer();
+			if (!sv) {
+				reveal();
+				moves.cancel();
+				return null;
+			}
+			if (concealUntilReady && !isAt(sv, to)) revealWhenReady(sv, move, to);
+			else reveal();
+			applyResolved(sv, to, loc);
+			resize();
+			return typeof to === "string" ? to : null;
+		});
+		if (shown.status === "error") {
 			reveal();
-			return { status: "superseded" };
+			throw shown.error;
 		}
-		if (concealUntilReady && !isAt(sv, to)) revealWhenReady(sv, claim, to);
-		else reveal();
-		applyResolved(sv, to, loc);
-		resize();
-		return { status: "shown", panoId: typeof to === "string" ? to : null };
+		return shown;
 	}
 
 	async function preload(loc: Location): Promise<void> {
-		const claim = latestClaim;
-		const resolved = await resolveCached(loc).catch(() => null);
-		const sv = ensureViewer();
-		if (claim !== latestClaim || concealedFor !== null || !sv || !resolved?.id) return;
-		sv.setPano(resolved.id);
-		sv.setPov({ heading: loc.heading, pitch: loc.pitch });
+		const stage = moves.bind((resolved: Pano | null) => {
+			const sv = ensureViewer();
+			if (concealedFor !== null || !sv || !resolved?.id) return;
+			sv.setPano(resolved.id);
+			sv.setPov({ heading: loc.heading, pitch: loc.pitch });
+		});
+		stage(await resolveCached(loc).catch(() => null));
 	}
 
 	function reload(fallback: google.maps.LatLngLiteral) {
@@ -358,12 +368,14 @@ export function createPano() {
 	}
 
 	function reserveLook(): (frame: PanoFrame) => boolean {
-		const claim = latestClaim;
-		return (frame) => {
-			if (claim !== latestClaim || !viewer) return false;
-			applyFrame(viewer, frame);
-			return true;
-		};
+		return moves.bind(
+			(frame: PanoFrame) => {
+				if (!viewer) return false;
+				applyFrame(viewer, frame);
+				return true;
+			},
+			() => false,
+		);
 	}
 
 	function look(frame: PanoFrame) {
@@ -564,7 +576,7 @@ export function createPano() {
 	}
 
 	return {
-		/** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. */
+		/** Resolve and show a location's pano, optionally hidden until it loads; cancelled when overtaken. The value is the pano put on screen, null when sent to coordinates. */
 		show,
 		/** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. */
 		jump,

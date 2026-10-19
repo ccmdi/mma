@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { latest } from "@/lib/util/latest";
+import { Cancelled, Err, Ok } from "@/types/util";
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
@@ -37,15 +38,22 @@ describe("latest request ownership", () => {
 		await requests.replace(() => Promise.reject(error));
 		expect(failed).toHaveBeenCalledExactlyOnceWith(error);
 	});
-	it("rejects with a current error when nothing handles failures", async () => {
+	it("resolves to how each run settled", async () => {
 		const requests = latest<string>();
 		const error = new Error("current");
-		await expect(requests.replace(() => Promise.reject(error))).rejects.toBe(error);
+		await expect(requests.replace(() => Promise.reject(error))).resolves.toStrictEqual(
+			new Err(error),
+		);
 		await expect(
 			requests.replace(() => {
 				throw error;
 			}),
-		).rejects.toBe(error);
+		).resolves.toStrictEqual(new Err(error));
+		const older = deferred<string>();
+		const first = requests.replace(() => older.promise);
+		await expect(requests.replace(() => "new")).resolves.toStrictEqual(new Ok("new"));
+		older.resolve("old");
+		await expect(first).resolves.toStrictEqual(new Cancelled());
 	});
 	it("cancellation aborts requests and invalidates callbacks, including when reopened", async () => {
 		const publish = vi.fn();
