@@ -9,6 +9,7 @@ import {
 	type DialogProps,
 } from "@/components/primitives/Dialog";
 import { EmptyState } from "@/components/primitives/EmptyState";
+import { Notice } from "@/components/primitives/Hint";
 import { toast } from "@/lib/util/toast";
 import { fmt, formatDistance } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
@@ -28,18 +29,14 @@ interface Preview {
 export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 	const [merging, setMerging] = useState(false);
 
-	const { data: preview, loading } = useAsync<Preview | null>(async () => {
+	const found = useAsync<Preview | null>(async () => {
 		if (!open) return null;
-		try {
-			const groups = await Location.duplicateGroups(distance);
-			const total = groups.reduce((n, g) => n + g.length, 0);
-			const largest = groups.reduce((m, g) => Math.max(m, g.length), 0);
-			return { groups: groups.length, mergedAway: total - groups.length, largest };
-		} catch (e) {
-			log.error("[merge] preview failed:", e);
-			return null;
-		}
+		const groups = await Location.duplicateGroups(distance);
+		const total = groups.reduce((n, g) => n + g.length, 0);
+		const largest = groups.reduce((m, g) => Math.max(m, g.length), 0);
+		return { groups: groups.length, mergedAway: total - groups.length, largest };
 	}, [open, distance]);
+	const preview = found.ok();
 
 	const handleMerge = useCallback(async () => {
 		setMerging(true);
@@ -68,11 +65,17 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 
 	const nothing = preview != null && preview.groups === 0;
 
-	if (loading) return null;
+	if (found.status === "loading") return null;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Merge duplicates")}>
+				{found.status === "error" && (
+					<>
+						<Notice tone="error">{found.error.message}</Notice>
+						<DialogActions cancel={{ label: t("Close") }} />
+					</>
+				)}
 				{nothing && (
 					<>
 						<EmptyState>

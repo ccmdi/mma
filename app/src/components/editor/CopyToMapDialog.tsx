@@ -3,10 +3,9 @@ import { Store } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { search } from "@/lib/search";
-import { log } from "@/lib/util/log";
 import { mdiEarth } from "@mdi/js";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
-import { Hint } from "@/components/primitives/Hint";
+import { Hint, Notice } from "@/components/primitives/Hint";
 import { HotkeyInput } from "@/components/primitives/HotkeyInput";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { Button } from "@/components/primitives/Button";
@@ -31,16 +30,10 @@ export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 	const [pendingIds, setPendingIds] = useState<string[]>([]);
 	const [pendingGlobal, setPendingGlobal] = useState<string[]>([]);
 	const [query, setQuery] = useState("");
-	const { data: maps } = useAsync(
-		() =>
-			cmd.storeListMaps().catch((e) => {
-				log.error("[copyToMap] list failed:", e);
-				return null;
-			}),
-		[],
-	);
+	const listed = useAsync(() => cmd.storeListMaps(), []);
+	const maps = useMemo(() => listed.ok() ?? [], [listed]);
 
-	const byId = useMemo(() => new Map((maps ?? []).map((m) => [m.id, m])), [maps]);
+	const byId = useMemo(() => new Map(maps.map((m) => [m.id, m])), [maps]);
 
 	const copyIds = (list: typeof globalBindings) =>
 		list.flatMap((b) => (b.action.type === "copyToMap" ? [b.action.mapId] : []));
@@ -59,7 +52,7 @@ export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 
 	const q = query.trim();
 	const suggestions = q
-		? search(maps ?? [], q, (m) => [m.name])
+		? search(maps, q, (m) => [m.name])
 				.filter((m) => m.id !== Store.get().mapId && !rowIds.includes(m.id))
 				.slice(0, 8)
 		: [];
@@ -107,6 +100,7 @@ export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Copy location to map (hotkeys)")} className="copy-to-map-modal-host">
+				{listed.status === "error" && <Notice tone="error">{listed.error.message}</Notice>}
 				<div className="copy-to-map-modal">
 					<Hint>
 						{t(

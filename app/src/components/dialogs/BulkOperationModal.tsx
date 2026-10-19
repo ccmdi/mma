@@ -1156,30 +1156,28 @@ export function BulkOperationModal({
 }: DialogProps & { operation: BulkOperation }) {
 	const run = useEventValue("bulkruns:changed", getBulkRuns).get(operation);
 	const picker = useSelectorPick();
-	const { data: allKeys } = useAsync(
+	const coverage = useAsync(
 		async () => Query.read({ type: "Everything" }, { kind: "coverage" }),
 		[],
 	);
 	const info = useAsyncSticky(() => readTargetInfo(picker.selector), [picker.selector]);
-
-	if (!run && (allKeys === null || info === null)) return null;
-
-	const onReady = (runner: BulkRunner) => startBulkRun(operation, runner, picker.selector);
 	const Setup = SETUPS[operation];
+	const setup =
+		coverage.status === "ok" && info.status === "ok" ? (
+			<Setup
+				picker={picker}
+				info={info.value}
+				fieldKeys={coverage.value.map(([key]) => key)}
+				onReady={(runner) => startBulkRun(operation, runner, picker.selector)}
+			/>
+		) : null;
+
+	if (!run && !setup) return null;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t(TITLES[operation])}>
-				{run ? (
-					<BulkProgress operation={operation} onClose={() => onOpenChange(false)} />
-				) : (
-					<Setup
-						picker={picker}
-						info={info!}
-						fieldKeys={allKeys!.map(([key]) => key)}
-						onReady={onReady}
-					/>
-				)}
+				{run ? <BulkProgress operation={operation} onClose={() => onOpenChange(false)} /> : setup}
 			</DialogContent>
 		</Dialog>
 	);

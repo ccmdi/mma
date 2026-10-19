@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { act, createElement, useState, useEffect } from "react";
-import { useAsync, useAsyncSticky, useSticky } from "@/lib/hooks/useAsync";
+import { useAsync, useAsyncSticky, useSticky, type Rerunnable } from "@/lib/hooks/useAsync";
+import { Err, Loading, Ok, type AsyncState } from "@/types/util";
 import { mount } from "./fixtures/harness";
 
 describe("useAsync signal", () => {
@@ -38,13 +39,14 @@ describe("useAsync discard", () => {
 		const discarded: string[] = [];
 		function Probe() {
 			const [dep, setDep] = useState(0);
-			const { data } = useAsync(() => new Promise<string>((r) => pending.push(r)), [dep], {
+			const state = useAsync(() => new Promise<string>((r) => pending.push(r)), [dep], {
 				discard: (value) => discarded.push(value),
 			});
+			const value = state.status === "ok" ? state.value : null;
 			useEffect(() => {
 				bump = () => setDep((n) => n + 1);
-				seen = data;
-			}, [data]);
+				seen = value;
+			}, [value]);
 			return null;
 		}
 		const m = mount(createElement(Probe));
@@ -66,7 +68,8 @@ describe("useAsyncSticky key", () => {
 		function Probe() {
 			const [dep, d] = useState(1);
 			const [key, k] = useState("a");
-			const value = useAsyncSticky(() => new Promise<string>((r) => pending.push(r)), [dep], key);
+			const state = useAsyncSticky(() => new Promise<string>((r) => pending.push(r)), [dep], key);
+			const value = state.status === "ok" ? state.value : null;
 			useEffect(() => {
 				setDep = d;
 				setKey = k;
@@ -90,32 +93,50 @@ describe("useAsyncSticky key", () => {
 });
 
 describe("useSticky", () => {
-	it("holds the last settled value while loading, and a settled null is a value", () => {
-		let seen: string | null | undefined;
-		let setState: (s: {
-			data: string | null;
-			loading: boolean;
-			error: Error | null;
-		}) => void = () => {};
+	it("holds the last value while loading, and never holds an error", () => {
+		let seen: AsyncState<string> | undefined;
+		let setState: (s: AsyncState<string>) => void = () => {};
 		function Probe() {
-			const [state, set] = useState<{ data: string | null; loading: boolean; error: Error | null }>(
-				{ data: null, loading: true, error: null },
-			);
-			const value = useSticky(state);
+			const [state, set] = useState<AsyncState<string>>(new Loading());
+			const shown = useSticky(state);
 			useEffect(() => {
 				setState = set;
-				seen = value;
-			}, [value]);
+				seen = shown;
+			}, [shown]);
 			return null;
 		}
 		const m = mount(createElement(Probe));
-		expect(seen).toBeNull();
-		act(() => setState({ data: "v1", loading: false, error: null }));
-		expect(seen).toBe("v1");
-		act(() => setState({ data: null, loading: true, error: null }));
-		expect(seen).toBe("v1");
-		act(() => setState({ data: null, loading: false, error: null }));
-		expect(seen).toBeNull();
+		expect(seen).toStrictEqual(new Loading());
+		act(() => setState(new Ok("v1")));
+		act(() => setState(new Loading()));
+		expect(seen).toStrictEqual(new Ok("v1"));
+		act(() => setState(new Err(new Error("down"))));
+		act(() => setState(new Loading()));
+		expect(seen).toStrictEqual(new Loading());
+		m.unmount();
+	});
+});
+
+describe("useAsync rerun", () => {
+	it("runs again with the same deps after a failure", async () => {
+		let calls = 0;
+		let seen: Rerunnable<string> | undefined;
+		function Probe() {
+			const state = useAsync(async () => {
+				calls++;
+				if (calls === 1) throw new Error("down");
+				return "up";
+			}, []);
+			useEffect(() => {
+				seen = state;
+			}, [state]);
+			return null;
+		}
+		const m = mount(createElement(Probe));
+		await act(async () => {});
+		expect(seen?.status).toBe("error");
+		await act(async () => seen!.rerun());
+		expect(seen?.status === "ok" && seen.value).toBe("up");
 		m.unmount();
 	});
 });

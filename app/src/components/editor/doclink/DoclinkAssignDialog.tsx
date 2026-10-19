@@ -220,7 +220,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 		return ids;
 	}, [tags]);
 	// Prefetched on map open, so these resolve from cache in the common case.
-	const { data: knownTitles } = useAsync(
+	const knownTitles = useAsync(
 		() =>
 			Promise.all(
 				knownDocIds.map((docId) =>
@@ -232,11 +232,11 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 		[knownDocIds.join(","), open],
 	);
 
-	const {
-		data: outline,
-		loading,
-		error,
-	} = useAsync(() => (docRef && open ? loadOutline(docRef) : null), [docRef?.docId, open]);
+	const loaded = useAsync(
+		() => (docRef && open ? loadOutline(docRef) : null),
+		[docRef?.docId, open],
+	);
+	const outline = loaded.ok();
 
 	// anchor -> tags assigned to it (for this doc), recomputed from live tag data.
 	const assignments = useMemo(() => {
@@ -357,7 +357,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 									setMatches(null);
 								}}
 							>
-								{knownTitles?.[i] ?? docId.slice(0, 12)}
+								{knownTitles.ok()?.[i] ?? docId.slice(0, 12)}
 							</Button>
 						))}
 					</div>
@@ -458,10 +458,10 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 									</Button>
 								</div>
 								<div className="doclink-assign__outline">
-									{loading && <Hint>{t("Loading document...")}</Hint>}
-									{error && (
+									{loaded.status === "loading" && <Hint>{t("Loading document...")}</Hint>}
+									{loaded.status === "error" && (
 										<Hint tone="error">
-											{t("Couldn't load:")} {error.message}
+											{t("Couldn't load:")} {loaded.error.message}
 										</Hint>
 									)}
 									{shownHeadings.map((h) => {

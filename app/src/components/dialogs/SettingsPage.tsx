@@ -739,8 +739,8 @@ function BorderDetailGroup() {
 			BORDER_FILES.map((file) => cmd.checkBorderFile(file).catch(() => false)),
 		);
 		return { medium, heavy, adm1 };
-	}, []).data;
-	const ready = (file: BorderFile) => downloaded.has(file) || (checked?.[file] ?? null);
+	}, []);
+	const ready = (file: BorderFile) => downloaded.has(file) || checked.ok()?.[file];
 	const adm1Ready = ready("adm1");
 
 	const handleChange = async (level: BorderDetail) => {
@@ -1226,7 +1226,8 @@ function DataBody() {
 	// undefined = no dialog; string = chosen folder; null = reset to default.
 	const [pending, setPending] = useState<string | null | undefined>(undefined);
 	const [busy, setBusy] = useState(false);
-	const { data: loc } = useAsync(() => cmd.getDataLocation().catch(() => null), []);
+	const located = useAsync(() => cmd.getDataLocation(), []);
+	const loc = located.ok();
 
 	const pick = useCallback(async () => {
 		const picked = await openDialog({ directory: true, title: t("Choose data folder") });
@@ -1250,7 +1251,11 @@ function DataBody() {
 	return (
 		<Aux match="data location folder storage">
 			<div className="settings-aux__col">
-				<code className="code-block">{loc?.path ?? <Spinner />}</code>
+				{located.status === "error" ? (
+					<Notice tone="error">{located.error.message}</Notice>
+				) : (
+					<code className="code-block">{loc?.path ?? <Spinner />}</code>
+				)}
 				<div className="settings-aux__row">
 					<Button onClick={() => void pick()}>{t("Change folder...")}</Button>
 					<Button onClick={() => void cmd.openDataFolder()}>{t("Open data folder")}</Button>

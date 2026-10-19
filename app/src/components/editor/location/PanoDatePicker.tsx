@@ -59,21 +59,17 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 }: {
 	onChange: (panoId: string | null) => void;
 }) {
-	const { currentPano, timeline, defaultPano } = usePanoViewer();
+	const { onScreen } = usePanoViewer();
+	const shown = onScreen.ok();
 	const writing = Editor.useWriting();
-	const entries = timeline.status === "ready" ? timeline.entries : [];
+	const entries = shown?.timeline ?? [];
 	const location = Editor.use((s) => s.open?.location ?? null);
 	const exactTs = (location?.extra?.datetime as number | undefined) ?? null;
 	const enrichFields = Store.use((s) => s.map?.settings.enrichFields ?? null);
 	// An exact date is on its way: the field is on and the location has no date yet.
 	const resolvingExact = writing && isFieldEnabled(enrichFields, "datetime") && exactTs == null;
 
-	const { defaultEntry, currentEntry, isDefault } = panoDates(
-		currentPano,
-		entries,
-		defaultPano,
-		location,
-	);
+	const { defaultEntry, currentEntry, isDefault } = panoDates(shown, location);
 	const displayDate = currentEntry ? civilToDate(currentEntry.date) : null;
 	const displayLabel = displayDate
 		? isDefault
@@ -95,8 +91,8 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const { lat, lng } = Editor.usePosition();
 	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
 	const triggerCameraType = useCameraType(
-		currentEntry?.panoId ?? currentPano?.id ?? null,
-		currentPano,
+		currentEntry?.panoId ?? shown?.currentPano?.id ?? null,
+		shown?.currentPano,
 	);
 	const tzOption = dateTimezone === "utc" ? "UTC" : (resolvedTz ?? undefined);
 	const exactLabel = exactTs
@@ -117,7 +113,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 				})
 		: null;
 
-	if (timeline.status === "failed") {
+	if (onScreen.status === "error") {
 		return (
 			<span className="pano-date-failed">
 				<NSelect className="pano-date-select" disabled>
@@ -125,7 +121,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 						<span className="pano-value">{t("Couldn't load dates")}</span>
 					</button>
 				</NSelect>
-				<IconButton icon={mdiRefresh} size={18} label={t("Retry")} onClick={timeline.retry} />
+				<IconButton icon={mdiRefresh} size={18} label={t("Retry")} onClick={onScreen.rerun} />
 			</span>
 		);
 	}
@@ -134,7 +130,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 			<NSelect className="pano-date-select" disabled>
 				<button type="button" className="pano-date-select__trigger">
 					<span className="pano-value">
-						{timeline.status === "loading" ? t("Loading dates...") : t("No dates")}
+						{onScreen.status === "loading" ? t("Loading dates...") : t("No dates")}
 					</span>
 				</button>
 			</NSelect>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { Store } from "@/store/store";
 import { Field } from "@/store/field";
 import { Query } from "@/store/query";
@@ -111,18 +112,19 @@ function buildRows(): FieldRow[] {
 	});
 }
 
-/** Share of the map's locations carrying each field. Refetched when `epoch` bumps. */
-function useCoverage(epoch = 0): Map<string, number> {
-	const [coverage, setCoverage] = useState<Map<string, number>>(new Map());
-	useEffect(() => {
+/** Share of the map's locations carrying each field, and a way to count it again. */
+function useCoverage() {
+	const shares = useAsync(() => {
 		const total = Store.get().locationCount;
-		if (total === 0) return;
-		void Query.read({ type: "Everything" }, { kind: "coverage" }).then((coverage) => {
-			setCoverage(new Map(coverage.map(([key, n]) => [key, n / total])));
-		});
-	}, [epoch]);
-	return coverage;
+		if (total === 0) return NO_COVERAGE;
+		return Query.read({ type: "Everything" }, { kind: "coverage" }).then(
+			(coverage) => new Map(coverage.map(([key, n]) => [key, n / total])),
+		);
+	}, []);
+	return { coverage: shares.ok() ?? NO_COVERAGE, recount: shares.rerun };
 }
+
+const NO_COVERAGE: ReadonlyMap<string, number> = new Map();
 
 interface RenamePrompt {
 	key: string;
@@ -195,7 +197,7 @@ export function EnrichTab({
 	setEnrichFields: (v: string[] | null) => void;
 	onOpenManual: () => void;
 }) {
-	const coverage = useCoverage();
+	const { coverage } = useCoverage();
 	// Declaration order, not alphabetical: it already groups the default set first.
 	const options = getEnrichFieldOptions();
 
@@ -277,8 +279,7 @@ function FieldsTab() {
 	const [renamePrompt, setRenamePrompt] = useState<RenamePrompt | null>(null);
 	const [deleteKey, setDeleteKey] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
-	const [coverageEpoch, setCoverageEpoch] = useState(0);
-	const coverage = useCoverage(coverageEpoch);
+	const { coverage, recount } = useCoverage();
 
 	const shown = useMemo(() => {
 		const q = filter.trim();
@@ -292,7 +293,7 @@ function FieldsTab() {
 		const next = buildRows();
 		setRows(next);
 		setSelected((cur) => (next.some((r) => r.key === cur) ? cur : (next[0]?.key ?? null)));
-		setCoverageEpoch((n) => n + 1);
+		recount();
 	};
 
 	// Live commit: field defs apply on every edit (blur for text, change for selects).
@@ -614,18 +615,13 @@ function EnumValues({
 	const [draft, setDraft] = useState(() =>
 		(row.values ?? []).map((v) => ({ value: v.value, label: v.label ?? "" })),
 	);
-	const [candidates, setCandidates] = useState<string[]>([]);
-
-	useEffect(() => {
-		let live = true;
+	const unlisted = useAsync(() => {
 		const have = new Set((row.values ?? []).map((v) => v.value));
-		void Query.read({ type: "Everything" }, { kind: "values", field: row.key }).then((values) => {
-			if (live) setCandidates(values.filter((v) => !have.has(v)));
-		});
-		return () => {
-			live = false;
-		};
+		return Query.read({ type: "Everything" }, { kind: "values", field: row.key }).then((values) =>
+			values.filter((v) => !have.has(v)),
+		);
 	}, [row.key, row.values]);
+	const candidates = unlisted.ok() ?? [];
 
 	const commit = (next: { value: string; label: string }[]) => {
 		const values: FieldChoice[] = [];

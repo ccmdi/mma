@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { mdiGithub } from "@mdi/js";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -20,6 +20,7 @@ import {
 } from "@/lib/feedback/body";
 import { uploadImages, useStagedImages } from "@/lib/feedback/attachments";
 import { collectDiagnostics, type Diagnostics } from "@/lib/diagnostics";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
 import { isSignedIn, submitReport } from "@/lib/feedback/submit";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
@@ -40,6 +41,8 @@ const PENDING_URL = "uploaded when you send";
 
 const ATTACHMENT_KEYS = Object.keys(ATTACHMENT_LABELS) as Array<keyof Attachments>;
 
+const NOTHING_GATHERED = { diagnostics: null as Diagnostics | null, logTail: "" };
+
 export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const [kind, setKind] = useState<ReportKind>("bug");
 	const [title, setTitle] = useState("");
@@ -50,32 +53,26 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const [showPreview, setShowPreview] = useState(false);
 	const { images, add, remove } = useStagedImages();
 
-	const [signedIn, setSignedIn] = useState(false);
-	const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
-	const [logTail, setLogTail] = useState("");
-	const [ready, setReady] = useState(false);
 	const [sending, setSending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	useEffect(() => {
-		void (async () => {
-			const [who, diag, tail] = await Promise.all([
-				isSignedIn(),
-				collectDiagnostics().catch((e) => {
-					log.warn(`[feedback] diagnostics failed: ${e}`);
-					return null;
-				}),
-				cmd.feedbackLogTail().catch((e) => {
-					log.warn(`[feedback] log tail failed: ${e}`);
-					return "";
-				}),
-			]);
-			setSignedIn(who);
-			setDiagnostics(diag);
-			setLogTail(tail);
-			setReady(true);
-		})();
+	const account = useAsync(() => isSignedIn(), []);
+	const known = useSticky(account);
+	const signedIn = known.ok() ?? false;
+	const gathered = useAsync(async () => {
+		const [diagnostics, logTail] = await Promise.all([
+			collectDiagnostics().catch((e) => {
+				log.warn(`[feedback] diagnostics failed: ${e}`);
+				return null;
+			}),
+			cmd.feedbackLogTail().catch((e) => {
+				log.warn(`[feedback] log tail failed: ${e}`);
+				return "";
+			}),
+		]);
+		return { diagnostics, logTail };
 	}, []);
+	const { diagnostics, logTail } = gathered.ok() ?? NOTHING_GATHERED;
 
 	const addImages = async (files: FileList | null) => {
 		setError(null);
@@ -140,14 +137,14 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 				t("Enter code {code} in your browser to finish signing in.", { code: info.userCode }),
 			);
 			await cmd.githubPollLogin();
-			setSignedIn(true);
+			account.rerun();
 			setError(null);
 		} catch (e) {
 			setError(errText(e));
 		}
 	};
 
-	if (!ready) return null;
+	if (gathered.status !== "ok" || known.status === "loading") return null;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

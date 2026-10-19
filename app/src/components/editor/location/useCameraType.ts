@@ -23,5 +23,5 @@ export function useCameraType(panoId: string | null, known?: Pano | null): FullC
 		if (!isOfficialPano(panoId)) return "unofficial";
 		if (answer) return cameraTypeOf(answer);
 		return svMetadata([panoId]).then(([data]) => data && cameraTypeOf(data));
-	}, [panoId, answer]);
+	}, [panoId, answer]).ok();
 }

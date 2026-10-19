@@ -57,6 +57,9 @@ function Host() {
 		</PanoViewerProvider>
 	);
 }
+function shownId() {
+	return viewer.onScreen.status === "ok" ? viewer.onScreen.value.currentPano?.id : undefined;
+}
 function change(location: Location, layer = h.layer) {
 	h.location = location;
 	h.layer = layer;
@@ -73,7 +76,7 @@ describe("pano viewer metadata", () => {
 	it("keeps the previous imagery while walking and replaces it when the new answer arrives", async () => {
 		const mounted = mount(<Host />);
 		await act(async () => {});
-		expect(viewer.currentPano?.id).toBe("A");
+		expect(shownId()).toBe("A");
 		let resolve!: (panos: Partial<Pano>[]) => void;
 		h.metadata.mockImplementationOnce(
 			() =>
@@ -82,36 +85,36 @@ describe("pano viewer metadata", () => {
 				}),
 		);
 		await act(async () => change({ ...h.location!, panoId: "B" }));
-		expect(viewer.currentPano?.id).toBe("A");
+		expect(shownId()).toBe("A");
 		await act(async () => resolve([{ id: "B", lat: 3, lng: 4, time: [] }]));
-		expect(viewer.currentPano?.id).toBe("B");
+		expect(shownId()).toBe("B");
 		mounted.unmount();
 	});
 	it("reads a lookup still in flight as loading, not as no dates", async () => {
 		h.metadata.mockImplementationOnce(() => new Promise(() => {}));
 		const mounted = mount(<Host />);
 		await act(async () => {});
-		expect(viewer.timeline).toEqual({ status: "loading" });
+		expect(viewer.onScreen.status).toBe("loading");
 		mounted.unmount();
 	});
 	it("reports a failed lookup as failed, and retrying asks again", async () => {
 		h.metadata.mockRejectedValueOnce(new Error("timed out"));
 		const mounted = mount(<Host />);
 		await act(async () => {});
-		const failed = viewer.timeline;
-		if (failed.status !== "failed") throw new Error(`expected failed, got ${failed.status}`);
-		await act(async () => failed.retry());
-		expect(viewer.timeline).toEqual({ status: "ready", entries: [] });
+		const failed = viewer.onScreen;
+		if (failed.status !== "error") throw new Error(`expected error, got ${failed.status}`);
+		await act(async () => failed.rerun());
+		expect(viewer.onScreen.status === "ok" && viewer.onScreen.value.timeline).toEqual([]);
 		expect(h.metadata).toHaveBeenCalledTimes(2);
 		mounted.unmount();
 	});
 	it("drops sticky imagery when reopening the same location in another layer", async () => {
 		const mounted = mount(<Host />);
 		await act(async () => {});
-		expect(viewer.currentPano?.id).toBe("A");
+		expect(shownId()).toBe("A");
 		h.metadata.mockImplementationOnce(() => new Promise(() => {}));
 		await act(async () => change(h.location!, {}));
-		expect(viewer.currentPano).toBeNull();
+		expect(viewer.onScreen.status).toBe("loading");
 		mounted.unmount();
 	});
 });

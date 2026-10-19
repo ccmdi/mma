@@ -7,7 +7,7 @@ import { ERROR_CODES } from "@/bindings.consts";
 import { initLocale } from "@/lib/i18n";
 import { colorForName } from "@/lib/util/color";
 import { relativeTime, errText } from "@/lib/util/format";
-import { cycle } from "@/types/util";
+import { cycle, Err, Loading, Ok, type AsyncState } from "@/types/util";
 import { MOVEMENT_CYCLE } from "@/store/settings";
 describe("sortTagsByMode", () => {
 	const tag = (id: number, name: string, order?: number): Tag => ({
@@ -277,5 +277,21 @@ describe("mmaBufUrl", () => {
 		const url = new URL(mmaBufUrl("C:\\maps #1\\50% done?.json"));
 		expect(decodeURIComponent(url.pathname)).toBe("/C:/maps #1/50% done?.json");
 		expect(url.search + url.hash).toBe("");
+	});
+});
+
+describe("async states", () => {
+	it("gives the value only when ok, and maps only an ok value", () => {
+		const states: AsyncState<number>[] = [new Loading(), new Ok(2), new Err(new Error("down"))];
+		expect(states.map((s) => s.ok())).toEqual([null, 2, null]);
+		const doubled = states.map((s) => s.map((n) => n * 2));
+		expect(doubled.map((s) => s.ok())).toEqual([null, 4, null]);
+		expect(doubled[0]).toBe(states[0]);
+		expect(doubled[2]).toBe(states[2]);
+	});
+	it("is only built through its classes", () => {
+		// @ts-expect-error a bare object is not a state
+		const bare: AsyncState<number> = { status: "ok", value: 1 };
+		expect(bare.status).toBe("ok");
 	});
 });

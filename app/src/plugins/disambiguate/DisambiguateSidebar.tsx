@@ -167,11 +167,8 @@ export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 	const version = useEvent(SELECTION_EVENTS);
 	const selCount = MMA.SelectionList.active().length;
 	// Synchronous null short-circuit: no loading flash while under two groups.
-	const {
-		data: analysis,
-		loading,
-		error,
-	} = useAsync(() => (selCount < 2 ? null : analyze()), [version]);
+	const analyzed = useAsync(() => (selCount < 2 ? null : analyze()), [version]);
+	const analysis = analyzed.ok();
 
 	if (selCount < 2) {
 		return (
@@ -185,14 +182,14 @@ export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 
 	return (
 		<Sidebar title={t("Disambiguate selections")} onBack={onClose} className="disambig">
-			{error && <Notice tone="error">{error.message}</Notice>}
-			{!error && loading && (
+			{analyzed.status === "error" && <Notice tone="error">{analyzed.error.message}</Notice>}
+			{analyzed.status === "loading" && (
 				<div className="disambig__loading">
 					<Spinner />
 					<span className="disambig__muted">{t("Analyzing...")}</span>
 				</div>
 			)}
-			{!error && analysis && (
+			{analysis && (
 				<>
 					<div className="disambig__summary disambig__muted">
 						{analysis.result.groupSizes.map((n, i) => (

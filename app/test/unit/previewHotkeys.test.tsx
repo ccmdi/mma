@@ -28,9 +28,10 @@ vi.mock("@/lib/hooks/usePano", () => ({
 		capture: () => ({ lat: 1, lng: 2, heading: 0, pitch: 0, zoom: 1, panoId: "P" }),
 	}),
 }));
-vi.mock("@/components/editor/location/PanoViewerContext", () => ({
-	usePanoViewer: () => ({ timeline: { status: "loading" } }),
-}));
+vi.mock("@/components/editor/location/PanoViewerContext", async () => {
+	const { Loading } = await import("@/types/util");
+	return { usePanoViewer: () => ({ onScreen: new Loading() }) };
+});
 vi.mock("@/components/editor/location/PanoControls", () => ({ sendHideCar: () => {} }));
 vi.mock("@/lib/review/review", () => ({ Review: { useSession: () => null } }));
 vi.mock("@/store/edit", () => ({ Edit: { locations: h.edits } }));

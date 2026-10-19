@@ -66,7 +66,7 @@ export function useGameMap(
 			},
 		},
 	);
-	const surface = built.data;
+	const surface = built.ok();
 
 	useLayoutEffect(() => {
 		if (!surface) return;
@@ -243,16 +243,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 /** The signed-in GitHub account's avatar, or null when signed out. */
 export function useGitHubAvatar(): string | null {
-	return (
-		useAsync(
-			() =>
-				cmd
-					.githubMe()
-					.then((user) => user?.avatarUrl ?? null)
-					.catch(() => null),
-			[],
-		).data ?? null
-	);
+	return useAsync(() => cmd.githubMe().then((user) => user?.avatarUrl ?? null), []).ok();
 }
 
 export function useAvatarPinSetting() {
@@ -266,12 +257,12 @@ export function useGuessPin(): () => PinIcon {
 	const avatar = useAsync(
 		() =>
 			avatarPin && avatarUrl
-				? loadImage(avatarUrl)
-						.then((image) => drawPin(`avatar:${avatarUrl}`, GUESS_COLOR, imageFace(image)))
-						.catch(() => null)
+				? loadImage(avatarUrl).then((image) =>
+						drawPin(`avatar:${avatarUrl}`, GUESS_COLOR, imageFace(image)),
+					)
 				: null,
 		[avatarPin, avatarUrl],
-	).data;
+	).ok();
 	return useMemo(() => (avatar ? () => avatar : GUESS_PIN), [avatar]);
 }
 

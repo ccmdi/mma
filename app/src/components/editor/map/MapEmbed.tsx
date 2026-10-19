@@ -218,7 +218,7 @@ export function MapEmbed({
 			},
 		},
 	);
-	const surface = built.data;
+	const surface = built.ok();
 
 	useEffect(() => {
 		if (!surface) return;

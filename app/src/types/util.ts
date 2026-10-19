@@ -139,5 +139,54 @@ export const unionTuple =
 	): U =>
 		tuple;
 
+/** A value that was produced. */
+export class Ok<T> {
+	readonly status = "ok";
+	readonly value: T;
+	constructor(value: T) {
+		this.value = value;
+	}
+	/** The value, or null when there is none. */
+	ok(): T {
+		return this.value;
+	}
+	/** The same state with its value transformed by `f`. */
+	map<U>(f: (value: T) => U): Ok<U> {
+		return new Ok(f(this.value));
+	}
+}
+
+/** The error that kept a value from being produced. */
+export class Err<E = Error> {
+	readonly status = "error";
+	readonly error: E;
+	constructor(error: E) {
+		this.error = error;
+	}
+	ok(): null {
+		return null;
+	}
+	map(_f: (value: never) => unknown): this {
+		return this;
+	}
+}
+
+/** A value still being produced. */
+export class Loading {
+	readonly status = "loading";
+	ok(): null {
+		return null;
+	}
+	map(_f: (value: never) => unknown): this {
+		return this;
+	}
+}
+
+/** A value, or the error that kept it from being produced. */
+export type Result<T, E = Error> = Ok<T> | Err<E>;
+
+/** A value still being produced, or its result. */
+export type AsyncState<T, E = Error> = Loading | Result<T, E>;
+
 /** The value union of a `const` object. */
 export type EnumOf<T> = T[keyof T];

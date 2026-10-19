@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -212,8 +213,6 @@ function PluginCard({
 
 export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 	const [tab, setTab] = useState<Tab>("core");
-	const [registry, setRegistry] = useState<PluginManifest[] | null>(null);
-	const [fetchError, setFetchError] = useState<string | null>(null);
 	const [installedManifests, setInstalledManifests] = useState<PluginManifest[]>([]);
 	const [sidecarVersions, setSidecarVersions] = useState<Record<string, string | null>>({});
 	const [sidecarProgress, setSidecarProgress] = useState<Record<string, number>>({});
@@ -246,16 +245,8 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 		if (open) void refreshInstalled();
 	}, [open, refreshInstalled]);
 
-	const fetchRegistry = useCallback(() => {
-		setFetchError(null);
-		fetchPluginRegistry()
-			.then(setRegistry)
-			.catch((e) => setFetchError(e.message));
-	}, []);
-
-	useEffect(() => {
-		if (open && !registry) fetchRegistry();
-	}, [open, registry, fetchRegistry]);
+	const fetched = useAsync(() => (open ? fetchPluginRegistry() : null), [open]);
+	const registry = fetched.ok();
 
 	const { installedEntries, registryEntries } = (() => {
 		const installedById = new Map(installedManifests.map((m) => [m.id, m]));
@@ -423,8 +414,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 								{...cardHandlers}
 							/>
 						))}
-						{!registry &&
-							!fetchError &&
+						{fetched.status === "loading" &&
 							Array.from({ length: 4 }, (_, i) => (
 								<div key={i} className="plugin-card plugin-card--skeleton" aria-hidden="true">
 									<div className="plugin-card__icon" />
@@ -435,11 +425,11 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 									<div className="skeleton plugin-skeleton__btn" />
 								</div>
 							))}
-						{fetchError && (
+						{fetched.status === "error" && (
 							<EmptyState>
-								{t("Failed to load registry:")} {fetchError}
+								{t("Failed to load registry:")} {fetched.error.message}
 								<br />
-								<Button onClick={fetchRegistry} style={{ marginTop: 8 }}>
+								<Button onClick={fetched.rerun} style={{ marginTop: 8 }}>
 									{t("Retry")}
 								</Button>
 							</EmptyState>

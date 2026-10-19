@@ -161,7 +161,7 @@ export function LocationPreview() {
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { defaultPano, geo } = usePanoViewer();
+	const { onScreen, geo } = usePanoViewer();
 	const { edit, save } = Editor.draft();
 	const writing = Editor.useWriting();
 	const isFullscreen = usePanoFullscreen();
@@ -199,10 +199,10 @@ export function LocationPreview() {
 	const handleDateChange = useCallback(
 		(selectedPanoId: string | null) => {
 			void edit((location) => setPinned(location, selectedPanoId != null));
-			const target = selectedPanoId ?? defaultPano?.id;
+			const target = selectedPanoId ?? onScreen.ok()?.defaultPano?.id;
 			if (target) pano.jump(target);
 		},
-		[pano, edit, defaultPano],
+		[pano, edit, onScreen],
 	);
 
 	const handleSave = useCallback(async () => {

@@ -62,7 +62,7 @@ export function FullscreenMiniMap() {
 	const { expanded, hoverProps } = useHoverExpand(rootRef, closeDelay);
 	const [prefs] = useLocalStorage(MAP_EMBED_PREFS);
 	// The map kind is the only creation input.
-	const surface = useAsyncSticky(() => ensureMinimapHost(prefs, lat, lng), [prefs.mapType]);
+	const surface = useAsyncSticky(() => ensureMinimapHost(prefs, lat, lng), [prefs.mapType]).ok();
 
 	useMapSurface(surface?.host ?? null, {
 		prefs,

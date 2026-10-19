@@ -466,13 +466,14 @@ function PivotTable({
 
 	// Deterministic selection key per selectable member; parent recomputes on
 	// selection:change, so live-state highlighting stays in sync through the data prop.
-	const { data: selectionKeys } = useAsync(async () => {
+	const keyed = useAsync(async () => {
 		const members = [...data.columns, ...data.rows].filter((m) => m.pick);
 		const selections = await cmd.selectionBuild(members.map((m) => selection(m.pick!)));
 		return new Map(members.map((m, i) => [m, selections[i].key]));
 	}, [data]);
 	const listedKeys = new Set(SelectionList.listed().map((r) => r.selection.key));
-	const isSelected = (m: PivotMember) => listedKeys.has(selectionKeys?.get(m) ?? "");
+	const isSelected = (m: PivotMember) =>
+		keyed.status === "ok" && listedKeys.has(keyed.value.get(m) ?? "");
 
 	const handleSort = useCallback((key: SortKey) => {
 		setSortKey((prev) => {

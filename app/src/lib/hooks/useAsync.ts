@@ -1,61 +1,63 @@
 import { useEffect, useRef, useState, type DependencyList } from "react";
 import { latest } from "@/lib/util/latest";
+import { Err, Loading, Ok, type AsyncState } from "@/types/util";
 
-interface AsyncState<T> {
-	data: T | null;
-	loading: boolean;
-	error: Error | null;
-}
+/** An `AsyncState` whose work can be run again. */
+export type Rerunnable<T> = AsyncState<T> & { rerun: () => void };
 
 /** Run `fn` whenever `deps` change, ignoring results from superseded runs (newer
  *  deps or unmount); the `signal` it is handed aborts at the same moment, so a run can
  *  cancel its own requests rather than only having its answer dropped. `fn` may return a
  *  value synchronously - then the result is applied immediately with no loading frame
- *  (so a synchronous short-circuit never flashes a spinner). A returned promise resets
- *  to `{loading: true}` until it resolves to `{data}` or rejects to `{error}`. A value a
- *  superseded run still produces goes to `discard`, so a run can release what it built. */
+ *  (so a synchronous short-circuit never flashes a spinner). A returned promise is
+ *  `loading` until it settles. A value a superseded run still produces goes to `discard`,
+ *  so a run can release what it built. `rerun` runs `fn` again with the same deps. */
 export function useAsync<T>(
 	fn: (signal: AbortSignal) => T | Promise<T>,
 	deps: DependencyList,
 	options: { discard?: (value: T) => void } = {},
-): AsyncState<T> {
-	const [state, setState] = useState<AsyncState<T>>({ data: null, loading: true, error: null });
+): Rerunnable<T> {
+	const [runs, setRuns] = useState(0);
+	const [rerun] = useState(() => () => setRuns((n) => n + 1));
+	const [state, setState] = useState<Rerunnable<T>>(() => Object.assign(new Loading(), { rerun }));
 	const discard = useRef(options.discard);
 	discard.current = options.discard;
+	const settle = (next: AsyncState<T>) => setState(Object.assign(next, { rerun }));
 	const [requests] = useState(() =>
 		latest<T>({
 			discard: (value) => discard.current?.(value),
-			publish: (data) => setState({ data, loading: false, error: null }),
-			failed: (e) =>
-				setState({
-					data: null,
-					loading: false,
-					error: e instanceof Error ? e : new Error(String(e)),
-				}),
+			publish: (value) => settle(new Ok(value)),
+			failed: (e) => settle(new Err(e instanceof Error ? e : new Error(String(e)))),
 		}),
 	);
 	useEffect(() => {
 		void requests.replace((signal) => {
 			const result = fn(signal);
-			if (result instanceof Promise) setState({ data: null, loading: true, error: null });
+			if (result instanceof Promise) settle(new Loading());
 			return result;
 		});
 		return () => requests.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, deps);
+	}, [...deps, runs]);
 	return state;
 }
 
-/** The last settled value of `state`, held while a newer run is in flight. For a value a
- *  subtree is gated on: without it, a dependency change blanks the value for a frame and
- *  unmounts everything below, resetting its state. A settled null is a value like any
- *  other. A `key` scopes the hold: when it changes, the last value is dropped rather than
- *  shown. */
-export function useSticky<T>(state: AsyncState<T>, key: unknown = null): T | null {
-	const last = useRef<{ key: unknown; value: T | null }>({ key, value: null });
-	if (last.current.key !== key) last.current = { key, value: null };
-	else if (!state.loading) last.current.value = state.data;
-	return last.current.value;
+/** `state`, except that while it is loading the last value it settled on is held. For a
+ *  value a subtree is gated on: without it, a dependency change blanks the value for a
+ *  frame and unmounts everything below, resetting its state. An error is never held. A
+ *  `key` scopes the hold: when it changes, the last value is dropped rather than shown. */
+export function useSticky<S extends AsyncState<unknown>>(
+	state: S,
+	key: unknown = null,
+): S | Loading {
+	const held = useRef<{ key: unknown; ok: S | null }>({ key, ok: null });
+	if (held.current.key !== key) {
+		held.current = { key, ok: null };
+		return new Loading();
+	}
+	if (state.status === "loading") return held.current.ok ?? state;
+	held.current.ok = state.status === "ok" ? state : null;
+	return state;
 }
 
 /** `useAsync` with its result held sticky across runs; see {@link useSticky}. */
@@ -63,6 +65,6 @@ export function useAsyncSticky<T>(
 	fn: (signal: AbortSignal) => T | Promise<T>,
 	deps: DependencyList,
 	key: unknown = null,
-): T | null {
+): Rerunnable<T> | Loading {
 	return useSticky(useAsync(fn, [...deps, key]), key);
 }

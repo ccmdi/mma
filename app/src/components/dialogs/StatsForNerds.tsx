@@ -179,7 +179,7 @@ function EngineSection({ activity }: { activity: ProcedureActivity | null }) {
 export function StatsForNerds({ open, onOpenChange }: DialogProps) {
 	const [live, setLive] = useState<LiveStats | null>(null);
 	const [activity, setActivity] = useState<ProcedureActivity | null>(null);
-	const { data: stats, error } = useAsync(collectDiagnostics, []);
+	const stats = useAsync(collectDiagnostics, []);
 
 	useEffect(() => {
 		startFrameMeter();
@@ -195,15 +195,15 @@ export function StatsForNerds({ open, onOpenChange }: DialogProps) {
 		};
 	}, []);
 
-	if (!stats && !error) return null;
+	if (stats.status === "loading") return null;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Stats for Nerds")} className="stats-nerds" size="xl">
-				{error && <Notice tone="error">{String(error)}</Notice>}
+				{stats.status === "error" && <Notice tone="error">{stats.error.message}</Notice>}
 				<div className="stats-nerds__columns">
 					<div className="stats-nerds__column">
-						{stats && <StatTable rows={statsRows(stats)} />}
+						{stats.status === "ok" && <StatTable rows={statsRows(stats.value)} />}
 					</div>
 					<div className="stats-nerds__column">
 						<h3 className="stats-nerds__heading eyebrow">{t("Engine")}</h3>

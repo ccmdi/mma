@@ -5,6 +5,7 @@ import { useAsync } from "@/lib/hooks/useAsync";
 import { log } from "@/lib/util/log";
 import { search } from "@/lib/search";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import { Notice } from "@/components/primitives/Hint";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
@@ -17,20 +18,14 @@ export function QuickCopyToMapDialog({
 	const close = () => onOpenChange(false);
 	const [query, setQuery] = useState("");
 	const contentRef = useRef<HTMLDivElement>(null);
-	const { data: maps } = useAsync(
-		() =>
-			cmd.storeListMaps().catch((e) => {
-				log.error("[quickCopy] list failed:", e);
-				return null;
-			}),
-		[],
-	);
+	const listed = useAsync(() => cmd.storeListMaps(), []);
+	const maps = useMemo(() => listed.ok() ?? [], [listed]);
 
 	const q = query.trim();
 	const suggestions = useMemo(
 		() =>
 			q
-				? search(maps ?? [], q, (m) => [m.name])
+				? search(maps, q, (m) => [m.name])
 						.filter((m) => m.id !== Store.get().mapId)
 						.slice(0, 8)
 				: [],
@@ -46,7 +41,7 @@ export function QuickCopyToMapDialog({
 			})
 			.then((res) => {
 				const container = contentRef.current;
-				const name = maps?.find((m) => m.id === targetMapId)?.name ?? "";
+				const name = maps.find((m) => m.id === targetMapId)?.name ?? "";
 				if (container)
 					toast(
 						res.copied > 0 ? t('Copied to "{name}"', { name }) : t('Already in "{name}"', { name }),
@@ -66,6 +61,7 @@ export function QuickCopyToMapDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Copy location to map")} className="copy-to-map-modal-host">
+				{listed.status === "error" && <Notice tone="error">{listed.error.message}</Notice>}
 				<div className="copy-to-map-modal" ref={contentRef}>
 					<SuggestInput
 						containerClassName="copy-to-map-modal__add"

@@ -263,7 +263,8 @@ function ReturnToSpawnControl({
 function CoordinateControl() {
 	const pano = usePano();
 	const textRef = useRef<HTMLSpanElement>(null);
-	const altitude = usePanoViewer().currentPano?.altitude ?? 0;
+	const { onScreen } = usePanoViewer();
+	const altitude = onScreen.ok()?.currentPano?.altitude ?? 0;
 	// Zoom ticks every frame of a pinch, so the text is written straight to the DOM.
 	const updateDisplay = useCallback(() => {
 		const zoom = pano.zoom().toFixed(2);

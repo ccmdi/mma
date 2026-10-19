@@ -11,7 +11,7 @@ export function resolveTimezone(lat: number, lng: number): Promise<string | null
 }
 
 export function useTimezone(lat: number, lng: number, enabled: boolean): string | null {
-	return useAsync(() => (enabled ? resolveTimezone(lat, lng) : null), [lat, lng, enabled]).data;
+	return useAsync(() => (enabled ? resolveTimezone(lat, lng) : null), [lat, lng, enabled]).ok();
 }
 
 export async function countMissingTimezone(

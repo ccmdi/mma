@@ -348,7 +348,6 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 	const listMaps = source.kind === "list" ? source.listMaps : null;
 	const fetchMaps = useRef(listMaps);
 	fetchMaps.current = listMaps;
-	const [mapsAttempt, setMapsAttempt] = useState(0);
 
 	const remote = useAsync(() => {
 		const list = fetchMaps.current;
@@ -357,9 +356,9 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 		return list().catch((e: unknown) => {
 			throw new Error(errText(e));
 		});
-	}, [authed, mapId, link, mapsAttempt]);
-	const maps = remote.data;
-	const shownError = error ?? remote.error?.message ?? null;
+	}, [authed, mapId, link]);
+	const maps = remote.ok();
+	const shownError = error ?? (remote.status === "error" ? remote.error.message : null);
 
 	const performLink = useCallback(
 		async (m: RemoteMapSummary, mode: FirstSyncMode) => {
@@ -609,7 +608,7 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 					{source.kind === "address" ? (
 						<AddressPicker source={source} busy={busy} onPick={doLink} />
 					) : !maps && shownError ? (
-						<Button onClick={() => setMapsAttempt((n) => n + 1)}>{t("Retry loading maps")}</Button>
+						<Button onClick={remote.rerun}>{t("Retry loading maps")}</Button>
 					) : !maps ? (
 						<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
 							<Spinner label={t("Loading maps")} />

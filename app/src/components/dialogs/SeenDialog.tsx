@@ -81,7 +81,7 @@ export function SeenDialog({
 	const options = useAsync(
 		() => (open ? Promise.all([Seen.countries(), Seen.maps()]) : null),
 		[open],
-	).data;
+	).ok();
 	const listing = useAsync(() => {
 		if (!open) return null;
 		const filter: SeenFilter = {
@@ -92,11 +92,11 @@ export function SeenDialog({
 		const used = filter.country || filter.mapId || filter.search ? filter : undefined;
 		return Seen.list(PAGE_SIZE, page * PAGE_SIZE, used);
 	}, [open, page, filterCountry, filterMap, search, cleared]);
-	const shown = useSticky(listing);
-	const { entries, total } = shown ?? { entries: [], total: 0 };
+	const listed = useSticky(listing).ok();
+	const { entries, total } = listed ?? { entries: [], total: 0 };
 	const [countries, maps] = options ?? [[], []];
-	const loading = listing.loading;
-	const ready = shown !== null && options !== null;
+	const loading = listing.status === "loading";
+	const ready = listed !== null && options !== null;
 
 	const filterBy = (set: (value: string) => void) => (value: string) => {
 		set(value);

@@ -10,6 +10,7 @@ import {
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { DiffCounts } from "@/components/primitives/DiffCounts";
 import { EmptyState } from "@/components/primitives/EmptyState";
+import { Notice } from "@/components/primitives/Hint";
 import { CommitDiff } from "@/store/commitDiff";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
@@ -21,9 +22,10 @@ import { toast } from "@/lib/util/toast";
 export function VersionHistory({ open, onOpenChange }: DialogProps) {
 	const map = Store.use((s) => s.map);
 	const [restoring, setRestoring] = useState<string | null>(null);
-	const { data: commits } = useAsync(() => (map ? cmd.storeListCommits(map.id) : null), [map?.id]);
+	const listed = useAsync(() => (map ? cmd.storeListCommits(map.id) : []), [map?.id]);
 
-	if (!map || !commits) return null;
+	if (!map || listed.status === "loading") return null;
+	const commits = listed.ok() ?? [];
 
 	const viewDiff = async (commit: CommitInfo) => {
 		await CommitDiff.begin(commit);
@@ -45,7 +47,12 @@ export function VersionHistory({ open, onOpenChange }: DialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Version history")} size="xl">
-				{commits.length === 0 ? (
+				{listed.status === "error" ? (
+					<>
+						<Notice tone="error">{listed.error.message}</Notice>
+						<DialogActions cancel={{ label: t("Close") }} />
+					</>
+				) : commits.length === 0 ? (
 					<>
 						<EmptyState>
 							{t("No commits yet. Press Commit to create your first version.")}

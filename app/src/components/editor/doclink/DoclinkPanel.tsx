@@ -18,10 +18,9 @@ import {
 	evictDoc,
 	doclinkedTags,
 	preloadSectionImages,
-	type DocSection,
 } from "@/lib/doclink";
 import { openHref } from "@/lib/map/mapClick";
-import { useAsync } from "@/lib/hooks/useAsync";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
 import { usePointerDrag } from "@/lib/hooks/usePointerDrag";
 import { Spinner } from "@/components/primitives/Spinner";
 import { clamp, range } from "@/types/util";
@@ -105,26 +104,22 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 	useEffect(() => setWholeDoc(false), [url]);
 	const loadRef = wholeDoc && docRef ? { ...docRef, anchor: null } : docRef;
 
-	// Forced re-fetch: evict the doc's cached HTML, then bump the nonce to re-run the load.
-	const [refreshNonce, setRefreshNonce] = useState(0);
+	const loaded = useAsync(
+		() => (loadRef ? loadSection(loadRef).then(preloadSectionImages) : null),
+		[url, wholeDoc],
+	);
+	const { rerun } = loaded;
+	// Forced re-fetch: evict the doc's cached HTML, then load again.
 	const onRefresh = useCallback(() => {
 		if (docRef) evictDoc(docRef);
-		setRefreshNonce((n) => n + 1);
-	}, [docRef]);
-
-	const {
-		data: section,
-		loading,
-		error,
-	} = useAsync(
-		() => (loadRef ? loadSection(loadRef).then(preloadSectionImages) : null),
-		[url, refreshNonce, wholeDoc],
-	);
+		rerun();
+	}, [docRef, rerun]);
+	const section = loaded.ok();
+	const loading = loaded.status === "loading";
 	// Keep the previous section on screen while the next one loads (no blank flash);
 	// a small spinner overlays until the swap.
-	const lastSectionRef = useRef<DocSection | null>(null);
-	if (section) lastSectionRef.current = section;
-	const shown = section ?? (loading ? lastSectionRef.current : null);
+	const held = useSticky(loaded);
+	const shown = held.ok();
 	const bodyRef = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
 		const body = bodyRef.current;
@@ -230,9 +225,9 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 					<div className="doclink-panel__status">
 						{t("Unsupported document link:")} {url}
 					</div>
-				) : error ? (
+				) : loaded.status === "error" ? (
 					<div className="doclink-panel__status">
-						{t("Couldn't load the document.")} {error.message}
+						{t("Couldn't load the document.")} {loaded.error.message}
 					</div>
 				) : shown && !shown.anchorFound ? (
 					<div className="doclink-panel__status">

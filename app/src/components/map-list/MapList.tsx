@@ -106,8 +106,8 @@ function RollChar({ ch }: { ch: string }) {
 
 function WhatsNew() {
 	const fetched = useAsync(() => fetchReleases(), []);
-	const releases = fetched.data;
-	const failed = !fetched.loading && !releases;
+	const releases = fetched.ok();
+	const failed = fetched.status !== "loading" && !releases;
 	const [activeTag, setActiveTag] = useState<string | null>(null);
 	const historyRef = useRef<HTMLDivElement>(null);
 

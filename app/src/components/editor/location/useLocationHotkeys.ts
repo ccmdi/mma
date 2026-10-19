@@ -42,7 +42,7 @@ interface LocationHotkeyDeps {
 }
 
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
-	const { timeline } = usePanoViewer();
+	const { onScreen } = usePanoViewer();
 	const pano = usePano();
 	const location = Editor.use((s) => s.open?.location ?? null);
 	const onMap = Editor.use((s) => s.open?.origin === "map");
@@ -141,8 +141,8 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (panoId) void downloadPano(panoId);
 	});
 	const stepPanoDate = (step: 1 | -1) => {
-		if (timeline.status !== "ready" || !timeline.entries.length) return;
-		const panoDates = timeline.entries;
+		const panoDates = onScreen.ok()?.timeline;
+		if (!panoDates?.length) return;
 		const current = location?.panoId ?? null;
 		void handleDateChange(
 			cycle(
