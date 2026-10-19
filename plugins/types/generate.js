@@ -532,6 +532,10 @@ async function generateApiMarkdown(native, text, since = firstReleases(native)) 
     };
     const signature = (name, type) => {
       const sigs = callSignatures(ts, checker, type);
+      if (!sigs.length && type.flags & ts.TypeFlags.Any)
+        throw new Error(
+          `${name} resolved to any: a type it imports did not resolve. Install plugins/types' dependencies (node plugins/build-all.mjs --install).`,
+        );
       const declaration = sigs.length
         ? sigs
             .map((sig) => {
