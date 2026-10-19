@@ -87,6 +87,24 @@ describe("pano viewer metadata", () => {
 		expect(viewer.currentPano?.id).toBe("B");
 		mounted.unmount();
 	});
+	it("reads a lookup still in flight as loading, not as no dates", async () => {
+		h.metadata.mockImplementationOnce(() => new Promise(() => {}));
+		const mounted = mount(<Host />);
+		await act(async () => {});
+		expect(viewer.timeline).toEqual({ status: "loading" });
+		mounted.unmount();
+	});
+	it("reports a failed lookup as failed, and retrying asks again", async () => {
+		h.metadata.mockRejectedValueOnce(new Error("timed out"));
+		const mounted = mount(<Host />);
+		await act(async () => {});
+		const failed = viewer.timeline;
+		if (failed.status !== "failed") throw new Error(`expected failed, got ${failed.status}`);
+		await act(async () => failed.retry());
+		expect(viewer.timeline).toEqual({ status: "ready", entries: [] });
+		expect(h.metadata).toHaveBeenCalledTimes(2);
+		mounted.unmount();
+	});
 	it("drops sticky imagery when reopening the same location in another layer", async () => {
 		const mounted = mount(<Host />);
 		await act(async () => {});

@@ -29,7 +29,7 @@ vi.mock("@/lib/hooks/usePano", () => ({
 	}),
 }));
 vi.mock("@/components/editor/location/PanoViewerContext", () => ({
-	usePanoViewer: () => ({ timeline: null }),
+	usePanoViewer: () => ({ timeline: { status: "loading" } }),
 }));
 vi.mock("@/components/editor/location/PanoControls", () => ({ sendHideCar: () => {} }));
 vi.mock("@/lib/review/review", () => ({ Review: { useSession: () => null } }));

@@ -1,10 +1,18 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+	createContext,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ReactNode,
+} from "react";
 import { useSetting } from "@/store/settings";
 import { PanoType } from "@/bindings.consts";
 import { usePano } from "@/lib/hooks/usePano";
 import type { Pano } from "@/bindings.gen";
-import { useAsyncSticky } from "@/lib/hooks/useAsync";
+import { useAsync, useAsyncSticky, useSticky } from "@/lib/hooks/useAsync";
 import { geocodeGoogle, reverseGeocode, type GeoDisplay } from "@/lib/geo/reverseGeocode";
 import { panosAt, svMetadata } from "@/lib/sv/query";
 import { allUnofficial, mergeTimelines } from "@/lib/sv/panoId";
@@ -12,11 +20,16 @@ import { SV_OFFICIAL_FALLBACK_RADIUS, SV_SEARCH_RADIUS } from "@/lib/sv/constant
 import { onFullscreenMapChanged, onLocationCleared } from "./fullscreenModeState";
 import { Editor } from "@/store/editor";
 
+export type PanoTimeline =
+	| { status: "loading" }
+	| { status: "failed"; retry: () => void }
+	| { status: "ready"; entries: Pano["time"] };
+
 interface PanoViewerContextValue {
 	/** Metadata for the location's pano, or null while loading. */
 	currentPano: Pano | null;
-	/** Available captures for the date picker, or null while loading. */
-	timeline: Pano["time"] | null;
+	/** Available captures for the date picker. */
+	timeline: PanoTimeline;
 	/** The pano Google resolves for the location's position: what "Default" means there. */
 	defaultPano: Pano | null;
 	/** Geocoded position, or null while loading. Google uses the pano on screen. */
@@ -32,11 +45,14 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 
 	// The pano on screen as Google describes it, and the captures the date picker can offer
 	// there. Held across a walk so the panel never blanks between panos; dropped with the location.
-	const onScreen = useAsyncSticky(
+	const [attempt, setAttempt] = useState(0);
+	const layer = open?.layer ?? null;
+	const lookup = useAsync(
 		async (signal) => {
-			if (!location?.panoId) return null;
+			const nothing = { currentPano: null, timeline: [], defaultPano: null };
+			if (!location?.panoId) return nothing;
 			const [shown] = await svMetadata([location.panoId], signal);
-			if (!shown) return null;
+			if (!shown) return nothing;
 			const here = [{ lat: shown.lat, lng: shown.lng }];
 			const [atCoord] = await panosAt(here, SV_SEARCH_RADIUS, undefined, signal);
 
@@ -53,19 +69,22 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 
 			return { currentPano: shown, timeline, defaultPano: atCoord ?? shown };
 		},
-		[location?.panoId],
-		open?.layer ?? null,
+		[location?.panoId, layer, attempt],
 	);
+	const onScreen = useSticky(lookup, layer);
 	const currentPano = onScreen?.currentPano ?? null;
-	const timeline = onScreen?.timeline ?? null;
 	const defaultPano = onScreen?.defaultPano ?? null;
+	const timeline = useMemo<PanoTimeline>(() => {
+		if (lookup.error) return { status: "failed", retry: () => setAttempt((n) => n + 1) };
+		return onScreen ? { status: "ready", entries: onScreen.timeline } : { status: "loading" };
+	}, [lookup.error, onScreen]);
 
 	const geocodeProvider = useSetting("geocodeProvider");
 	const spawn = open?.spawn ?? null;
 	const looked = useAsyncSticky(
 		() => (spawn && geocodeProvider !== "google" ? reverseGeocode(spawn.lat, spawn.lng) : null),
 		[spawn?.lat, spawn?.lng, geocodeProvider],
-		open?.layer ?? null,
+		layer,
 	);
 	const geo = useMemo(
 		() => (geocodeProvider === "google" ? geocodeGoogle(currentPano) : looked),

@@ -12,6 +12,8 @@ import { isFieldEnabled } from "@/lib/data/fieldDefs";
 import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useTimezone } from "@/lib/util/timezone";
 import { NSelect } from "@/components/primitives/NSelect";
+import { IconButton } from "@/components/primitives/IconButton";
+import { mdiRefresh } from "@mdi/js";
 import { getLocale, t } from "@/lib/i18n";
 
 /** "Jun 2024" for a pano's civil capture date, "" when there is none. */
@@ -59,7 +61,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 }) {
 	const { currentPano, timeline, defaultPano } = usePanoViewer();
 	const writing = Editor.useWriting();
-	const entries = timeline ?? [];
+	const entries = timeline.status === "ready" ? timeline.entries : [];
 	const location = Editor.use((s) => s.open?.location ?? null);
 	const exactTs = (location?.extra?.datetime as number | undefined) ?? null;
 	const enrichFields = Store.use((s) => s.map?.settings.enrichFields ?? null);
@@ -68,7 +70,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 
 	const { defaultEntry, currentEntry, isDefault } = panoDates(
 		currentPano,
-		timeline,
+		entries,
 		defaultPano,
 		location,
 	);
@@ -115,11 +117,25 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 				})
 		: null;
 
+	if (timeline.status === "failed") {
+		return (
+			<span className="pano-date-failed">
+				<NSelect className="pano-date-select" disabled>
+					<button type="button" className="pano-date-select__trigger">
+						<span className="pano-value">{t("Couldn't load dates")}</span>
+					</button>
+				</NSelect>
+				<IconButton icon={mdiRefresh} size={18} label={t("Retry")} onClick={timeline.retry} />
+			</span>
+		);
+	}
 	if (entries.length === 0) {
 		return (
 			<NSelect className="pano-date-select" disabled>
 				<button type="button" className="pano-date-select__trigger">
-					<span className="pano-value">{t("No dates")}</span>
+					<span className="pano-value">
+						{timeline.status === "loading" ? t("Loading dates...") : t("No dates")}
+					</span>
 				</button>
 			</NSelect>
 		);

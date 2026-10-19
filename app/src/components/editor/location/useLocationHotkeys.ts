@@ -141,8 +141,8 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (panoId) void downloadPano(panoId);
 	});
 	const stepPanoDate = (step: 1 | -1) => {
-		const panoDates = timeline ?? [];
-		if (!panoDates.length) return;
+		if (timeline.status !== "ready" || !timeline.entries.length) return;
+		const panoDates = timeline.entries;
 		const current = location?.panoId ?? null;
 		void handleDateChange(
 			cycle(
