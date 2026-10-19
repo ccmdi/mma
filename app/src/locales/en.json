@@ -1635,6 +1635,7 @@
 	"{done} / {total} reviewed ({pct}%)": "{done} / {total} reviewed ({pct}%)",
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: local {local} · remote {remote}",
+	"{field}: {name}": "{field}: {name}",
 	"{field}’s values": "{field}’s values",
 	"{file} is not valid JSON": "{file} is not valid JSON",
 	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances",

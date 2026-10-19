@@ -80,13 +80,12 @@ export const SavedSelection = {
 	 *  a single part. */
 	parts: (saved: SavedSelection): SavedPart[] => {
 		const { selector } = saved;
-		const tagNames = saved.valueNames.tags;
 		const parts: SelectionInput[] =
 			selector.type === "Union"
 				? selector.selections.map((s) => ({ ...selection(s.selector), color: s.color }))
 				: [{ ...selection(selector), color: saved.color }];
 		return parts.map((part) => ({
-			label: selectionDisplayName(part, tagNames),
+			label: selectionDisplayName(part, saved.valueNames),
 			color: part.color!,
 			selector: part.selector,
 		}));

@@ -29,7 +29,14 @@ const setUserFieldDefs = (defs: Record<string, unknown>) => {
 };
 vi.mock("@/store/store", () => ({
 	Store: {
-		get: () => ({ fieldDefs: h.fieldDefs }),
+		get: () => ({
+			fieldDefs: h.fieldDefs,
+			fieldValues: {
+				tags: Object.fromEntries(
+					Object.entries(h.tags).map(([id, tag]) => [id, { record: { name: tag.name } }]),
+				),
+			},
+		}),
 	},
 }));
 vi.mock("@/store/tag", () => ({

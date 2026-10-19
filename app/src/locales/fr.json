@@ -1684,6 +1684,7 @@
 	"{done} / {total} reviewed ({pct}%)": "{done} / {total} révisés ({pct} %)",
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field} : local {local} · distant {remote}",
+	"{field}: {name}": "{field} : {name}",
 	"{field}’s values": "Valeurs de {field}",
 	"{file} is not valid JSON": "{file} n'est pas un JSON valide",
 	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} en cours, {waiting} en attente de quota, {retries} nouvelles tentatives, {instances} instances",

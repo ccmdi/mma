@@ -2556,11 +2556,7 @@ type SavedSelection = {
      *  Each interned field's value ids and the names they carried when saved, which carry a
      *  rule's value tests from one map to another.
      */
-    valueNames: {
-        [key in string]: {
-            [key in number]: string;
-        };
-    };
+    valueNames: ValueNames;
 } & SavedSelectionInfo;
 /**
  *  A rule's identity and label, with no tree attached. What the UI lists and holds; the
@@ -3012,6 +3008,12 @@ type ValiProgress = {
     countryCode: string;
     name: string;
     bytes: number;
+};
+/**  The names interned values carried, by field and then id. @unstable */
+type ValueNames = {
+    [key in string]: {
+        [key in number]: string;
+    };
 };
 /**  Metadata for one interned value. */
 type ValueRecord = {
@@ -5762,12 +5764,17 @@ declare const all: (...selectors: Selector[]) => Selector;
 declare const any: (...selectors: Selector[]) => Selector;
 /** Locations not matching `selector`. @unstable */
 declare const not: (selector: Selector) => Selector;
-/** The tag a selector names, or null when it names something else. The single place that
- *  recognises tag membership, so nothing else has to know its shape. @unstable */
+/** The interned value a selector tests membership of, or null when it tests something else.
+ *  The single place that recognises value membership, so nothing else has to know its shape. @unstable */
+declare function memberOf(selector: Selector): {
+    field: string;
+    id: number;
+} | null;
+/** The tag a selector names, or null when it names something else. @unstable */
 declare function tagIdOf(selector: Selector): number | null;
 /** What one selection type answers about itself; optional answers default at the lookup. @unstable */
 export interface SelectionDescriptor<K extends Selector["type"]> {
-    label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
+    label(selector: Variant<Selector, K>, valueNames?: ValueNames): string;
 }
 /** The display label of each selector variant. @unstable */
 declare const SELECTIONS: {
@@ -5791,9 +5798,9 @@ declare const addSelection: (...selectors: Selector[]) => SelectionOp;
 declare const toggleSelection: (...selectors: Selector[]) => SelectionOp;
 /** @unstable */
 declare const replaceSelection: (path: SelectionPath, selector: Selector) => SelectionOp;
-/** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
- *  rather than the open map's tags. @unstable */
-declare function selectionDisplayName(sel: SelectionInput, tagNames?: Record<number, string>): string;
+/** Human-readable label for a selection. Pass `valueNames` to resolve interned values by
+ *  saved name rather than the open map's records. @unstable */
+declare function selectionDisplayName(sel: SelectionInput, valueNames?: ValueNames): string;
 
 /** @unstable */
 export type selectionOps_CompositeType = CompositeType;
@@ -5828,6 +5835,8 @@ declare const selectionOps_has: typeof has;
 /** @unstable */
 declare const selectionOps_lacks: typeof lacks;
 /** @unstable */
+declare const selectionOps_memberOf: typeof memberOf;
+/** @unstable */
 declare const selectionOps_not: typeof not;
 /** @unstable */
 declare const selectionOps_panoIdSelector: typeof panoIdSelector;
@@ -5852,7 +5861,7 @@ declare const selectionOps_untaggedSelector: typeof untaggedSelector;
 /** @unstable */
 declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_lacks as lacks, selectionOps_not as not, selectionOps_panoIdSelector as panoIdSelector, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleSelection as toggleSelection, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_lacks as lacks, selectionOps_memberOf as memberOf, selectionOps_not as not, selectionOps_panoIdSelector as panoIdSelector, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleSelection as toggleSelection, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPath as SelectionPath, selectionOps_UnaryType as UnaryType };
 }
 
@@ -7981,4 +7990,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
-export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueNames, ValueRecord, VirtualTag, Work, WorkResult };

@@ -9,6 +9,7 @@ use crate::types::{Location, RawExtra};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use rusqlite::Connection;
+use std::collections::HashMap;
 
 /// In-memory DB with the current `saved_selections` schema.
 fn setup() -> Connection {
@@ -28,13 +29,13 @@ fn setup() -> Connection {
 }
 
 fn tag_names(pairs: &[(u32, &str)]) -> ValueNames {
-    ValueNames::from([(
+    ValueNames(HashMap::from([(
         "tags".to_string(),
         pairs
             .iter()
             .map(|(id, n)| (Id::new(*id), n.to_string()))
             .collect(),
-    )])
+    )]))
 }
 
 /// Every rule's body, via the two primitives the frontend uses: index, then bodies.
@@ -75,7 +76,9 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
     assert_eq!(got.info.name, "Japan dupes");
     assert_eq!(got.info.color, Rgb([9, 9, 9]));
     assert_eq!(
-        got.value_names["tags"].get(&Id::new(4)).map(String::as_str),
+        got.value_names.0["tags"]
+            .get(&Id::new(4))
+            .map(String::as_str),
         Some("Japan")
     );
     match &got.selector {
@@ -98,7 +101,7 @@ fn delete_removes_only_the_named_rule() {
         &conn,
         "a".into(),
         Selector::untagged(),
-        HashMap::new(),
+        ValueNames::default(),
         Rgb([0; 3]),
     )
     .unwrap();
@@ -106,7 +109,7 @@ fn delete_removes_only_the_named_rule() {
         &conn,
         "b".into(),
         Selector::unpanned(),
-        HashMap::new(),
+        ValueNames::default(),
         Rgb([0; 3]),
     )
     .unwrap();
@@ -122,7 +125,7 @@ fn an_unreadable_row_is_skipped_not_fatal() {
         &conn,
         "good".into(),
         Selector::untagged(),
-        HashMap::new(),
+        ValueNames::default(),
         Rgb([0; 3]),
     )
     .unwrap();
@@ -148,7 +151,7 @@ fn the_index_carries_identity_without_reading_any_tree() {
                 properties: None,
             },
         },
-        HashMap::new(),
+        ValueNames::default(),
         Rgb([4, 5, 6]),
     )
     .unwrap();
@@ -169,7 +172,7 @@ fn get_ignores_ids_that_are_not_there() {
         &conn,
         "a".into(),
         Selector::untagged(),
-        HashMap::new(),
+        ValueNames::default(),
         Rgb([0; 3]),
     )
     .unwrap();
@@ -471,10 +474,10 @@ fn a_rule_over_any_interned_field_carries_its_values_to_another_map_by_name() {
     let names = capture_names(&selector, &source);
     assert_eq!(
         names,
-        ValueNames::from([(
+        ValueNames(HashMap::from([(
             "plates".to_string(),
             HashMap::from([(Id::new(4), "AB-123".to_string())])
-        )])
+        )]))
     );
     let id = create(&conn, "rule".into(), selector, names, Rgb([1, 2, 3]))
         .unwrap()
@@ -501,7 +504,7 @@ fn adding_a_saved_selection_reads_it_and_adds_its_parts() {
         &storage::open_db().unwrap(),
         "everything".into(),
         Selector::Everything,
-        ValueNames::new(),
+        ValueNames::default(),
         Rgb([1, 2, 3]),
     )
     .unwrap();

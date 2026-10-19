@@ -1586,6 +1586,7 @@
 	"{done} / {total} reviewed ({pct}%)": "{done} / {total} レビュー済み（{pct}%）",
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: ローカル {local}・リモート {remote}",
+	"{field}: {name}": "{field}: {name}",
 	"{field}’s values": "{field} の値",
 	"{file} is not valid JSON": "{file} は有効な JSON ではありません",
 	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "実行中 {inflight} / {limit}、レート待ち {waiting}、再試行 {retries}、インスタンス {instances}",

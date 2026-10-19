@@ -85,7 +85,7 @@ fn import_captures_every_tag_name_under_a_distinct_id() {
     import(&mut conn, json).unwrap();
 
     let saved = all(&conn).remove(0);
-    let mut names: Vec<&str> = saved.value_names["tags"]
+    let mut names: Vec<&str> = saved.value_names.0["tags"]
         .values()
         .map(String::as_str)
         .collect();
@@ -108,7 +108,7 @@ fn import_captures_every_tag_name_under_a_distinct_id() {
     // The same name reuses its id; a different name never collides with it.
     assert_eq!(ids[0], ids[2]);
     assert_ne!(ids[0], ids[1]);
-    assert_eq!(saved.value_names["tags"][&Id::new(ids[1])], "Brazil");
+    assert_eq!(saved.value_names.0["tags"][&Id::new(ids[1])], "Brazil");
 }
 
 #[test]

@@ -1733,6 +1733,7 @@
 	"{done} / {total} reviewed ({pct}%)": "Przejrzano {done} / {total} ({pct}%)",
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: lokalnie {local} · zdalnie {remote}",
+	"{field}: {name}": "{field}: {name}",
 	"{field}’s values": "Wartości pola {field}",
 	"{file} is not valid JSON": "{file} nie jest prawidłowym plikiem JSON",
 	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} w toku, {waiting} czeka na limit, {retries} ponowień, {instances} instancji",

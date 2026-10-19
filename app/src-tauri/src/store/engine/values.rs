@@ -10,6 +10,11 @@ use crate::util::Rgb;
 use mma_algebra::{trimmed_name, unique_name, Constrained, Edit, Field, Id, Op, Patch};
 use std::collections::HashMap;
 
+/// The names interned values carried, by field and then id.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(transparent)]
+pub struct ValueNames(pub HashMap<String, HashMap<Id<ValueRecord>, String>>);
+
 /// Metadata for one interned value.
 #[derive(
     Clone, Debug, Default, serde::Serialize, serde::Deserialize, specta::Type, mma_fields::Patch,

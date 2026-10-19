@@ -11,11 +11,13 @@ const h = vi.hoisted(() => ({
 	rows: [] as SavedSelection[],
 	added: [] as string[],
 	calls: [] as string[],
+	fieldDefs: {} as Record<string, unknown>,
+	fieldValues: {} as Record<string, Record<number, { record: { name: string } }>>,
 }));
 
 vi.mock("@/store/store", () => ({
 	Store: {
-		get: () => ({ fieldDefs: {} }),
+		get: () => ({ fieldDefs: h.fieldDefs, fieldValues: h.fieldValues }),
 	},
 }));
 vi.mock("@/store/tag", () => ({
@@ -120,6 +122,17 @@ describe("saved selections survive map-local renames untouched", () => {
 	it("labels a missing tag with the name it was saved under", () => {
 		const saved = rule(tagSelector(5), { 5: "Japan" });
 		expect(SavedSelection.parts(saved)[0].label).toBe("Tag: Japan");
+	});
+
+	it("labels membership of any interned field by its value's name", () => {
+		h.fieldDefs = { brand: { type: "array", label: "Brand", interned: true } };
+		const member: Selector = { type: "Filter", field: "brand", test: { op: "contains", value: 3 } };
+		const saved = { ...rule(member), valueNames: { brand: { 3: "Shell" } } };
+		expect(SavedSelection.parts(saved)[0].label).toBe("Brand: Shell");
+		h.fieldValues = { brand: { 3: { record: { name: "BP" } } } };
+		expect(SavedSelection.parts(saved)[0].label).toBe("Brand: BP");
+		h.fieldDefs = {};
+		h.fieldValues = {};
 	});
 });
 

@@ -4956,6 +4956,20 @@ lacks(field: string): Selector
 
 Locations holding no value for `field`.
 
+### memberOf
+
+`unstable` · since v0.12.2
+
+```ts
+memberOf(selector: Selector): {
+  field: string;
+  id: number;
+} | null
+```
+
+The interned value a selector tests membership of, or null when it tests something else.
+The single place that recognises value membership, so nothing else has to know its shape.
+
 ### not
 
 `unstable` · since v0.11.0
@@ -5037,14 +5051,11 @@ selectionAt(
 `unstable` · since v0.10.3
 
 ```ts
-selectionDisplayName(
-  sel: SelectionInput,
-  tagNames?: Record<number, string>,
-): string
+selectionDisplayName(sel: SelectionInput, valueNames?: ValueNames): string
 ```
 
-Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
-rather than the open map's tags.
+Human-readable label for a selection. Pass `valueNames` to resolve interned values by
+saved name rather than the open map's records.
 
 ### SELECTIONS
 
@@ -5084,8 +5095,7 @@ The display label of each selector variant.
 tagIdOf(selector: Selector): number | null
 ```
 
-The tag a selector names, or null when it names something else. The single place that
-recognises tag membership, so nothing else has to know its shape.
+The tag a selector names, or null when it names something else.
 
 ### tagSelector
 

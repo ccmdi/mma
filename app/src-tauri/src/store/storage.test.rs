@@ -1243,6 +1243,6 @@ fn a_saved_rules_tag_names_become_its_names_for_the_tags_field() {
 
     let saved = saved::get(&conn, &[Id::new("named".into()), Id::new("bare".into())]).unwrap();
     assert_eq!(saved.len(), 2);
-    assert_eq!(saved[0].value_names["tags"][&Id::new(5)], "Japan");
-    assert!(saved[1].value_names.is_empty());
+    assert_eq!(saved[0].value_names.0["tags"][&Id::new(5)], "Japan");
+    assert!(saved[1].value_names.0.is_empty());
 }

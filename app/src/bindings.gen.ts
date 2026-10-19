@@ -1568,7 +1568,7 @@ export type SavedSelection = {
 	 *  Each interned field's value ids and the names they carried when saved, which carry a
 	 *  rule's value tests from one map to another.
 	 */
-	valueNames: { [key in string]: { [key in number]: string } },
+	valueNames: ValueNames,
 } & SavedSelectionInfo;
 
 /**
@@ -1865,6 +1865,9 @@ export type ValiLocation = {
 };
 
 export type ValiProgress = { kind: "workItems"; total: number } | { kind: "workItemDone"; countryCode: string; subdivisionCode: string | null; done: number; total: number } | { kind: "countryDownloadStarted"; countryCode: string; files: number; bytes: number; updates: boolean } | { kind: "fileDownloaded"; countryCode: string; name: string; bytes: number };
+
+/**  The names interned values carried, by field and then id. */
+export type ValueNames = { [key in string]: { [key in number]: string } };
 
 /**  Metadata for one interned value. */
 export type ValueRecord = {

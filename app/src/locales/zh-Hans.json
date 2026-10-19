@@ -1586,6 +1586,7 @@
 	"{done} / {total} reviewed ({pct}%)": "已审 {done} / {total}（{pct}%）",
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}：本地 {local} · 远程 {remote}",
+	"{field}: {name}": "{field}：{name}",
 	"{field}’s values": "{field} 的值",
 	"{file} is not valid JSON": "{file} 不是有效的 JSON",
 	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "进行中 {inflight} / {limit}，限速等待 {waiting}，重试 {retries}，实例 {instances}",

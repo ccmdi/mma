@@ -6,13 +6,12 @@
 
 use crate::selections::tree::SelectionOp;
 use crate::selections::{FilterOp, Selection, Selector};
-use crate::store::engine::{Store, StoreState, ValueRecord, WindowLabel};
+use crate::store::engine::{Store, StoreState, ValueNames, WindowLabel};
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
 use crate::util::{now_iso, Rgb};
 use mma_algebra::Id;
 use rusqlite::Connection;
-use std::collections::HashMap;
 use std::slice::from_ref;
 
 /// A rule's identity and label, with no tree attached. What the UI lists and holds; the
@@ -37,9 +36,6 @@ pub struct SavedSelection {
     /// rule's value tests from one map to another.
     pub value_names: ValueNames,
 }
-
-/// Value id -> name, by interned field.
-pub type ValueNames = HashMap<String, HashMap<Id<ValueRecord>, String>>;
 
 const COLS: &str = "id, name, selector, value_names, color, created_at";
 
@@ -311,14 +307,14 @@ pub async fn store_save_selection(
     // A rule saved with no map open keeps an empty side table: names resolve per map.
     let value_names = match state.lock()?.store_for_window(&label) {
         Ok(store) => capture_names(&selector, store),
-        Err(_) => ValueNames::new(),
+        Err(_) => ValueNames::default(),
     };
     storage::with_db(move |conn| create(conn, name, selector, value_names, color)).await
 }
 
 /// The names of the values `selector` tests membership in, by field.
 fn capture_names(selector: &Selector, store: &Store) -> ValueNames {
-    let mut names = ValueNames::new();
+    let mut names = ValueNames::default();
     selector.walk(&mut |selector| {
         if let Some((field, id)) = selector.member_test() {
             let id = Id::new(id);
@@ -327,6 +323,7 @@ fn capture_names(selector: &Selector, store: &Store) -> ValueNames {
                 .and_then(|record| record.name.as_deref())
             {
                 names
+                    .0
                     .entry(field.to_string())
                     .or_default()
                     .insert(id, name.to_string());
@@ -391,7 +388,12 @@ impl SavedSelection {
                 return selector;
             };
             let id = Id::new(raw);
-            let moved = match self.value_names.get(field).and_then(|names| names.get(&id)) {
+            let moved = match self
+                .value_names
+                .0
+                .get(field)
+                .and_then(|names| names.get(&id))
+            {
                 None => values.record(id).map(|_| raw),
                 Some(name) => values.named(name).map(Id::get),
             };

@@ -1,4 +1,4 @@
-import { Tag } from "@/store/tag";
+import { Store } from "@/store/store";
 import { displayTagName } from "@/lib/data/tags";
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 import type {
@@ -9,6 +9,7 @@ import type {
 	SelectionInput,
 	SelectionOp,
 	Selector as SelectorTree,
+	ValueNames,
 } from "@/bindings.gen";
 import type { Selector } from "@/types";
 import { cmd } from "@/lib/commands";
@@ -123,15 +124,21 @@ const inverted = (s: SelectionInput): SelectionInput =>
 /** Locations not matching `selector`. */
 export const not = (selector: Selector): Selector => inverted(selection(selector)).selector;
 
-/** The tag a selector names, or null when it names something else. The single place that
- *  recognises tag membership, so nothing else has to know its shape. */
-export function tagIdOf(selector: Selector): number | null {
+/** The interned value a selector tests membership of, or null when it tests something else.
+ *  The single place that recognises value membership, so nothing else has to know its shape. */
+export function memberOf(selector: Selector): { field: string; id: number } | null {
 	return selector.type === "Filter" &&
-		selector.field === "tags" &&
 		selector.test.op === "contains" &&
-		typeof selector.test.value === "number"
-		? selector.test.value
+		typeof selector.test.value === "number" &&
+		getFieldDef(selector.field)?.interned
+		? { field: selector.field, id: selector.test.value }
 		: null;
+}
+
+/** The tag a selector names, or null when it names something else. */
+export function tagIdOf(selector: Selector): number | null {
+	const member = memberOf(selector);
+	return member?.field === "tags" ? member.id : null;
 }
 
 /** A selector with its parts' keys and colors dropped and its fields in a fixed order, so two
@@ -161,7 +168,7 @@ function namedLabel(selector: Selector): string | undefined {
 
 /** What one selection type answers about itself; optional answers default at the lookup. */
 interface SelectionDescriptor<K extends Selector["type"]> {
-	label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
+	label(selector: Variant<Selector, K>, valueNames?: ValueNames): string;
 }
 
 /** The display label of each selector variant. */
@@ -206,16 +213,21 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 		label: () => t("Union"),
 	},
 	Invert: {
-		label: (s, tagNames) =>
-			t("Invert: {selection}", { selection: selectionDisplayName(s.selections[0], tagNames) }),
+		label: (s, valueNames) =>
+			t("Invert: {selection}", { selection: selectionDisplayName(s.selections[0], valueNames) }),
 	},
 	Filter: {
-		label: (p, tagNames) => {
+		label: (p, valueNames) => {
 			const fieldDef = getFieldDef(p.field);
 			const fieldLabel = fieldDef?.label ? t(fieldDef.label) : p.field;
 			const test = p.test;
-			const tagId = tagIdOf(p);
-			if (tagId != null) return t("Tag: {name}", { name: tagDisplayName(tagId, tagNames) });
+			const member = memberOf(p);
+			if (member) {
+				const name = valueDisplayName(member, valueNames);
+				return member.field === "tags"
+					? t("Tag: {name}", { name })
+					: t("{field}: {name}", { field: fieldLabel, name });
+			}
 			if (test.op === "has") return t("has {field}", { field: fieldLabel });
 			if (test.op === "nothas") return t("missing {field}", { field: fieldLabel });
 			const fmtMD = (v: unknown) => {
@@ -275,7 +287,7 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 
 function descriptorFor(selector: Selector) {
 	const d = SELECTIONS[selector.type] as SelectionDescriptor<Selector["type"]>;
-	return { label: (tagNames?: Record<number, string>) => d.label(selector, tagNames) };
+	return { label: (valueNames?: ValueNames) => d.label(selector, valueNames) };
 }
 
 /** Every child selection a selector wraps, whatever shape it wraps them in. */
@@ -326,18 +338,18 @@ export const replaceSelection = (path: SelectionPath, selector: Selector): Selec
 	selection: selection(selector),
 });
 
-/** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
- *  rather than the open map's tags. */
-export function selectionDisplayName(
-	sel: SelectionInput,
-	tagNames?: Record<number, string>,
-): string {
-	return namedLabel(sel.selector) ?? descriptorFor(sel.selector).label(tagNames);
+/** Human-readable label for a selection. Pass `valueNames` to resolve interned values by
+ *  saved name rather than the open map's records. */
+export function selectionDisplayName(sel: SelectionInput, valueNames?: ValueNames): string {
+	return namedLabel(sel.selector) ?? descriptorFor(sel.selector).label(valueNames);
 }
 
-function tagDisplayName(tagId: number, tagNames?: Record<number, string>): string {
-	const name = Tag.get(tagId)?.name;
-	if (name != null) return displayTagName(name);
-	// Not a tag on this map: a saved rule still knows what it was called where it was saved.
-	return tagNames?.[tagId] ?? String(tagId);
+function valueDisplayName(
+	{ field, id }: { field: string; id: number },
+	valueNames?: ValueNames,
+): string {
+	const name = Store.get().fieldValues[field]?.[id]?.record?.name;
+	if (typeof name === "string") return field === "tags" ? displayTagName(name) : name;
+	// Not a value on this map: a saved rule still knows what it was called where it was saved.
+	return valueNames?.[field]?.[id] ?? String(id);
 }

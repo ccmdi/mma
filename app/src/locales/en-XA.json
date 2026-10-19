@@ -1635,6 +1635,7 @@
 	"{done} / {total} reviewed ({pct}%)": "[{done} / {total} ŕéṽîéŵéð ({pct}%) åéîöüåé]",
 	"{field} {op} {value}": "[{field} {op} {value} å]",
 	"{field}: local {local} · remote {remote}": "[{field}: ĺöçåĺ {local} · ŕéɱöţé {remote} åéîöüåéî]",
+	"{field}: {name}": "[{field}: {name} å]",
 	"{field}’s values": "[{field}’ş ṽåĺüéş åéîö]",
 	"{file} is not valid JSON": "[{file} îş ñöţ ṽåĺîð ĴŞÖÑ åéîöüåéî]",
 	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "[{inflight} / {limit} îñ ƒĺîǧĥţ, {waiting} ŕåţé-ŵåîţîñǧ, {retries} ŕéţŕîéş, {instances} îñşţåñçéş åéîöüåéîöüåéîöüåéîöü]",

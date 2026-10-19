@@ -8,7 +8,7 @@
 
 use super::{insert, SavedSelection, SavedSelectionInfo, NO_COLOR};
 use crate::selections::{Selection, Selector};
-use crate::store::engine::ValueRecord;
+use crate::store::engine::{ValueNames, ValueRecord};
 use crate::store::storage;
 use crate::types::AppResult;
 use crate::util::{now_iso, unix_ms_to_iso, Rgb};
@@ -114,7 +114,7 @@ fn legacy_to_saved(rule: LegacyRule) -> Option<SavedSelection> {
                 .unwrap_or_else(now_iso),
         },
         selector,
-        value_names: HashMap::from([("tags".to_string(), tag_names)]),
+        value_names: ValueNames(HashMap::from([("tags".to_string(), tag_names)])),
     })
 }
 
