@@ -9,6 +9,8 @@
 #   gates.sh oxlint vitest   the named gates
 #   gates.sh --list
 set -u
+# A hook exports these, and a gate that builds a scratch repo would otherwise write to this one.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 root=$(cd "$(dirname "$0")/.." && pwd)
 
 # The cargo lane shares app/src-tauri's target directory and Cargo build lock.
