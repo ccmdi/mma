@@ -84,4 +84,4 @@ git tag "$TAG"
 
 echo ""
 echo "Committed and tagged $TAG"
-echo "Run 'git push && git push origin $TAG' to publish"
+echo "Run 'git push --atomic origin master $TAG' to publish"
