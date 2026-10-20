@@ -6,6 +6,7 @@ import {
 	getLoc,
 	getLocCount,
 	createLocation,
+	createTag,
 	randomLatLng,
 	randomHeading,
 	withApi,
@@ -88,12 +89,16 @@ describe("Location CRUD", () => {
 	});
 
 	it("update location tags", async () => {
-		const loc = await getLoc(singleLocId);
-		await withApi(async (api, l) => {
-			await api.Location.update([{ id: l.id, tags: [100, 200] }]);
-		}, loc);
+		const tagIds = [(await createTag("First")).id, (await createTag("Second")).id];
+		await withApi(
+			async (api, id, tags) => {
+				await api.Location.update([{ id, tags }]);
+			},
+			singleLocId,
+			tagIds,
+		);
 		const updated = await getLoc(singleLocId);
-		expect(updated.tags).toEqual([100, 200]);
+		expect(updated.tags).toEqual(tagIds);
 	});
 
 	// --- Batch update ---
