@@ -42,14 +42,14 @@ export function deleteMap(id: string) {
 /** Import locations from pasted text and commit them to the map. */
 export async function importPaste(text: string) {
 	await cmd.storeImportPreview({ text });
-	const r = await cmd.storeImportFile([], []);
+	const r = await cmd.storeImportFile([], [], []);
 	await Mutation.settle(r.mutation);
 	return [r];
 }
 
 /** Import a previewed file, optionally assigning tags. */
 export async function importFile(droppedFields: string[], tagNames: string[] = []) {
-	const r = await cmd.storeImportFile(droppedFields, tagNames);
+	const r = await cmd.storeImportFile(droppedFields, tagNames, []);
 	await Mutation.settle(r.mutation);
 	return r;
 }

@@ -326,9 +326,7 @@ pub struct EditorImportResult {
     pub auto_commit: bool,
 }
 
-/// Commit a previously previewed editor import into the open map, optionally
-/// dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
-/// and/or applying each of `tagNames` to every imported location.
+/// Import the staged file, dropping chosen fields and tags and applying each supplied tag to every location.
 // `async` so the insert + render-buffer registration runs off the main (event-loop)
 // thread; as a sync command it froze the webview for the duration of the import insert.
 #[tauri::command]
@@ -338,11 +336,12 @@ pub async fn store_import_file(
     state: tauri::State<'_, engine::StoreState>,
     dropped_fields: Vec<String>,
     tag_names: Vec<String>,
+    dropped_tags: Vec<String>,
 ) -> AppResult<EditorImportResult> {
     let t0 = Instant::now();
     let _ = fs::remove_file(preview_positions_path(&label.0));
     let result = engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
-        confirm_staged(store, &label.0, &dropped_fields, &tag_names)
+        confirm_staged(store, &label.0, &dropped_fields, &tag_names, &dropped_tags)
     });
     log::debug!("[import] total={:.0}ms", t0.elapsed().as_millis());
     result
@@ -355,6 +354,7 @@ pub(super) fn confirm_staged(
     window: &str,
     dropped: &[String],
     tag_names: &[String],
+    dropped_tags: &[String],
 ) -> AppResult<EditorImportResult> {
     let target = import_target(window);
     let key = import_layer(window);
@@ -371,6 +371,21 @@ pub(super) fn confirm_staged(
     } else {
         store.held_records(&key, "tags")
     };
+    let dropped_names: HashSet<String> = dropped_tags
+        .iter()
+        .map(|name| name.to_lowercase())
+        .collect();
+    let mut dropped_ids = HashSet::new();
+    tags.retain(|id, record| {
+        let drop = record
+            .name
+            .as_ref()
+            .is_some_and(|name| dropped_names.contains(&name.to_lowercase()));
+        if drop {
+            dropped_ids.insert(*id);
+        }
+        !drop
+    });
     let bulk = bulk_tag_ids(&mut tags, tag_names);
     records.insert("tags".to_string(), tags);
     for field in dropped
@@ -391,8 +406,9 @@ pub(super) fn confirm_staged(
         for (_, _, drop_field) in &drops {
             drop_field(loc, &mut patch);
         }
-        if !bulk.is_empty() {
+        if !dropped_ids.is_empty() || !bulk.is_empty() {
             let mut next = patch.tags.take().unwrap_or_else(|| loc.tags.clone());
+            next.retain(|id| !dropped_ids.contains(id));
             for b in bulk.iter().copied() {
                 if !next.contains(&b) {
                     next.push(b);

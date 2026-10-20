@@ -1137,7 +1137,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
     let names = ["shared", " France ", "", "france"].map(String::from);
 
     stage_parsed(&mut store, "bulk-win", parsed);
-    confirm_staged(&mut store, "bulk-win", &[], &names).unwrap();
+    confirm_staged(&mut store, "bulk-win", &[], &names, &[]).unwrap();
 
     let meta = &store.records["tags"];
     let (france, _) = meta
@@ -1178,7 +1178,7 @@ fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
     stage_parsed(&mut store, "tags-win", parsed);
     assert_eq!(store.records["tags"].len(), 1);
 
-    let confirmed = confirm_staged(&mut store, "tags-win", &[], &[]).unwrap();
+    let confirmed = confirm_staged(&mut store, "tags-win", &[], &[], &[]).unwrap();
     assert!(!confirmed.auto_commit);
     assert_eq!(confirmed.imported_count, 2);
     let unique = store.records["tags"]
@@ -1205,7 +1205,7 @@ fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
         ..Default::default()
     };
     stage_parsed(&mut store, "drop-win", parsed);
-    confirm_staged(&mut store, "drop-win", &["tags".to_string()], &[]).unwrap();
+    confirm_staged(&mut store, "drop-win", &["tags".to_string()], &[], &[]).unwrap();
     assert!(store.records["tags"].is_empty());
     let stored = store
         .at(&Target::Map { id: None })
@@ -1237,7 +1237,7 @@ fn every_field_the_preview_counts_drops_on_confirm() {
         .collect();
     assert_eq!(counted, ["heading", "pitch", "zoom", "panoId", "tags"]);
     stage_parsed(&mut store, "every-drop-win", parsed);
-    confirm_staged(&mut store, "every-drop-win", &counted, &[]).unwrap();
+    confirm_staged(&mut store, "every-drop-win", &counted, &[], &[]).unwrap();
     let stored = store
         .at(&Target::Map { id: None })
         .rows(&Selector::Everything);
@@ -1246,6 +1246,76 @@ fn every_field_the_preview_counts_drops_on_confirm() {
     assert_eq!(l.pano_id, None);
     assert!(!l.flags.contains(LocationFlags::LOAD_AS_PANO_ID));
     assert!(l.tags.is_empty());
+}
+
+#[test]
+fn dropping_individual_tags_preserves_the_maps_tags_and_the_files_other_tags() {
+    let mut store = store_tagged(&[tag(5, "Shared")]);
+    store.at(&Target::Map { id: None }).edit(
+        vec![mma_algebra::Op::Add(loc_with_tags(0, vec![5]))],
+        Default::default(),
+        &mut None,
+    );
+    let parsed = ParsedMap {
+        locations: vec![
+            loc_with_tags(0, vec![1, 2, 3]),
+            loc_with_tags(0, vec![1, 3]),
+        ],
+        records: tag_table(&[tag(1, "shared"), tag(2, "Kept"), tag(3, "Unwanted")]),
+        ..Default::default()
+    };
+    stage_parsed(&mut store, "partial-win", parsed);
+    confirm_staged(
+        &mut store,
+        "partial-win",
+        &[],
+        &[],
+        &["SHARED".into(), "Unwanted".into()],
+    )
+    .unwrap();
+
+    let records = &store.records["tags"];
+    assert_eq!(records.len(), 2);
+    assert_eq!(records[&Id::new(5)].name.as_deref(), Some("Shared"));
+    let kept = records
+        .iter()
+        .find_map(|(&id, record)| (record.name.as_deref() == Some("Kept")).then_some(id))
+        .unwrap();
+    let rows = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
+    assert_eq!(rows.len(), 3);
+    assert!(rows.iter().any(|row| row.tags == vec![Id::new(5)]));
+    assert!(rows.iter().any(|row| row.tags == vec![kept]));
+    assert!(rows.iter().any(|row| row.tags.is_empty()));
+}
+
+#[test]
+fn a_dropped_file_tag_can_be_explicitly_added_to_every_imported_location() {
+    let mut store = store_tagged(&[]);
+    let parsed = ParsedMap {
+        locations: vec![loc_with_tags(0, vec![1]), loc_with_tags(0, vec![])],
+        records: tag_table(&[tag(1, "Urban")]),
+        ..Default::default()
+    };
+    stage_parsed(&mut store, "retag-win", parsed);
+    confirm_staged(
+        &mut store,
+        "retag-win",
+        &[],
+        &["urban".into()],
+        &["Urban".into()],
+    )
+    .unwrap();
+
+    let records = &store.records["tags"];
+    assert_eq!(records.len(), 1);
+    let urban = *records.keys().next().unwrap();
+    let rows = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| row.tags == vec![urban]));
 }
 
 #[test]
@@ -1258,7 +1328,14 @@ fn dropping_the_files_tags_still_applies_the_named_tags() {
     };
     let names = ["shared", "France"].map(String::from);
     stage_parsed(&mut store, "drop-bulk-win", parsed);
-    confirm_staged(&mut store, "drop-bulk-win", &["tags".to_string()], &names).unwrap();
+    confirm_staged(
+        &mut store,
+        "drop-bulk-win",
+        &["tags".to_string()],
+        &names,
+        &[],
+    )
+    .unwrap();
 
     let meta = &store.records["tags"];
     let france = meta
@@ -1457,7 +1534,7 @@ fn habitat_names(records: &HashMap<Id<ValueRecord>, ValueRecord>, row: &Location
 fn import_into(store: &mut Store, window: &str) -> Vec<Location> {
     let parsed = parse_single_json_mut(&mut HABITAT_FILE.to_vec());
     stage_parsed(store, window, parsed);
-    confirm_staged(store, window, &[], &[]).unwrap();
+    confirm_staged(store, window, &[], &[], &[]).unwrap();
     store
         .at(&Target::Map { id: None })
         .rows(&Selector::Everything)

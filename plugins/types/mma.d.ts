@@ -862,13 +862,8 @@ declare const commands$1: {
      *  @unstable
      */
     storeImportPreview: (source: ImportSource) => Promise<EditorImportPreview>;
-    /**
-     *  Commit a previously previewed editor import into the open map, optionally
-     *  dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
-     *  and/or applying each of `tagNames` to every imported location.
-     *  @unstable
-     */
-    storeImportFile: (droppedFields: string[], tagNames: string[]) => Promise<EditorImportResult>;
+    /**  Import the staged file, dropping chosen fields and tags and applying each supplied tag to every location. @unstable */
+    storeImportFile: (droppedFields: string[], tagNames: string[], droppedTags: string[]) => Promise<EditorImportResult>;
     /**  Discard the staged import without importing it. @unstable */
     storeImportCancel: () => Promise<null>;
     /**  The location a pasted Maps URL names, short links resolved. @unstable */
@@ -4194,8 +4189,8 @@ declare const Import: {
     fromPath: (path: string) => Promise<void>;
     /** Stage pasted text for preview. Throws if no locations are found. @unstable */
     paste: (text: string) => Promise<void>;
-    /** Commit the staged import, optionally dropping fields and applying bulk tags. @unstable */
-    confirm: (droppedFields: string[], tagNames?: string[]) => Promise<EditorImportResult | null>;
+    /** Import the staged file, dropping chosen fields and tags and applying bulk tags. @unstable */
+    confirm: (droppedFields: string[], tagNames?: string[], droppedTags?: string[]) => Promise<EditorImportResult | null>;
     /** Discard the staged import without committing. @unstable */
     cancel: () => void;
 };
@@ -6635,8 +6630,8 @@ declare function SwitchRow({ checked, onChange, label, disabled, className, chil
 }): react.JSX.Element;
 
 /** @unstable */
-export type TagPillButtonVariant = "add" | "delete" | "edit";
-/** The leading affordance inside a TagPill: remove, apply, or open the editor. @unstable */
+export type TagPillButtonVariant = "add" | "delete" | "edit" | "toggle";
+/** A leading button that adds, removes, edits, or toggles a tag. @unstable */
 declare function TagPillButton({ variant, className, ...props }: ComponentPropsWithRef<"button"> & {
     variant: TagPillButtonVariant;
 }): react.JSX.Element;

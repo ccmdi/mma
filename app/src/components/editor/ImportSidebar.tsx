@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
 import { Import } from "@/store/import";
@@ -33,12 +33,14 @@ export function ImportSidebar() {
 	const staging = useEventValue("import-markers:changed", Import.staging);
 	const visibleTags = Store.use(Tag.visible);
 	const [droppedFields, setDroppedFields] = useState(loadDroppedFields);
+	const [droppedTags, setDroppedTags] = useState<Set<string>>(() => new Set());
 	const [bulkTags, setBulkTags] = useState<string[]>([]);
 	const [tagInput, setTagInput] = useState("");
 	const [importing, setImporting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [confirmAutoCommit, setConfirmAutoCommit] = useState(false);
 	const [dontWarnAgain, setDontWarnAgain] = useState(false);
+	useEffect(() => setDroppedTags(new Set()), [staging]);
 
 	if (!staging) return null;
 	const { preview } = staging;
@@ -79,7 +81,7 @@ export function ImportSidebar() {
 		setError(null);
 		const t = trace("import");
 		try {
-			const r = await Import.confirm([...droppedFields], importTags);
+			const r = await Import.confirm([...droppedFields], importTags, [...droppedTags]);
 			t.end({ imported: r?.importedCount ?? 0 });
 		} catch (e: unknown) {
 			log.error("[import] failed:", e);
@@ -109,7 +111,34 @@ export function ImportSidebar() {
 						{preview.tags.map((rec, i) => {
 							const name = typeof rec.name === "string" ? rec.name : "";
 							const color = typeof rec.color === "string" ? rec.color : colorForName(name);
-							return <TagPill as="li" key={name || i} small color={color} label={name} />;
+							const included = !droppedFields.has("tags") && !droppedTags.has(name);
+							return (
+								<TagPill
+									as="li"
+									key={name || i}
+									small
+									color={color}
+									label={name}
+									style={
+										included
+											? undefined
+											: {
+													backgroundColor: "var(--surface-3)",
+													color: "var(--text-2)",
+												}
+									}
+									button={
+										<TagPillButton
+											variant="toggle"
+											aria-label={name}
+											aria-pressed={included}
+											title={included ? t("Exclude") : t("Include")}
+											disabled={droppedFields.has("tags")}
+											onClick={() => setDroppedTags((prev) => toggleInSet(prev, name))}
+										/>
+									}
+								/>
+							);
 						})}
 					</ul>
 				</Section>

@@ -214,12 +214,8 @@ export const commands = {
 	 *  positions for the editor import dialog. Call `storeImportFile` to commit the import.
 	 */
 	storeImportPreview: (source: ImportSource) => __TAURI_INVOKE<EditorImportPreview>("store_import_preview", { source }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
-	/**
-	 *  Commit a previously previewed editor import into the open map, optionally
-	 *  dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
-	 *  and/or applying each of `tagNames` to every imported location.
-	 */
-	storeImportFile: (droppedFields: string[], tagNames: string[]) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagNames }),
+	/**  Import the staged file, dropping chosen fields and tags and applying each supplied tag to every location. */
+	storeImportFile: (droppedFields: string[], tagNames: string[], droppedTags: string[]) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagNames, droppedTags }),
 	/**  Discard the staged import without importing it. */
 	storeImportCancel: () => __TAURI_INVOKE<null>("store_import_cancel"),
 	/**  The location a pasted Maps URL names, short links resolved. */

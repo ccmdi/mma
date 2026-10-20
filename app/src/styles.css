@@ -3804,6 +3804,18 @@ body.mm-tag-dragging * {
 .tag__button--delete:hover {
 	outline: 2px solid #fff;
 }
+.tag:has(> .tag__button--toggle) {
+	transition:
+		background-color var(--dur) var(--ease-standard),
+		color var(--dur) var(--ease-standard);
+}
+.tag__button--toggle .tag__toggle-stroke {
+	transform-origin: center;
+	transition: transform var(--dur) var(--ease-standard);
+}
+.tag__button--toggle[aria-pressed="true"] .tag__toggle-stroke {
+	transform: scaleY(0);
+}
 .form-add-tag {
 	white-space: nowrap;
 	background: var(--surface-1);

@@ -3720,7 +3720,7 @@ ui.TagPillButton(
 ): react.JSX.Element
 ```
 
-The leading affordance inside a TagPill: remove, apply, or open the editor.
+A leading button that adds, removes, edits, or toggles a tag.
 
 #### ui.TextInput
 
@@ -6704,12 +6704,11 @@ Discard the staged import without importing it.
 cmd.storeImportFile(
   droppedFields: string[],
   tagNames: string[],
+  droppedTags: string[],
 ): Promise<EditorImportResult>
 ```
 
-Commit a previously previewed editor import into the open map, optionally
-dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
-and/or applying each of `tagNames` to every imported location.
+Import the staged file, dropping chosen fields and tags and applying each supplied tag to every location.
 
 #### cmd.storeImportLegacySavedSelections
 
@@ -8520,10 +8519,11 @@ Discard the staged import without committing.
 Import.confirm(
   droppedFields: string[],
   tagNames?: string[],
+  droppedTags?: string[],
 ): Promise<EditorImportResult | null>
 ```
 
-Commit the staged import, optionally dropping fields and applying bulk tags.
+Import the staged file, dropping chosen fields and tags and applying bulk tags.
 
 #### Import.fromPath
 

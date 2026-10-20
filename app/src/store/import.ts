@@ -60,8 +60,8 @@ export const Import = {
 	paste: async (text: string) => {
 		await setImportStaging(await cmd.storeImportPreview({ text }));
 	},
-	/** Commit the staged import, optionally dropping fields and applying bulk tags. */
-	confirm: async (droppedFields: string[], tagNames: string[] = []) => {
+	/** Import the staged file, dropping chosen fields and tags and applying bulk tags. */
+	confirm: async (droppedFields: string[], tagNames: string[] = [], droppedTags: string[] = []) => {
 		if (!importState.staging) return null;
 		await Autosave.waitForInflight();
 
@@ -69,6 +69,7 @@ export const Import = {
 		const r = await cmd.storeImportFile(
 			droppedFields,
 			tagNames.map((n) => n.trim()).filter(Boolean),
+			droppedTags,
 		);
 		Import.cancel();
 		await Mutation.settle(r.mutation);

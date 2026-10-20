@@ -1,19 +1,20 @@
 import type { ComponentPropsWithRef, ElementType, ReactNode } from "react";
 import clsx from "clsx";
-import { mdiClose, mdiPencil, mdiPlus } from "@mdi/js";
+import { mdiClose, mdiMinus, mdiPencil, mdiPlus } from "@mdi/js";
 import { Icon } from "@/components/primitives/Icon";
 import { textColorFor } from "@/lib/util/color";
 import { fmt } from "@/lib/util/format";
 
-type TagPillButtonVariant = "add" | "delete" | "edit";
+type TagPillButtonVariant = "add" | "delete" | "edit" | "toggle";
 
 const BUTTON_ICON: Record<TagPillButtonVariant, string> = {
 	add: mdiPlus,
 	delete: mdiClose,
 	edit: mdiPencil,
+	toggle: mdiMinus,
 };
 
-/** The leading affordance inside a TagPill: remove, apply, or open the editor. @unstable */
+/** A leading button that adds, removes, edits, or toggles a tag. @unstable */
 export function TagPillButton({
 	variant,
 	className,
@@ -25,7 +26,14 @@ export function TagPillButton({
 			type="button"
 			className={clsx("button", "tag__button", `tag__button--${variant}`, className)}
 		>
-			<Icon path={BUTTON_ICON[variant]} size={variant === "edit" ? undefined : 16} />
+			{variant === "toggle" ? (
+				<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+					<path d={mdiMinus} />
+					<path className="tag__toggle-stroke" d="M11 5H13V19H11Z" />
+				</svg>
+			) : (
+				<Icon path={BUTTON_ICON[variant]} size={variant === "edit" ? undefined : 16} />
+			)}
 		</button>
 	);
 }

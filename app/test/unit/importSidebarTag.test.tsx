@@ -4,19 +4,23 @@ import type { Tag } from "@/types";
 import { act } from "react";
 import { mount as mountRoot } from "./fixtures/harness";
 import type { EditorImportPreview } from "@/bindings.gen";
+import { emit } from "@/lib/events";
 // trace().end() logs through tauri-plugin-log, which needs a host.
 Object.assign(window, { __TAURI_INTERNALS__: { invoke: async () => {} } });
 
-const confirmImport = vi.fn(async (_dropped?: string[], _tagNames?: string[]) => ({
-	importedCount: 1,
-}));
+const confirmImport = vi.fn(
+	async (_dropped?: string[], _tagNames?: string[], _droppedTags?: string[]) => ({
+		importedCount: 1,
+	}),
+);
 let staging: { preview: EditorImportPreview; source: "file" } | null = null;
 let tags: Tag[] = [];
 
 vi.mock("@/store/import", () => ({
 	Import: {
 		staging: () => staging,
-		confirm: (dropped: string[], tagNames?: string[]) => confirmImport(dropped, tagNames),
+		confirm: (dropped: string[], tagNames?: string[], droppedTags?: string[]) =>
+			confirmImport(dropped, tagNames, droppedTags),
 		cancel: () => {},
 	},
 }));
@@ -103,7 +107,7 @@ describe("import bulk tag", () => {
 		const unmount = mount();
 		type("france");
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], ["france"]);
+		expect(confirmImport).toHaveBeenCalledWith([], ["france"], []);
 		unmount();
 	});
 
@@ -131,7 +135,7 @@ describe("import bulk tag", () => {
 		type("   ");
 		expect(pills()).toEqual([]);
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], []);
+		expect(confirmImport).toHaveBeenCalledWith([], [], []);
 		unmount();
 	});
 
@@ -140,7 +144,7 @@ describe("import bulk tag", () => {
 		type("  france  ");
 		expect(pills()).toEqual(["france"]);
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], ["france"]);
+		expect(confirmImport).toHaveBeenCalledWith([], ["france"], []);
 		unmount();
 	});
 });
@@ -165,7 +169,7 @@ describe("import bulk tags", () => {
 		type("2024");
 		expect(pills()).toEqual(["france", "urban", "2024"]);
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], ["france", "urban", "2024"]);
+		expect(confirmImport).toHaveBeenCalledWith([], ["france", "urban", "2024"], []);
 		unmount();
 	});
 
@@ -178,7 +182,7 @@ describe("import bulk tags", () => {
 		type("FRANCE");
 		expect(pills()).toEqual(["france"]);
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], ["france"]);
+		expect(confirmImport).toHaveBeenCalledWith([], ["france"], []);
 		unmount();
 	});
 
@@ -191,7 +195,85 @@ describe("import bulk tags", () => {
 		removeTag("france");
 		expect(pills()).toEqual(["urban"]);
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], ["urban"]);
+		expect(confirmImport).toHaveBeenCalledWith([], ["urban"], []);
 		unmount();
+	});
+});
+
+describe("file tag selection", () => {
+	beforeEach(() => {
+		staging = {
+			preview: {
+				...preview,
+				tags: [
+					{ name: "France", color: "#123456" },
+					{ name: "Urban", color: "#654321" },
+				],
+				fields: [{ key: "tags", count: 3 }],
+			},
+			source: "file",
+		};
+	});
+
+	function fileTag(name: string) {
+		return [...container.querySelectorAll<HTMLButtonElement>(".tag__button--toggle")].find(
+			(button) => button.getAttribute("aria-label") === name,
+		)!;
+	}
+
+	it("includes all file tags by default", async () => {
+		mount();
+		expect(fileTag("France").getAttribute("aria-pressed")).toBe("true");
+		expect(fileTag("Urban").getAttribute("aria-pressed")).toBe("true");
+		expect(fileTag("France").parentElement?.classList.contains("tag")).toBe(true);
+		expect(container.querySelectorAll('.tag-list input[type="checkbox"]')).toHaveLength(0);
+		await clickImport();
+		expect(confirmImport).toHaveBeenCalledWith([], [], []);
+	});
+
+	it("excludes a tag while keeping it visible and preserves bulk tags", async () => {
+		mount();
+		act(() => fileTag("France").click());
+		expect(fileTag("France").getAttribute("aria-pressed")).toBe("false");
+		expect(fileTag("Urban").getAttribute("aria-pressed")).toBe("true");
+		expect(fileTag("France").title).toBe("Include");
+		expect(fileTag("France").parentElement?.style.backgroundColor).toBe("var(--surface-3)");
+		type("France");
+		await clickImport();
+		expect(confirmImport).toHaveBeenCalledWith([], ["France"], ["France"]);
+	});
+
+	it("can restore an excluded tag before importing", async () => {
+		mount();
+		act(() => fileTag("France").click());
+		act(() => fileTag("France").click());
+		expect(fileTag("France").getAttribute("aria-pressed")).toBe("true");
+		expect(fileTag("France").title).toBe("Exclude");
+		expect(fileTag("France").parentElement?.style.backgroundColor).toBe("rgb(18, 52, 86)");
+		await clickImport();
+		expect(confirmImport).toHaveBeenCalledWith([], [], []);
+	});
+
+	it("starts a replacement preview with every file tag included", () => {
+		mount();
+		act(() => fileTag("France").click());
+		staging = { ...staging!, preview: { ...staging!.preview } };
+		act(() => emit("import-markers:changed"));
+		expect(fileTag("France").getAttribute("aria-pressed")).toBe("true");
+	});
+
+	it("the tags field controls the whole group and retains individual choices", () => {
+		mount();
+		act(() => fileTag("France").click());
+		const field = container.querySelector<HTMLInputElement>(".importer__fields input")!;
+		act(() => field.click());
+		expect(fileTag("France").getAttribute("aria-pressed")).toBe("false");
+		expect(fileTag("Urban").getAttribute("aria-pressed")).toBe("false");
+		expect(fileTag("France").disabled).toBe(true);
+		expect(fileTag("Urban").disabled).toBe(true);
+		act(() => field.click());
+		expect(fileTag("France").getAttribute("aria-pressed")).toBe("false");
+		expect(fileTag("Urban").getAttribute("aria-pressed")).toBe("true");
+		expect(fileTag("Urban").disabled).toBe(false);
 	});
 });
