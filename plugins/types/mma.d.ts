@@ -5227,6 +5227,39 @@ declare const SelectionList: {
     }>;
 };
 
+/** The marker scene the map surfaces render from, and its load lifecycle. @api @unstable */
+declare const Scene: {
+    /** The shared scene that all map surfaces render from. @unstable */
+    get: () => CellManager;
+    /** Set the default marker color (RGB bytes). @unstable */
+    setDefaultColor: (r: number, g: number, b: number) => void;
+    /** Change the default marker color and repaint. @unstable */
+    recolor: (mc: RGB) => void;
+    /** Current default marker color as RGBA. @unstable */
+    defaultColor: () => RGBA;
+    /** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). @unstable */
+    positions: () => {
+        ids: Uint32Array;
+        positions: Float32Array;
+    };
+    /**
+     * Resolves once the scene has applied the frame for map version `version`, with what that
+     * frame did. Resolves at once, with nothing applied, when the scene follows no map.
+     * @unstable
+     */
+    reached: (version: number) => Promise<FrameSummary>;
+    /** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
+    settled: () => Promise<void>;
+    /** Load the whole scene again and follow every change to it from there. @unstable */
+    load: (markerStyle?: MarkerStyle, mc?: RGB) => Promise<void>;
+    /** Clear all marker data from the scene and stop following the map. @unstable */
+    clear: () => void;
+    /** The ids of the locations the listed selections select. @unstable */
+    selected: () => SelectedIds;
+    /** Reactive {@link Scene.selected}. @unstable */
+    useSelected: () => SelectedIds;
+};
+
 /** A registered provider to run, and what this run changes about it. @unstable */
 export interface ProviderRun<TConfig = unknown> {
     provider: Provider<unknown, TConfig>;
@@ -5524,6 +5557,8 @@ declare const getMapHost: typeof MapHost.get;
 declare const waitForMapHost: typeof MapHost.wait;
 /** @deprecated v0.12.0. Use `MMA.Provider.register`. @api */
 declare const registerProvider: typeof Provider.register;
+/** @deprecated v0.13.0. Use `MMA.Scene.positions`. @api @unstable */
+declare const getScenePositions: typeof Scene.positions;
 
 /** @unstable */
 export type PanoDestination = string | google.maps.LatLngLiteral;
@@ -5897,40 +5932,6 @@ declare const SavedSelection: {
     /** Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
      *  were added. @unstable */
     apply: (saved: SavedSelection) => number;
-};
-
-/** The marker scene the map surfaces render from, and its load lifecycle. @api @unstable */
-declare const Scene: {
-    /** The shared scene that all map surfaces render from. @unstable */
-    get: () => CellManager;
-    /** Set the default marker color (RGB bytes). @unstable */
-    setDefaultColor: (r: number, g: number, b: number) => void;
-    /** Change the default marker color and repaint. @unstable */
-    recolor: (mc: RGB) => void;
-    /** Current default marker color as RGBA. @unstable */
-    defaultColor: () => RGBA;
-    /**
-     * Resolves once the scene has applied the frame for map version `version`, with what that
-     * frame did. Resolves at once, with nothing applied, when the scene follows no map.
-     * @unstable
-     */
-    reached: (version: number) => Promise<FrameSummary>;
-    /** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
-    settled: () => Promise<void>;
-    /** Load the whole scene again and follow every change to it from there. @unstable */
-    load: (markerStyle?: MarkerStyle, mc?: RGB) => Promise<void>;
-    /** Clear all marker data from the scene and stop following the map. @unstable */
-    clear: () => void;
-    /** The ids of the locations the listed selections select. @unstable */
-    selected: () => SelectedIds;
-    /** Reactive {@link Scene.selected}. @unstable */
-    useSelected: () => SelectedIds;
-};
-
-/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). @api @unstable */
-declare function getScenePositions(): {
-    ids: Uint32Array;
-    positions: Float32Array;
 };
 
 /** @unstable */
@@ -7004,6 +7005,8 @@ export type LegacyApi = {
     getMapList: typeof getMapList;
     getMapState: typeof getMapState;
     /** @unstable */
+    getScenePositions: typeof getScenePositions;
+    /** @unstable */
     getSelectedLocationIds: typeof getSelectedLocationIds;
     /** @unstable */
     getSelectedTagIds: typeof getSelectedTagIds;
@@ -7176,10 +7179,6 @@ export type SavedSelectionApi = {
 export type SceneApi = {
     /** @unstable */
     Scene: typeof Scene;
-};
-export type ScenePositionsApi = {
-    /** @unstable */
-    getScenePositions: typeof getScenePositions;
 };
 export type ScopeApi = {
     /** @unstable */
@@ -7415,7 +7414,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, EnrichApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginEventsApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScenePositionsApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, EnrichApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginEventsApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {

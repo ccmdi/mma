@@ -466,3 +466,6 @@ export const waitForMapHost: typeof MapHost.wait = MapHost.wait;
 
 /** @deprecated v0.12.0. Use `MMA.Provider.register`. @api */
 export const registerProvider: typeof Provider.register = Provider.register;
+
+/** @deprecated v0.13.0. Use `MMA.Scene.positions`. @api @unstable */
+export const getScenePositions: typeof Scene.positions = Scene.positions;

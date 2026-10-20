@@ -120,6 +120,19 @@ export const Scene = {
 	defaultColor: (): RGBA => {
 		return markerDefault;
 	},
+	/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). */
+	positions: (): { ids: Uint32Array; positions: Float32Array } => {
+		const ids = new Uint32Array(scene.totalCount);
+		const positions = new Float32Array(scene.totalCount * 2);
+		let n = 0;
+		scene.forEachPosition((id, lng, lat) => {
+			ids[n] = id;
+			positions[n * 2] = lng;
+			positions[n * 2 + 1] = lat;
+			n++;
+		});
+		return { ids, positions };
+	},
 	/**
 	 * Resolves once the scene has applied the frame for map version `version`, with what that
 	 * frame did. Resolves at once, with nothing applied, when the scene follows no map.

@@ -57,7 +57,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Review](#review)
 - [Saved selection](#saved-selection)
 - [Scene](#scene)
-- [Scene positions](#scene-positions)
 - [Scope](#scope)
 - [Seen](#seen)
 - [Selection list](#selection-list)
@@ -2279,6 +2278,21 @@ getMapState(): Readonly<MapState>
 **Deprecated in v0.12.0.** Use `MMA.Store.get`.
 
 Imperative snapshot of the map state.
+
+### getScenePositions
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+getScenePositions(): {
+  ids: Uint32Array;
+  positions: Float32Array;
+}
+```
+
+**Deprecated in v0.13.0.** Use `MMA.Scene.positions`.
+
+Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
 
 ### getSelectedLocationIds
 
@@ -7722,6 +7736,19 @@ Scene.load(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>
 
 Load the whole scene again and follow every change to it from there.
 
+#### Scene.positions
+
+`unstable` · unreleased
+
+```ts
+Scene.positions(): {
+  ids: Uint32Array;
+  positions: Float32Array;
+}
+```
+
+Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
+
 #### Scene.reached
 
 `unstable` · since v0.12.0
@@ -7782,21 +7809,6 @@ Scene.useSelected(): SelectedIds
 ```
 
 Reactive Scene.selected.
-
-## Scene positions
-
-### getScenePositions
-
-`unstable` · since v0.9.0
-
-```ts
-getScenePositions(): {
-  ids: Uint32Array;
-  positions: Float32Array;
-}
-```
-
-Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
 
 ## Scope
 

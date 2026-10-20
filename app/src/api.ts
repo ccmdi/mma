@@ -133,6 +133,7 @@ import {
 	getMapHost,
 	getMapList,
 	getMapState,
+	getScenePositions,
 	getSelectedLocationIds,
 	getSelectedTagIds,
 	getSelectedTagIdsDeep,
@@ -221,7 +222,6 @@ import {
 import { Review } from "@/lib/review/review";
 import { SavedSelection } from "@/store/savedSelection";
 import { Scene } from "@/lib/render/scene";
-import { getScenePositions } from "@/lib/render/scenePositions";
 import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
 import { Seen } from "@/lib/seen/seen";
 import { SelectionList } from "@/store/selectionList";
@@ -478,6 +478,7 @@ type LegacyApi = {
 	getMapHost: typeof getMapHost;
 	getMapList: typeof getMapList;
 	getMapState: typeof getMapState;
+	getScenePositions: typeof getScenePositions;
 	getSelectedLocationIds: typeof getSelectedLocationIds;
 	getSelectedTagIds: typeof getSelectedTagIds;
 	getSelectedTagIdsDeep: typeof getSelectedTagIdsDeep;
@@ -579,7 +580,6 @@ type RegistryApi = {
 type ReviewApi = { Review: typeof Review };
 type SavedSelectionApi = { SavedSelection: typeof SavedSelection };
 type SceneApi = { Scene: typeof Scene };
-type ScenePositionsApi = { getScenePositions: typeof getScenePositions };
 type ScopeApi = {
 	resolvePluginPath: typeof resolvePluginPath;
 	trackDisposable: typeof trackDisposable;
@@ -738,7 +738,6 @@ export interface MMA
 		ReviewApi,
 		SavedSelectionApi,
 		SceneApi,
-		ScenePositionsApi,
 		ScopeApi,
 		SeenApi,
 		SelectionListApi,
@@ -892,6 +891,7 @@ const mma: MMA = {
 	getMapHost,
 	getMapList,
 	getMapState,
+	getScenePositions,
 	getSelectedLocationIds,
 	getSelectedTagIds,
 	getSelectedTagIdsDeep,
@@ -982,7 +982,6 @@ const mma: MMA = {
 	Review,
 	SavedSelection,
 	Scene,
-	getScenePositions,
 	resolvePluginPath,
 	trackDisposable,
 	Seen,
