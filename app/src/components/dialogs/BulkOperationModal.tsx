@@ -47,7 +47,7 @@ import type { ProcedureOutcomes } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
 import { enabledEnrichKeys, getEnrichFieldOptions } from "@/lib/data/fieldDefs";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
-import { bulkPanHeading } from "@/lib/sv/headingRoad";
+import { bulkPanHeading } from "@/lib/sv/providers";
 import type { RoadDirection } from "@/lib/sv/providers";
 import {
 	bulkDownloadPanoramas,

@@ -6,7 +6,13 @@ import {
 	getDefaultEnrichKeys,
 	knownFieldDefs,
 } from "@/lib/data/fieldDefs";
-import { Procedure, type ProcedureOutcomes, type RunOpts } from "@/lib/data/procedure";
+import {
+	Procedure,
+	type BatchOutcome,
+	type BulkOpts,
+	type ProcedureOutcomes,
+	type RunOpts,
+} from "@/lib/data/procedure";
 import { Provider, type ProviderRun } from "@/lib/data/provider";
 import { SVMETA_FIELDS, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { cmd } from "@/lib/commands";
@@ -171,4 +177,18 @@ export async function enrich(
 		});
 	}
 	return Provider.run(runs, selector, opts);
+}
+
+/** Pan every heading in the selector along the road. */
+export async function bulkPanHeading(
+	selector: Selector,
+	direction: RoadDirection,
+	opts: BulkOpts = {},
+): Promise<BatchOutcome> {
+	const result = await Provider.run(
+		[{ provider: panoResolveProvider }, { provider: headingRoadProvider, config: { direction } }],
+		selector,
+		opts,
+	);
+	return result.headingRoad ?? Procedure.noWork();
 }

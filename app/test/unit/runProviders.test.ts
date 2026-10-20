@@ -214,7 +214,7 @@ import {
 	svMetaProvider,
 } from "@/lib/sv/providers";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
-import { bulkPanHeading } from "@/lib/sv/headingRoad";
+import { bulkPanHeading } from "@/lib/sv/providers";
 
 const plainProvider: Provider = {
 	id: "prov",
