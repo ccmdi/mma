@@ -136,14 +136,14 @@ export type MapExitKind = "leave" | "quit";
 
 let exitRequest: { kind: MapExitKind; resolve: (ok: boolean) => void } | null = null;
 
-/** The pending map-exit confirmation, for the dialog. @api @unstable */
+/** The pending map-exit confirmation, for the dialog. */
 export function getExitRequest(): { kind: MapExitKind } | null {
 	return exitRequest;
 }
 
 /** Gate a user action that would end every map-scoped job. Resolves true immediately when
  *  none are live; otherwise raises the confirm dialog, and true means the jobs were
- *  cancelled and the action should proceed. @api @unstable */
+ *  cancelled and the action should proceed. */
 export function confirmMapExit(kind: MapExitKind): Promise<boolean> {
 	if (!jobs.some((j) => j.scope === "map")) return Promise.resolve(true);
 	if (exitRequest) return Promise.resolve(false);
@@ -153,7 +153,7 @@ export function confirmMapExit(kind: MapExitKind): Promise<boolean> {
 	return promise;
 }
 
-/** Answer the pending map-exit confirmation. @api @unstable */
+/** Answer the pending map-exit confirmation. */
 export function resolveMapExit(ok: boolean): void {
 	const req = exitRequest;
 	if (!req) return;

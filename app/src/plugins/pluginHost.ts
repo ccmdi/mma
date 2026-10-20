@@ -14,7 +14,7 @@ function saveEnabled(set: Set<string>) {
 
 const enabledSet = new Set(getLocal<string[]>(ENABLED_KEY, []));
 
-/** True when the plugin is enabled by the user. @api @unstable */
+/** True when the plugin is enabled by the user. */
 export function isPluginEnabled(id: string): boolean {
 	return enabledSet.has(id);
 }
@@ -27,18 +27,18 @@ export function setPluginEnabled(id: string, enabled: boolean) {
 	emitEvent("plugins:changed");
 }
 
-/** All registered plugins the user has enabled. @api @unstable */
+/** All registered plugins the user has enabled. */
 export function getEnabledPlugins(): Plugin[] {
 	return getPlugins().filter((p) => enabledSet.has(p.id));
 }
 
-/** Activate all enabled plugins. Called when a map opens. @api @unstable */
+/** Activate all enabled plugins. Called when a map opens. */
 export function activatePlugins() {
 	for (const plugin of getEnabledPlugins()) activate(plugin);
 	emitEvent("plugins:changed");
 }
 
-/** Deactivate all plugins and stop their sidecars. Called when a map closes. @api @unstable */
+/** Deactivate all plugins and stop their sidecars. Called when a map closes. */
 export function deactivatePlugins() {
 	for (const id of new Set([...getPlugins().map((p) => p.id), ...cleanups.keys()])) teardown(id);
 	// Nothing is active any more, so nothing should still be running. Covers plugins
@@ -64,7 +64,7 @@ function activate(plugin: Plugin) {
 	}
 }
 
-/** Deactivate a single plugin and stop its sidecar. @api @unstable */
+/** Deactivate a single plugin and stop its sidecar. */
 export function deactivatePlugin(id: string) {
 	teardown(id);
 	// A disabled plugin keeps no processes, whether or not it cleaned up after itself.
@@ -90,7 +90,7 @@ export function isReady(): boolean {
 	return surfaceReady;
 }
 
-/** Mark the plugin surface as ready. @api @unstable */
+/** Mark the plugin surface as ready. */
 export function markReady(): void {
 	surfaceReady = true;
 }

@@ -32,7 +32,7 @@ export function resolveSvColorHex(color: string): string {
 	);
 }
 
-/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @api @unstable */
+/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. */
 export function applyAccentColor(hex: string) {
 	const root = document.documentElement.style;
 	root.setProperty("--accent", hex);

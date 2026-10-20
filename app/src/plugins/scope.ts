@@ -9,7 +9,7 @@ let currentOwner: string | null = null;
 const stores = new Map<string, Disposable[]>();
 const baseDirs = new Map<string, string>();
 
-/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. @api @unstable */
+/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. */
 export function runAsPlugin<T>(id: string, fn: () => T): T {
 	const prev = currentOwner;
 	currentOwner = id;
@@ -31,7 +31,7 @@ export function trackDisposable(dispose: Disposable): void {
 	store.push(dispose);
 }
 
-/** Set the base directory for a plugin's assets on disk. @api @unstable */
+/** Set the base directory for a plugin's assets on disk. */
 export function setPluginBaseDir(id: string, dir: string): void {
 	baseDirs.set(id, dir);
 }
@@ -45,7 +45,7 @@ export function resolvePluginPath(path: string): string {
 	return dir ? `${dir}/${path}` : path;
 }
 
-/** Run all teardowns a plugin registered (in reverse order) and clear them. @api @unstable */
+/** Run all teardowns a plugin registered (in reverse order) and clear them. */
 export function disposePlugin(id: string): void {
 	const store = stores.get(id);
 	if (!store) return;

@@ -404,31 +404,19 @@ fn export_consts() -> Result<(), String> {
             "BUILTIN_FIELDS",
             TsConst::value(selections::FieldRegistry::builtins()).api(),
         ),
-        (
-            "FrameKind",
-            store::engine::FrameKind::ts_const().api().unstable(),
-        ),
-        (
-            "NO_SEL",
-            TsConst::value(store::engine::PaletteIdx::NONE.0)
-                .api()
-                .unstable(),
-        ),
+        ("FrameKind", store::engine::FrameKind::ts_const()),
+        ("NO_SEL", TsConst::value(store::engine::PaletteIdx::NONE.0)),
         (
             "OFFICIAL_ID_PATTERN",
             TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN).api(),
         ),
         (
             "EFFECT_CALLS",
-            TsConst::value(procedure::quickjs::EFFECT_CALLS)
-                .api()
-                .unstable(),
+            TsConst::value(procedure::quickjs::EFFECT_CALLS),
         ),
         (
             "PLAIN_CALLS",
-            TsConst::value(procedure::quickjs::PLAIN_CALLS)
-                .api()
-                .unstable(),
+            TsConst::value(procedure::quickjs::PLAIN_CALLS),
         ),
         (
             "DEFAULT_DUPLICATE_SCORE",

@@ -1,4 +1,4 @@
-/** Base URL for a custom URI scheme, platform-adjusted. @api @unstable */
+/** Base URL for a custom URI scheme, platform-adjusted. */
 export function schemeBase(scheme: string): string {
 	return navigator.platform.startsWith("Win")
 		? `http://${scheme}.localhost/`

@@ -87,7 +87,7 @@ export function mapStorage(id: string): MapPluginStorage {
 	);
 }
 
-/** Re-read a plugin's store after another window wrote it. @api @unstable */
+/** Re-read a plugin's store after another window wrote it. */
 export function reloadStorage(id: string) {
 	reloadLocal(pluginStoreKey(id), {});
 }

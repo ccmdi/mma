@@ -9,20 +9,16 @@ import {
 	DEFAULT_DUPLICATE_SCORE,
 	DEFAULT_MARKER_COLOR,
 	DatePart,
-	EFFECT_CALLS,
 	ERROR_CODES,
 	FieldType,
 	FirstSyncMode,
-	FrameKind,
 	Group,
 	IssueState,
 	KNOWN_FIELDS,
 	LocationFlag,
 	MapShape,
 	MergeWinner,
-	NO_SEL,
 	OFFICIAL_ID_PATTERN,
-	PLAIN_CALLS,
 	PROJECTIONS,
 	PanoType,
 	Place,
@@ -41,7 +37,6 @@ import {
 	ValidationFlag,
 } from "@/bindings.consts";
 import {
-	applyAccentColor,
 	colorForName,
 	hexToHsl,
 	hexToRgb,
@@ -59,7 +54,6 @@ import { CommitDiff } from "@/store/commitDiff";
 import { Edit } from "@/store/edit";
 import { Editor } from "@/store/editor";
 import { enrich } from "@/lib/sv/enrich";
-import { getAvailableExternals, mmaRequire, preloadModules } from "@/plugins/externals";
 import { Field } from "@/store/field";
 import {
 	declaredValues,
@@ -90,15 +84,7 @@ import { RANGE_ID, partitionKeyOptions, projectionsForType } from "@/lib/data/fi
 import { History } from "@/store/history";
 import { MapHost } from "@/lib/map/host";
 import { Import } from "@/store/import";
-import {
-	cancelJobs,
-	confirmMapExit,
-	getExitRequest,
-	getJobs,
-	registerJob,
-	resolveMapExit,
-	runJob,
-} from "@/lib/jobs";
+import { cancelJobs, getJobs, registerJob, runJob } from "@/lib/jobs";
 import { Layer } from "@/store/layer";
 import {
 	addLocations,
@@ -207,31 +193,12 @@ import {
 } from "@/legacy";
 import { Location } from "@/store/location";
 import { Maps } from "@/store/maps";
-import {
-	autoUpdatePlugin,
-	fetchPluginRegistry,
-	isPluginCompatible,
-	isPluginUpdatable,
-	needsBuildUpdate,
-	needsUpdate,
-	resolveBuild,
-} from "@/plugins/marketplace";
 import { Mutation } from "@/store/mutation";
 import { Pano } from "@/lib/sv/pano";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { definePluginEvent, emitPluginEvent, on, usePluginEvent } from "@/plugins/pluginEvents";
-import {
-	activatePlugin,
-	activatePlugins,
-	deactivatePlugin,
-	deactivatePlugins,
-	getEnabledPlugins,
-	isPluginEnabled,
-	isReady,
-	markReady,
-	setPluginEnabled,
-} from "@/plugins/pluginHost";
-import { mapStorage, reloadStorage, storage, usePluginState } from "@/plugins/pluginStorage";
+import { activatePlugin, isReady, setPluginEnabled } from "@/plugins/pluginHost";
+import { mapStorage, storage, usePluginState } from "@/plugins/pluginStorage";
 import { Procedure } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
 import {
@@ -249,20 +216,13 @@ import {
 	getPlugins,
 	isBackgroundPlugin,
 	registerPlugin,
-	setPendingManifest,
 	unregisterPlugin,
 } from "@/plugins/registry";
 import { Review } from "@/lib/review/review";
 import { SavedSelection } from "@/store/savedSelection";
 import { Scene } from "@/lib/render/scene";
 import { getScenePositions } from "@/lib/render/scenePositions";
-import {
-	disposePlugin,
-	resolvePluginPath,
-	runAsPlugin,
-	setPluginBaseDir,
-	trackDisposable,
-} from "@/plugins/scope";
+import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
 import { Seen } from "@/lib/seen/seen";
 import { SelectionList } from "@/store/selectionList";
 import {
@@ -296,7 +256,6 @@ import {
 	APP_SETTINGS,
 	BORDER_ARCHIVE_BYTES,
 	BORDER_DETAILS,
-	CSS_VAR_SETTINGS,
 	DATE_TIMEZONES,
 	DEFAULTS,
 	DISCORD_PRESENCE_MODES,
@@ -310,7 +269,6 @@ import {
 	OPACITY_TOGGLE_MODES,
 	POLYGON_COLOR_MODES,
 	PREVIEW_ASPECT_RATIOS,
-	PRIVATE_SETTINGS,
 	SEEN_RESOLUTIONS,
 	SUBDIVISION_DETAILS,
 	TAG_FOLDER_COLOR_MODES,
@@ -338,9 +296,9 @@ import {
 	tagColorFor,
 	togglePendingTag,
 } from "@/lib/data/tags";
-import { dialog, invoke, shell } from "@/lib/tauri";
+import { dialog, shell } from "@/lib/tauri";
 import { _test } from "@/testSurface";
-import { getToasts, toast } from "@/lib/util/toast";
+import { toast } from "@/lib/util/toast";
 import {
 	bboxTupleToBounds,
 	boundsToScoreTuple,
@@ -368,7 +326,6 @@ import {
 	nowUnix,
 	phaseRate,
 	pickFiles,
-	schemeBase,
 	shuffle,
 	splitVersion,
 	toggleInSet,
@@ -388,20 +345,16 @@ type BindingsConstsApi = {
 	DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
 	DEFAULT_MARKER_COLOR: typeof DEFAULT_MARKER_COLOR;
 	DatePart: typeof DatePart;
-	EFFECT_CALLS: typeof EFFECT_CALLS;
 	ERROR_CODES: typeof ERROR_CODES;
 	FieldType: typeof FieldType;
 	FirstSyncMode: typeof FirstSyncMode;
-	FrameKind: typeof FrameKind;
 	Group: typeof Group;
 	IssueState: typeof IssueState;
 	KNOWN_FIELDS: typeof KNOWN_FIELDS;
 	LocationFlag: typeof LocationFlag;
 	MapShape: typeof MapShape;
 	MergeWinner: typeof MergeWinner;
-	NO_SEL: typeof NO_SEL;
 	OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
-	PLAIN_CALLS: typeof PLAIN_CALLS;
 	PROJECTIONS: typeof PROJECTIONS;
 	PanoType: typeof PanoType;
 	Place: typeof Place;
@@ -420,7 +373,6 @@ type BindingsConstsApi = {
 	ValidationFlag: typeof ValidationFlag;
 };
 type ColorApi = {
-	applyAccentColor: typeof applyAccentColor;
 	colorForName: typeof colorForName;
 	hexToHsl: typeof hexToHsl;
 	hexToRgb: typeof hexToRgb;
@@ -438,11 +390,6 @@ type CommitDiffApi = { CommitDiff: typeof CommitDiff };
 type EditApi = { Edit: typeof Edit };
 type EditorApi = { Editor: typeof Editor };
 type EnrichApi = { enrich: typeof enrich };
-type ExternalsApi = {
-	getAvailableExternals: typeof getAvailableExternals;
-	mmaRequire: typeof mmaRequire;
-	preloadModules: typeof preloadModules;
-};
 type FieldApi = { Field: typeof Field };
 type FieldDefRegistryApi = {
 	declaredValues: typeof declaredValues;
@@ -479,11 +426,8 @@ type HostApi = { MapHost: typeof MapHost };
 type ImportApi = { Import: typeof Import };
 type JobsApi = {
 	cancelJobs: typeof cancelJobs;
-	confirmMapExit: typeof confirmMapExit;
-	getExitRequest: typeof getExitRequest;
 	getJobs: typeof getJobs;
 	registerJob: typeof registerJob;
-	resolveMapExit: typeof resolveMapExit;
 	runJob: typeof runJob;
 };
 type LayerApi = { Layer: typeof Layer };
@@ -594,15 +538,6 @@ type LegacyApi = {
 };
 type LocationApi = { Location: typeof Location };
 type MapsApi = { Maps: typeof Maps };
-type MarketplaceApi = {
-	autoUpdatePlugin: typeof autoUpdatePlugin;
-	fetchPluginRegistry: typeof fetchPluginRegistry;
-	isPluginCompatible: typeof isPluginCompatible;
-	isPluginUpdatable: typeof isPluginUpdatable;
-	needsBuildUpdate: typeof needsBuildUpdate;
-	needsUpdate: typeof needsUpdate;
-	resolveBuild: typeof resolveBuild;
-};
 type MutationApi = { Mutation: typeof Mutation };
 type PanoApi = { Pano: typeof Pano };
 type PinPanoApi = { bulkPinToPano: typeof bulkPinToPano };
@@ -614,18 +549,11 @@ type PluginEventsApi = {
 };
 type PluginHostApi = {
 	activatePlugin: typeof activatePlugin;
-	activatePlugins: typeof activatePlugins;
-	deactivatePlugin: typeof deactivatePlugin;
-	deactivatePlugins: typeof deactivatePlugins;
-	getEnabledPlugins: typeof getEnabledPlugins;
-	isPluginEnabled: typeof isPluginEnabled;
 	isReady: typeof isReady;
-	markReady: typeof markReady;
 	setPluginEnabled: typeof setPluginEnabled;
 };
 type PluginStorageApi = {
 	mapStorage: typeof mapStorage;
-	reloadStorage: typeof reloadStorage;
 	storage: typeof storage;
 	usePluginState: typeof usePluginState;
 };
@@ -646,7 +574,6 @@ type RegistryApi = {
 	getPlugins: typeof getPlugins;
 	isBackgroundPlugin: typeof isBackgroundPlugin;
 	registerPlugin: typeof registerPlugin;
-	setPendingManifest: typeof setPendingManifest;
 	unregisterPlugin: typeof unregisterPlugin;
 };
 type ReviewApi = { Review: typeof Review };
@@ -654,10 +581,7 @@ type SavedSelectionApi = { SavedSelection: typeof SavedSelection };
 type SceneApi = { Scene: typeof Scene };
 type ScenePositionsApi = { getScenePositions: typeof getScenePositions };
 type ScopeApi = {
-	disposePlugin: typeof disposePlugin;
 	resolvePluginPath: typeof resolvePluginPath;
-	runAsPlugin: typeof runAsPlugin;
-	setPluginBaseDir: typeof setPluginBaseDir;
 	trackDisposable: typeof trackDisposable;
 };
 type SeenApi = { Seen: typeof Seen };
@@ -696,7 +620,6 @@ type SettingsApi = {
 	APP_SETTINGS: typeof APP_SETTINGS;
 	BORDER_ARCHIVE_BYTES: typeof BORDER_ARCHIVE_BYTES;
 	BORDER_DETAILS: typeof BORDER_DETAILS;
-	CSS_VAR_SETTINGS: typeof CSS_VAR_SETTINGS;
 	DATE_TIMEZONES: typeof DATE_TIMEZONES;
 	DEFAULTS: typeof DEFAULTS;
 	DISCORD_PRESENCE_MODES: typeof DISCORD_PRESENCE_MODES;
@@ -710,7 +633,6 @@ type SettingsApi = {
 	OPACITY_TOGGLE_MODES: typeof OPACITY_TOGGLE_MODES;
 	POLYGON_COLOR_MODES: typeof POLYGON_COLOR_MODES;
 	PREVIEW_ASPECT_RATIOS: typeof PREVIEW_ASPECT_RATIOS;
-	PRIVATE_SETTINGS: typeof PRIVATE_SETTINGS;
 	SEEN_RESOLUTIONS: typeof SEEN_RESOLUTIONS;
 	SUBDIVISION_DETAILS: typeof SUBDIVISION_DETAILS;
 	TAG_FOLDER_COLOR_MODES: typeof TAG_FOLDER_COLOR_MODES;
@@ -738,9 +660,9 @@ type TagsApi = {
 	tagColorFor: typeof tagColorFor;
 	togglePendingTag: typeof togglePendingTag;
 };
-type TauriApi = { dialog: typeof dialog; invoke: typeof invoke; shell: typeof shell };
+type TauriApi = { dialog: typeof dialog; shell: typeof shell };
 type TestSurfaceApi = { _test: typeof _test };
-type ToastApi = { getToasts: typeof getToasts; toast: typeof toast };
+type ToastApi = { toast: typeof toast };
 type TypesApi = {
 	bboxTupleToBounds: typeof bboxTupleToBounds;
 	boundsToScoreTuple: typeof boundsToScoreTuple;
@@ -768,7 +690,6 @@ type UtilApi = {
 	nowUnix: typeof nowUnix;
 	phaseRate: typeof phaseRate;
 	pickFiles: typeof pickFiles;
-	schemeBase: typeof schemeBase;
 	shuffle: typeof shuffle;
 	splitVersion: typeof splitVersion;
 	toggleInSet: typeof toggleInSet;
@@ -792,7 +713,6 @@ export interface MMA
 		EditApi,
 		EditorApi,
 		EnrichApi,
-		ExternalsApi,
 		FieldApi,
 		FieldDefRegistryApi,
 		FieldDefsApi,
@@ -805,7 +725,6 @@ export interface MMA
 		LegacyApi,
 		LocationApi,
 		MapsApi,
-		MarketplaceApi,
 		MutationApi,
 		PanoApi,
 		PinPanoApi,
@@ -852,20 +771,16 @@ const mma: MMA = {
 	DEFAULT_DUPLICATE_SCORE,
 	DEFAULT_MARKER_COLOR,
 	DatePart,
-	EFFECT_CALLS,
 	ERROR_CODES,
 	FieldType,
 	FirstSyncMode,
-	FrameKind,
 	Group,
 	IssueState,
 	KNOWN_FIELDS,
 	LocationFlag,
 	MapShape,
 	MergeWinner,
-	NO_SEL,
 	OFFICIAL_ID_PATTERN,
-	PLAIN_CALLS,
 	PROJECTIONS,
 	PanoType,
 	Place,
@@ -882,7 +797,6 @@ const mma: MMA = {
 	Timeline,
 	VALI_COUNTRIES,
 	ValidationFlag,
-	applyAccentColor,
 	colorForName,
 	hexToHsl,
 	hexToRgb,
@@ -899,9 +813,6 @@ const mma: MMA = {
 	Edit,
 	Editor,
 	enrich,
-	getAvailableExternals,
-	mmaRequire,
-	preloadModules,
 	Field,
 	declaredValues,
 	fieldLabel,
@@ -931,11 +842,8 @@ const mma: MMA = {
 	MapHost,
 	Import,
 	cancelJobs,
-	confirmMapExit,
-	getExitRequest,
 	getJobs,
 	registerJob,
-	resolveMapExit,
 	runJob,
 	Layer,
 	addLocations,
@@ -1043,13 +951,6 @@ const mma: MMA = {
 	waitForMapHost,
 	Location,
 	Maps,
-	autoUpdatePlugin,
-	fetchPluginRegistry,
-	isPluginCompatible,
-	isPluginUpdatable,
-	needsBuildUpdate,
-	needsUpdate,
-	resolveBuild,
 	Mutation,
 	Pano,
 	bulkPinToPano,
@@ -1058,16 +959,9 @@ const mma: MMA = {
 	on,
 	usePluginEvent,
 	activatePlugin,
-	activatePlugins,
-	deactivatePlugin,
-	deactivatePlugins,
-	getEnabledPlugins,
-	isPluginEnabled,
 	isReady,
-	markReady,
 	setPluginEnabled,
 	mapStorage,
-	reloadStorage,
 	storage,
 	usePluginState,
 	Procedure,
@@ -1084,16 +978,12 @@ const mma: MMA = {
 	getPlugins,
 	isBackgroundPlugin,
 	registerPlugin,
-	setPendingManifest,
 	unregisterPlugin,
 	Review,
 	SavedSelection,
 	Scene,
 	getScenePositions,
-	disposePlugin,
 	resolvePluginPath,
-	runAsPlugin,
-	setPluginBaseDir,
 	trackDisposable,
 	Seen,
 	SelectionList,
@@ -1126,7 +1016,6 @@ const mma: MMA = {
 	APP_SETTINGS,
 	BORDER_ARCHIVE_BYTES,
 	BORDER_DETAILS,
-	CSS_VAR_SETTINGS,
 	DATE_TIMEZONES,
 	DEFAULTS,
 	DISCORD_PRESENCE_MODES,
@@ -1140,7 +1029,6 @@ const mma: MMA = {
 	OPACITY_TOGGLE_MODES,
 	POLYGON_COLOR_MODES,
 	PREVIEW_ASPECT_RATIOS,
-	PRIVATE_SETTINGS,
 	SEEN_RESOLUTIONS,
 	SUBDIVISION_DETAILS,
 	TAG_FOLDER_COLOR_MODES,
@@ -1167,10 +1055,8 @@ const mma: MMA = {
 	tagColorFor,
 	togglePendingTag,
 	dialog,
-	invoke,
 	shell,
 	_test,
-	getToasts,
 	toast,
 	bboxTupleToBounds,
 	boundsToScoreTuple,
@@ -1196,7 +1082,6 @@ const mma: MMA = {
 	nowUnix,
 	phaseRate,
 	pickFiles,
-	schemeBase,
 	shuffle,
 	splitVersion,
 	toggleInSet,

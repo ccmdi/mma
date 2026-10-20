@@ -26,7 +26,7 @@ export type PluginBehavior = Partial<Plugin> & {
 const plugins = new Map<string, Plugin>();
 let pendingManifest: PluginManifest | null = null;
 
-/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @api @unstable */
+/** Set the manifest used to fill identity fields on the next `registerPlugin` call. */
 export function setPendingManifest(manifest: PluginManifest | null) {
 	pendingManifest = manifest;
 }

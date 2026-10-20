@@ -2,7 +2,7 @@
 
 import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
-import { Channel, invoke as invoke$1 } from '@tauri-apps/api/core';
+import { Channel } from '@tauri-apps/api/core';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
 import { Layer as Layer$1, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
@@ -381,23 +381,8 @@ declare const BUILTIN_FIELDS: {
         readonly clearable: false;
     };
 };
-/** What a render frame does to the scene. @api @unstable */
-declare const FrameKind: {
-    /** Clears the scene, then adds every row the frame carries. @unstable */
-    readonly Replace: 0;
-    /** Changes the scene in place. @unstable */
-    readonly Patch: 1;
-};
-/** @unstable */
-export type FrameKind = (typeof FrameKind)[keyof typeof FrameKind];
-/** @api @unstable */
-declare const NO_SEL: 4294967295;
 /** @api */
 declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
-/** @api @unstable */
-declare const EFFECT_CALLS: readonly ["fetch", "panos", "sidecar"];
-/** @api @unstable */
-declare const PLAIN_CALLS: readonly ["log", "tz", "classify", "neighbors", "progress", "fail", "emit", "aborted"];
 /** @api @unstable */
 declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
 /** @api */
@@ -3052,8 +3037,6 @@ declare function textColorFor(bg: string): string;
 /** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
  *  ramp name (legacy stored format). @api @unstable */
 declare function resolveSvColorHex(color: string): string;
-/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @api @unstable */
-declare function applyAccentColor(hex: string): void;
 /** Convert "#rrggbb" to HSL. @api @unstable */
 declare function hexToHsl(hex: string): HSL;
 /** Convert HSL to "#rrggbb". @api @unstable */
@@ -3578,17 +3561,6 @@ declare const Procedure: {
 declare function enrich(selector: Selector, { resolve, ...opts }?: RunOpts & {
     resolve?: boolean;
 }): Promise<ProcedureOutcomes>;
-
-/** Get a module the app bundles (e.g. "react", "@deck.gl/core") for use inside a plugin.
- *  Lazy modules must be loaded with `preloadModules` first. @api */
-declare function mmaRequire(id: string): unknown;
-/** Load lazy bundled modules so `mmaRequire` can return them synchronously. @api */
-declare function preloadModules(ids: string[]): Promise<void>;
-/** Names of every module available through `mmaRequire`. @api */
-declare function getAvailableExternals(): string[];
-declare global {
-    var __mma_require: typeof mmaRequire;
-}
 
 /** Rename or remove metadata fields across the map. @api */
 declare const Field$1: {
@@ -4472,10 +4444,6 @@ declare const DEFAULTS: {
 };
 /** @unstable */
 export type AppSettings = typeof DEFAULTS;
-/** Settings holding private information that should not be exfiltrated. @api @unstable */
-declare const PRIVATE_SETTINGS: ReadonlySet<keyof AppSettings>;
-/** App settings exposed as CSS custom properties on `:root`. @api @unstable */
-declare const CSS_VAR_SETTINGS: ReadonlyArray<readonly [cssVar: string, value: (s: AppSettings) => string]>;
 /** localStorage descriptor for the persisted settings object. @api @unstable */
 declare const APP_SETTINGS: PersistedStore<{
     showCameraBadges: boolean;
@@ -4827,18 +4795,6 @@ declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
  *  abort and end their jobs; entries without a cancel are removed outright. @api @unstable */
 declare function cancelJobs(scope: JobScope): void;
-/** @unstable */
-export type MapExitKind = "leave" | "quit";
-/** The pending map-exit confirmation, for the dialog. @api @unstable */
-declare function getExitRequest(): {
-    kind: MapExitKind;
-} | null;
-/** Gate a user action that would end every map-scoped job. Resolves true immediately when
- *  none are live; otherwise raises the confirm dialog, and true means the jobs were
- *  cancelled and the action should proceed. @api @unstable */
-declare function confirmMapExit(kind: MapExitKind): Promise<boolean>;
-/** Answer the pending map-exit confirmation. @api @unstable */
-declare function resolveMapExit(ok: boolean): void;
 
 export interface PluginStorage {
     get<T = unknown>(key: string, fallback?: T): T;
@@ -4858,8 +4814,6 @@ declare function storage(id: string): PluginStorage;
 /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
  *  Each write changes only one key, patched onto the current map settings. @api */
 declare function mapStorage(id: string): MapPluginStorage;
-/** Re-read a plugin's store after another window wrote it. @api @unstable */
-declare function reloadStorage(id: string): void;
 /** React state hook backed by the plugin's persistent store. Survives sidebar
  *  unmount and app restart. Values are global, not per-map. @api */
 declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
@@ -5571,30 +5525,6 @@ declare const waitForMapHost: typeof MapHost.wait;
 /** @deprecated v0.12.0. Use `MMA.Provider.register`. @api */
 declare const registerProvider: typeof Provider.register;
 
-/** True when `appVersion` meets the plugin's minimum version requirement. @api @unstable */
-declare function isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean;
-/** True when a newer version is published and the installed version is known. @api @unstable */
-declare function isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean;
-/** True when either the plugin or its sidecar has a newer published version. @api @unstable */
-declare function needsUpdate(installedVersion: string | undefined, latestVersion: string | undefined, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
-/** The build of a plugin to install. `ref` is the commit, null for the latest. @unstable */
-export interface ResolvedBuild {
-    version: string;
-    ref: string | null;
-    minAppVersion: string | null;
-    sidecarVersion: string | null;
-}
-/** The newest build of a plugin this app version can run. Falls back through older
- *  pinned builds when the latest is incompatible. Null when none fit. @api @unstable */
-declare function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null;
-/** True when the installed plugin or its sidecar should be refreshed to `target`. @api @unstable */
-declare function needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined): boolean;
-/** Fetch the marketplace plugin registry. Later calls return the first result until restart. @api @unstable */
-declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
-/** Auto-update a plugin to the newest compatible build before loading it. Falls back
- *  to what is on disk on failure. @api @unstable */
-declare function autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>;
-
 /** @unstable */
 export type PanoDestination = string | google.maps.LatLngLiteral;
 /** @unstable */
@@ -5808,8 +5738,6 @@ export interface Plugin extends PluginIdentity {
 export type PluginBehavior = Partial<Plugin> & {
     activate(): void | (() => void);
 };
-/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @api @unstable */
-declare function setPendingManifest(manifest: PluginManifest | null): void;
 /** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. @api */
 declare function registerPlugin(plugin: Plugin | PluginBehavior): void;
 /** All registered plugins, sorted by name. @api */
@@ -5821,24 +5749,12 @@ declare function isBackgroundPlugin(id: string): boolean;
 /** Remove a plugin from the registry. @api @unstable */
 declare function unregisterPlugin(id: string): void;
 
-/** True when the plugin is enabled by the user. @api @unstable */
-declare function isPluginEnabled(id: string): boolean;
 /** Enable or disable a plugin. @api @unstable */
 declare function setPluginEnabled(id: string, enabled: boolean): void;
-/** All registered plugins the user has enabled. @api @unstable */
-declare function getEnabledPlugins(): Plugin[];
-/** Activate all enabled plugins. Called when a map opens. @api @unstable */
-declare function activatePlugins(): void;
-/** Deactivate all plugins and stop their sidecars. Called when a map closes. @api @unstable */
-declare function deactivatePlugins(): void;
 /** Activate a single plugin by id. @api @unstable */
 declare function activatePlugin(id: string): void;
-/** Deactivate a single plugin and stop its sidecar. @api @unstable */
-declare function deactivatePlugin(id: string): void;
 /** True once the MMA surface is installed and plugins are safe to call it. @api @unstable */
 declare function isReady(): boolean;
-/** Mark the plugin surface as ready. @api @unstable */
-declare function markReady(): void;
 
 /** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
  *  read. Fields not offered in the enrichment settings are always included. @api @unstable */
@@ -6019,17 +5935,11 @@ declare function getScenePositions(): {
 
 /** @unstable */
 export type Disposable = () => void;
-/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. @api @unstable */
-declare function runAsPlugin<T>(id: string, fn: () => T): T;
 /** Enroll a teardown callback under the current plugin. No-op outside activation. @api @unstable */
 declare function trackDisposable(dispose: Disposable): void;
-/** Set the base directory for a plugin's assets on disk. @api @unstable */
-declare function setPluginBaseDir(id: string, dir: string): void;
 /** Resolve a relative path against the current plugin's base directory. Absolute
  *  paths and `res://` URLs pass through unchanged. @api @unstable */
 declare function resolvePluginPath(path: string): string;
-/** Run all teardowns a plugin registered (in reverse order) and clear them. @api @unstable */
-declare function disposePlugin(id: string): void;
 
 /** @unstable */
 export interface GeoDisplay {
@@ -6194,10 +6104,8 @@ declare function pendingTagIds({ ids, names }: PendingTags): Promise<number[]>;
  *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. @api */
 declare function displayTagName(name: string): string;
 
-/** Low-level command, shell, and file dialog access. */
+/** Low-level shell and file dialog access. */
 
-/** @api @unstable */
-declare const invoke: typeof invoke$1;
 /** @api @unstable */
 declare const shell: {
     /** @unstable */
@@ -6263,15 +6171,8 @@ declare namespace testApi {
 /** The nested `_test` namespace on the plugin surface. @api @unstable */
 declare const _test: typeof testApi;
 
-/** @unstable */
-export interface ToastEntry {
-    id: number;
-    message: string;
-}
 /** Show a brief toast notification. Optionally scoped to a `container` element. @api */
 declare function toast(message: string, duration?: number, container?: HTMLElement): void;
-/** Current list of visible toasts. @api @unstable */
-declare function getToasts(): ToastEntry[];
 
 export type BarSize = "sm" | "md" | "lg";
 export type BarTone = "accent" | "complete" | "incomplete";
@@ -6780,8 +6681,6 @@ export type Job<R, P = never> = JobState<R, P> & {
 /** User-triggered async work that reports progress and can be cancelled. Unmounting cancels. @api */
 declare function useJob<R = unknown, P = never>(): Job<R, P>;
 
-/** Base URL for a custom URI scheme, platform-adjusted. @api @unstable */
-declare function schemeBase(scheme: string): string;
 /** URL that serves a local file over the `mma-buf://` protocol. @api @unstable */
 declare function mmaBufUrl(path: string): string;
 /** Copy of `set` with `value` toggled, or forced on/off by `on`. @api @unstable */
@@ -6878,14 +6777,10 @@ export type BindingsConstsApi = {
     DEFAULT_MARKER_COLOR: typeof DEFAULT_MARKER_COLOR;
     DatePart: typeof DatePart;
     /** @unstable */
-    EFFECT_CALLS: typeof EFFECT_CALLS;
-    /** @unstable */
     ERROR_CODES: typeof ERROR_CODES;
     FieldType: typeof FieldType;
     /** @unstable */
     FirstSyncMode: typeof FirstSyncMode;
-    /** @unstable */
-    FrameKind: typeof FrameKind;
     Group: typeof Group;
     /** @unstable */
     IssueState: typeof IssueState;
@@ -6893,11 +6788,7 @@ export type BindingsConstsApi = {
     LocationFlag: typeof LocationFlag;
     MapShape: typeof MapShape;
     MergeWinner: typeof MergeWinner;
-    /** @unstable */
-    NO_SEL: typeof NO_SEL;
     OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
-    /** @unstable */
-    PLAIN_CALLS: typeof PLAIN_CALLS;
     /** @unstable */
     PROJECTIONS: typeof PROJECTIONS;
     PanoType: typeof PanoType;
@@ -6923,8 +6814,6 @@ export type BindingsConstsApi = {
     ValidationFlag: typeof ValidationFlag;
 };
 export type ColorApi = {
-    /** @unstable */
-    applyAccentColor: typeof applyAccentColor;
     /** @unstable */
     colorForName: typeof colorForName;
     /** @unstable */
@@ -6966,11 +6855,6 @@ export type EditorApi = {
 export type EnrichApi = {
     /** @unstable */
     enrich: typeof enrich;
-};
-export type ExternalsApi = {
-    getAvailableExternals: typeof getAvailableExternals;
-    mmaRequire: typeof mmaRequire;
-    preloadModules: typeof preloadModules;
 };
 export type FieldApi = {
     Field: typeof Field$1;
@@ -7034,15 +6918,9 @@ export type JobsApi = {
     /** @unstable */
     cancelJobs: typeof cancelJobs;
     /** @unstable */
-    confirmMapExit: typeof confirmMapExit;
-    /** @unstable */
-    getExitRequest: typeof getExitRequest;
-    /** @unstable */
     getJobs: typeof getJobs;
     /** @unstable */
     registerJob: typeof registerJob;
-    /** @unstable */
-    resolveMapExit: typeof resolveMapExit;
     /** @unstable */
     runJob: typeof runJob;
 };
@@ -7222,22 +7100,6 @@ export type LocationApi = {
 export type MapsApi = {
     Maps: typeof Maps;
 };
-export type MarketplaceApi = {
-    /** @unstable */
-    autoUpdatePlugin: typeof autoUpdatePlugin;
-    /** @unstable */
-    fetchPluginRegistry: typeof fetchPluginRegistry;
-    /** @unstable */
-    isPluginCompatible: typeof isPluginCompatible;
-    /** @unstable */
-    isPluginUpdatable: typeof isPluginUpdatable;
-    /** @unstable */
-    needsBuildUpdate: typeof needsBuildUpdate;
-    /** @unstable */
-    needsUpdate: typeof needsUpdate;
-    /** @unstable */
-    resolveBuild: typeof resolveBuild;
-};
 export type MutationApi = {
     Mutation: typeof Mutation;
 };
@@ -7262,26 +7124,12 @@ export type PluginHostApi = {
     /** @unstable */
     activatePlugin: typeof activatePlugin;
     /** @unstable */
-    activatePlugins: typeof activatePlugins;
-    /** @unstable */
-    deactivatePlugin: typeof deactivatePlugin;
-    /** @unstable */
-    deactivatePlugins: typeof deactivatePlugins;
-    /** @unstable */
-    getEnabledPlugins: typeof getEnabledPlugins;
-    /** @unstable */
-    isPluginEnabled: typeof isPluginEnabled;
-    /** @unstable */
     isReady: typeof isReady;
-    /** @unstable */
-    markReady: typeof markReady;
     /** @unstable */
     setPluginEnabled: typeof setPluginEnabled;
 };
 export type PluginStorageApi = {
     mapStorage: typeof mapStorage;
-    /** @unstable */
-    reloadStorage: typeof reloadStorage;
     storage: typeof storage;
     usePluginState: typeof usePluginState;
 };
@@ -7315,8 +7163,6 @@ export type RegistryApi = {
     isBackgroundPlugin: typeof isBackgroundPlugin;
     registerPlugin: typeof registerPlugin;
     /** @unstable */
-    setPendingManifest: typeof setPendingManifest;
-    /** @unstable */
     unregisterPlugin: typeof unregisterPlugin;
 };
 export type ReviewApi = {
@@ -7337,13 +7183,7 @@ export type ScenePositionsApi = {
 };
 export type ScopeApi = {
     /** @unstable */
-    disposePlugin: typeof disposePlugin;
-    /** @unstable */
     resolvePluginPath: typeof resolvePluginPath;
-    /** @unstable */
-    runAsPlugin: typeof runAsPlugin;
-    /** @unstable */
-    setPluginBaseDir: typeof setPluginBaseDir;
     /** @unstable */
     trackDisposable: typeof trackDisposable;
 };
@@ -7419,8 +7259,6 @@ export type SettingsApi = {
     /** @unstable */
     BORDER_DETAILS: typeof BORDER_DETAILS;
     /** @unstable */
-    CSS_VAR_SETTINGS: typeof CSS_VAR_SETTINGS;
-    /** @unstable */
     DATE_TIMEZONES: typeof DATE_TIMEZONES;
     /** @unstable */
     DEFAULTS: typeof DEFAULTS;
@@ -7446,8 +7284,6 @@ export type SettingsApi = {
     POLYGON_COLOR_MODES: typeof POLYGON_COLOR_MODES;
     /** @unstable */
     PREVIEW_ASPECT_RATIOS: typeof PREVIEW_ASPECT_RATIOS;
-    /** @unstable */
-    PRIVATE_SETTINGS: typeof PRIVATE_SETTINGS;
     /** @unstable */
     SEEN_RESOLUTIONS: typeof SEEN_RESOLUTIONS;
     /** @unstable */
@@ -7503,8 +7339,6 @@ export type TauriApi = {
     /** @unstable */
     dialog: typeof dialog;
     /** @unstable */
-    invoke: typeof invoke;
-    /** @unstable */
     shell: typeof shell;
 };
 export type TestSurfaceApi = {
@@ -7512,8 +7346,6 @@ export type TestSurfaceApi = {
     _test: typeof _test;
 };
 export type ToastApi = {
-    /** @unstable */
-    getToasts: typeof getToasts;
     toast: typeof toast;
 };
 export type TypesApi = {
@@ -7564,8 +7396,6 @@ export type UtilApi = {
     /** @unstable */
     pickFiles: typeof pickFiles;
     /** @unstable */
-    schemeBase: typeof schemeBase;
-    /** @unstable */
     shuffle: typeof shuffle;
     /** @unstable */
     splitVersion: typeof splitVersion;
@@ -7585,7 +7415,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, EnrichApi, ExternalsApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MarketplaceApi, MutationApi, PanoApi, PinPanoApi, PluginEventsApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScenePositionsApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, EnrichApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginEventsApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScenePositionsApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {

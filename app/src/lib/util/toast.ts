@@ -27,7 +27,7 @@ export function toast(message: string, duration = 2500, container?: HTMLElement)
 	}, duration);
 }
 
-/** Current list of visible toasts. @api @unstable */
+/** Current list of visible toasts. */
 export function getToasts() {
 	return toasts;
 }

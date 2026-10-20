@@ -15,7 +15,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Commit](#commit)
 - [Edit](#edit)
 - [Editor](#editor)
-- [Externals](#externals)
 - [Field](#field)
 - [Field def registry](#field-def-registry)
 - [Field defs](#field-defs)
@@ -51,7 +50,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Import](#import)
 - [Jobs](#jobs)
 - [Layer](#layer)
-- [Marketplace](#marketplace)
 - [Pano](#pano)
 - [Pin pano](#pin-pano)
 - [Plugin host](#plugin-host)
@@ -328,14 +326,6 @@ DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)
 DEFAULT_MARKER_COLOR: readonly [42, 42, 42]
 ```
 
-### EFFECT_CALLS
-
-`unstable` · since v0.10.7
-
-```ts
-EFFECT_CALLS: readonly ["fetch", "panos", "sidecar"]
-```
-
 ### ERROR_CODES
 
 `unstable` · since v0.10.7
@@ -404,16 +394,6 @@ FirstSyncMode: {
 
 First-sync seeding when both sides already have pins. Only meaningful on the first sync
 (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
-
-### FrameKind
-
-`unstable` · since v0.11.5
-
-```ts
-FrameKind: { readonly Replace: 0; readonly Patch: 1 }
-```
-
-What a render frame does to the scene.
 
 ### Group
 
@@ -593,14 +573,6 @@ MergeWinner: { readonly From: "from"; readonly To: "to" }
 
 When a move target already holds a value, which side survives.
 
-### NO_SEL
-
-`unstable` · since v0.11.5
-
-```ts
-NO_SEL: 4294967295
-```
-
 ### OFFICIAL_ID_PATTERN
 
 `stable` · since v0.10.7
@@ -632,23 +604,6 @@ Place: { readonly Before: "before"; readonly After: "after" }
 ```
 
 Where a moved selection lands beside its target.
-
-### PLAIN_CALLS
-
-`unstable` · since v0.10.7
-
-```ts
-PLAIN_CALLS: readonly [
-  "log",
-  "tz",
-  "classify",
-  "neighbors",
-  "progress",
-  "fail",
-  "emit",
-  "aborted",
-]
-```
 
 ### PROJECTIONS
 
@@ -1406,39 +1361,6 @@ Editor.useWriting(): boolean
 ```
 
 Whether procedure work is still writing to the open draft.
-
-## Externals
-
-### getAvailableExternals
-
-`stable` · since v0.5.0
-
-```ts
-getAvailableExternals(): string[]
-```
-
-Names of every module available through `mmaRequire`.
-
-### mmaRequire
-
-`stable` · since v0.10.3
-
-```ts
-mmaRequire(id: string): unknown
-```
-
-Get a module the app bundles (e.g. "react", "@deck.gl/core") for use inside a plugin.
-Lazy modules must be loaded with `preloadModules` first.
-
-### preloadModules
-
-`stable` · since v0.5.0
-
-```ts
-preloadModules(ids: string[]): Promise<void>
-```
-
-Load lazy bundled modules so `mmaRequire` can return them synchronously.
 
 ## Field
 
@@ -3497,16 +3419,6 @@ mapStorage(id: string): MapPluginStorage
 Persistent key-value storage a plugin keeps with the open map, so every map has its own.
 Each write changes only one key, patched onto the current map settings.
 
-### reloadStorage
-
-`unstable` · since v0.11.3
-
-```ts
-reloadStorage(id: string): void
-```
-
-Re-read a plugin's store after another window wrote it.
-
 ### storage
 
 `stable` · since v0.6.1
@@ -3749,16 +3661,6 @@ registerPlugin(plugin: Plugin | PluginBehavior): void
 ```
 
 Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close.
-
-### setPendingManifest
-
-`unstable` · since v0.10.3
-
-```ts
-setPendingManifest(manifest: PluginManifest | null): void
-```
-
-Set the manifest used to fill identity fields on the next `registerPlugin` call.
 
 ### unregisterPlugin
 
@@ -4099,16 +4001,6 @@ togglePendingTag(pending: PendingTags, id: number): PendingTags
 Stage the tag, or unstage it if it is already staged.
 
 ## Toast
-
-### getToasts
-
-`unstable` · since v0.10.3
-
-```ts
-getToasts(): ToastEntry[]
-```
-
-Current list of visible toasts.
 
 ### toast
 
@@ -4904,16 +4796,6 @@ User-triggered async work that reports progress and can be cancelled. Unmounting
 Everything below can change in any release.
 
 ## Color
-
-### applyAccentColor
-
-`unstable` · since v0.10.3
-
-```ts
-applyAccentColor(hex: string): void
-```
-
-Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color.
 
 ### colorForName
 
@@ -6759,30 +6641,6 @@ cancelJobs(scope: JobScope): void
 Cancel every live job of `scope` that can be cancelled. Owners observe their own
 abort and end their jobs; entries without a cancel are removed outright.
 
-### confirmMapExit
-
-`unstable` · since v0.10.7
-
-```ts
-confirmMapExit(kind: MapExitKind): Promise<boolean>
-```
-
-Gate a user action that would end every map-scoped job. Resolves true immediately when
-none are live; otherwise raises the confirm dialog, and true means the jobs were
-cancelled and the action should proceed.
-
-### getExitRequest
-
-`unstable` · since v0.10.7
-
-```ts
-getExitRequest(): {
-  kind: MapExitKind;
-} | null
-```
-
-The pending map-exit confirmation, for the dialog.
-
 ### getJobs
 
 `unstable` · since v0.10.7
@@ -6803,16 +6661,6 @@ registerJob(label: string, opts?: JobOpts): JobHandle
 
 Register a long-running operation with the global job tray. The caller owns the
 work; the registry owns only its presentation and the cancel/reveal controls.
-
-### resolveMapExit
-
-`unstable` · since v0.10.7
-
-```ts
-resolveMapExit(ok: boolean): void
-```
-
-Answer the pending map-exit confirmation.
 
 ### runJob
 
@@ -6847,102 +6695,6 @@ Layer.open(edits?: LocationEdits): Promise<Layer>
 ```
 
 Create a layer and stage its first edits.
-
-## Marketplace
-
-### autoUpdatePlugin
-
-`unstable` · since v0.10.3
-
-```ts
-autoUpdatePlugin(
-  m: PluginManifest,
-  latest: PluginManifest | undefined,
-  appVersion: string,
-): Promise<PluginManifest>
-```
-
-Auto-update a plugin to the newest compatible build before loading it. Falls back
-to what is on disk on failure.
-
-### fetchPluginRegistry
-
-`unstable` · since v0.10.3
-
-```ts
-fetchPluginRegistry(): Promise<PluginManifest[]>
-```
-
-Fetch the marketplace plugin registry. Later calls return the first result until restart.
-
-### isPluginCompatible
-
-`unstable` · since v0.10.3
-
-```ts
-isPluginCompatible(
-  minAppVersion: string | null | undefined,
-  appVersion: string,
-): boolean
-```
-
-True when `appVersion` meets the plugin's minimum version requirement.
-
-### isPluginUpdatable
-
-`unstable` · since v0.10.3
-
-```ts
-isPluginUpdatable(
-  installedVersion: string | undefined,
-  latestVersion: string | undefined,
-): boolean
-```
-
-True when a newer version is published and the installed version is known.
-
-### needsBuildUpdate
-
-`unstable` · since v0.10.3
-
-```ts
-needsBuildUpdate(
-  installedVersion: string | undefined,
-  target: ResolvedBuild,
-  installedSidecarVersion: string | null | undefined,
-): boolean
-```
-
-True when the installed plugin or its sidecar should be refreshed to `target`.
-
-### needsUpdate
-
-`unstable` · since v0.10.3
-
-```ts
-needsUpdate(
-  installedVersion: string | undefined,
-  latestVersion: string | undefined,
-  installedSidecarVersion: string | null | undefined,
-  latestSidecarVersion: string | undefined,
-): boolean
-```
-
-True when either the plugin or its sidecar has a newer published version.
-
-### resolveBuild
-
-`unstable` · since v0.10.3
-
-```ts
-resolveBuild(
-  entry: PluginManifest,
-  appVersion: string,
-): ResolvedBuild | null
-```
-
-The newest build of a plugin this app version can run. Falls back through older
-pinned builds when the latest is incompatible. Null when none fit.
 
 ## Pano
 
@@ -7342,56 +7094,6 @@ activatePlugin(id: string): void
 
 Activate a single plugin by id.
 
-### activatePlugins
-
-`unstable` · since v0.10.3
-
-```ts
-activatePlugins(): void
-```
-
-Activate all enabled plugins. Called when a map opens.
-
-### deactivatePlugin
-
-`unstable` · since v0.10.3
-
-```ts
-deactivatePlugin(id: string): void
-```
-
-Deactivate a single plugin and stop its sidecar.
-
-### deactivatePlugins
-
-`unstable` · since v0.10.3
-
-```ts
-deactivatePlugins(): void
-```
-
-Deactivate all plugins and stop their sidecars. Called when a map closes.
-
-### getEnabledPlugins
-
-`unstable` · since v0.10.3
-
-```ts
-getEnabledPlugins(): Plugin[]
-```
-
-All registered plugins the user has enabled.
-
-### isPluginEnabled
-
-`unstable` · since v0.10.3
-
-```ts
-isPluginEnabled(id: string): boolean
-```
-
-True when the plugin is enabled by the user.
-
 ### isReady
 
 `unstable` · since v0.10.3
@@ -7401,16 +7103,6 @@ isReady(): boolean
 ```
 
 True once the MMA surface is installed and plugins are safe to call it.
-
-### markReady
-
-`unstable` · since v0.10.3
-
-```ts
-markReady(): void
-```
-
-Mark the plugin surface as ready.
 
 ### setPluginEnabled
 
@@ -8108,16 +7800,6 @@ Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
 
 ## Scope
 
-### disposePlugin
-
-`unstable` · since v0.10.3
-
-```ts
-disposePlugin(id: string): void
-```
-
-Run all teardowns a plugin registered (in reverse order) and clear them.
-
 ### resolvePluginPath
 
 `unstable` · since v0.10.3
@@ -8128,26 +7810,6 @@ resolvePluginPath(path: string): string
 
 Resolve a relative path against the current plugin's base directory. Absolute
 paths and `res://` URLs pass through unchanged.
-
-### runAsPlugin
-
-`unstable` · since v0.10.3
-
-```ts
-runAsPlugin<T>(id: string, fn: () => T): T
-```
-
-Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown.
-
-### setPluginBaseDir
-
-`unstable` · since v0.10.3
-
-```ts
-setPluginBaseDir(id: string, dir: string): void
-```
-
-Set the base directory for a plugin's assets on disk.
 
 ### trackDisposable
 
@@ -8800,19 +8462,6 @@ BORDER_DETAILS: {
 }
 ```
 
-### CSS_VAR_SETTINGS
-
-`unstable` · since v0.10.3
-
-```ts
-CSS_VAR_SETTINGS: readonly (readonly [
-  cssVar: string,
-  value: (s: AppSettings) => string,
-])[]
-```
-
-App settings exposed as CSS custom properties on `:root`.
-
 ### DATE_TIMEZONES
 
 `unstable` · since v0.10.3
@@ -9096,99 +8745,6 @@ PREVIEW_ASPECT_RATIOS: {
 }
 ```
 
-### PRIVATE_SETTINGS
-
-`unstable` · since v0.10.3
-
-```ts
-PRIVATE_SETTINGS: ReadonlySet<
-  | "animateTagReorder"
-  | "appZoom"
-  | "borderDetail"
-  | "clickToGo"
-  | "customCss"
-  | "dateTimezone"
-  | "defaultMovementMode"
-  | "discordPresence"
-  | "enableSeen"
-  | "enableSeenThumbnails"
-  | "enterOpensCenter"
-  | "exactDateFormat"
-  | "followOpenInReview"
-  | "fullscreenMap"
-  | "fullscreenMiniLocationScale"
-  | "fullscreenMinimapCloseDelay"
-  | "fullscreenMinimapScale"
-  | "geocodeProvider"
-  | "hiddenMapBadges"
-  | "hideNavWithUI"
-  | "hidePanoUI"
-  | "importPreviewColor"
-  | "labelColors"
-  | "language"
-  | "mapListFields"
-  | "mapPanSpeed"
-  | "markerColor"
-  | "nominatimApiKey"
-  | "opacityToggleMode"
-  | "openLocationColor"
-  | "panToImported"
-  | "panoDotColor"
-  | "panoDotScaled"
-  | "panoLookSpeed"
-  | "pastePadding"
-  | "pinnedCommands"
-  | "polygonColor"
-  | "polygonColorMode"
-  | "prereleaseUpdates"
-  | "previewAspectRatio"
-  | "remoteApi"
-  | "remoteApiKey"
-  | "restoreSession"
-  | "seenResolution"
-  | "showCameraBadges"
-  | "showCar"
-  | "showCompass"
-  | "showCompassTape"
-  | "showCoordinateDisplay"
-  | "showCrosshair"
-  | "showFps"
-  | "showFullscreenButton"
-  | "showFullscreenDatePicker"
-  | "showFullscreenGeocode"
-  | "showFullscreenMapMeta"
-  | "showFullscreenMiniLocationPreview"
-  | "showFullscreenMinimap"
-  | "showFullscreenReviewBar"
-  | "showFullscreenTagbar"
-  | "showGroundArrow"
-  | "showJumpButtons"
-  | "showLinksControl"
-  | "showMapLinks"
-  | "showNavArrow"
-  | "showPanoMetadata"
-  | "showReturnToSpawn"
-  | "showRoadLabels"
-  | "showScreenshotButton"
-  | "showZoom"
-  | "slowModifier"
-  | "subdivisionDetail"
-  | "svTrail"
-  | "svTrailColor"
-  | "svTrailPosition"
-  | "tagFolderColor"
-  | "tagFolderColorMode"
-  | "tagGap"
-  | "tagSortMode"
-  | "tagSuggestionLimit"
-  | "tagViewMode"
-  | "truncateTagPaths"
-  | "units"
->
-```
-
-Settings holding private information that should not be exfiltrated.
-
 ### resetSettings
 
 `unstable` · since v0.10.3
@@ -9336,20 +8892,6 @@ prefer writing a dedicated command instead.
 
 Note that the scope change is not persisted, so the values are cleared when the application is restarted.
 You can save it to the filesystem using [tauri-plugin-persisted-scope](https://github.com/tauri-apps/tauri-plugin-persisted-scope).
-
-### invoke
-
-`unstable` · since v0.3.1
-
-```ts
-invoke<T>(
-  cmd: string,
-  args?: InvokeArgs,
-  options?: InvokeOptions,
-): Promise<T>
-```
-
-Sends a message to the backend.
 
 ### shell
 
@@ -9587,16 +9129,6 @@ pickFiles(
 ```
 
 Prompt for files; resolves empty when the picker is dismissed.
-
-### schemeBase
-
-`unstable` · since v0.10.3
-
-```ts
-schemeBase(scheme: string): string
-```
-
-Base URL for a custom URI scheme, platform-adjusted.
 
 ### shuffle
 

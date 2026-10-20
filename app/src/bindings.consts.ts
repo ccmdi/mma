@@ -275,7 +275,7 @@ export type SyncDirection = (typeof SyncDirection)[keyof typeof SyncDirection];
 /** @api */
 export const BUILTIN_FIELDS = {"id":{"type":"number","label":"ID","values":null,"comparison":null,"interned":false,"kind":"identity","clearable":false},"lat":{"type":"number","label":"Latitude","values":null,"comparison":null,"interned":false,"kind":"identity","clearable":false},"lng":{"type":"number","label":"Longitude","values":null,"comparison":null,"interned":false,"kind":"identity","clearable":false},"heading":{"type":"number","label":"Heading","values":null,"comparison":{"type":"circular","period":360.0},"interned":false,"kind":"writable","clearable":false},"pitch":{"type":"number","label":"Pitch","values":null,"comparison":null,"interned":false,"kind":"writable","clearable":false},"zoom":{"type":"number","label":"Zoom","values":null,"comparison":null,"interned":false,"kind":"writable","clearable":false},"panoId":{"type":"string","label":"Pano ID","values":null,"comparison":null,"interned":false,"kind":null,"clearable":true},"tags":{"type":"array","label":"Tags","values":null,"comparison":null,"interned":true,"kind":"writable","clearable":false},"createdAt":{"type":"date","label":"Created","values":null,"comparison":null,"interned":false,"kind":null,"clearable":false},"modifiedAt":{"type":"date","label":"Modified","values":null,"comparison":null,"interned":false,"kind":null,"clearable":false},"tagCount":{"type":"number","label":"Tag count","values":null,"comparison":null,"interned":false,"kind":"virtual","clearable":false},"loadAsPanoId":{"type":"boolean","label":"Load as pano ID","values":null,"comparison":null,"interned":false,"kind":"writable","clearable":false}} as const;
 
-/** What a render frame does to the scene. @api @unstable */
+/** What a render frame does to the scene. */
 export const FrameKind = {
 	/** Clears the scene, then adds every row the frame carries. */
 	Replace: 0,
@@ -284,16 +284,13 @@ export const FrameKind = {
 } as const;
 export type FrameKind = (typeof FrameKind)[keyof typeof FrameKind];
 
-/** @api @unstable */
 export const NO_SEL = 4294967295 as const;
 
 /** @api */
 export const OFFICIAL_ID_PATTERN = "^[-_A-Za-z0-9]{21}[AQgw]$" as const;
 
-/** @api @unstable */
 export const EFFECT_CALLS = ["fetch","panos","sidecar"] as const;
 
-/** @api @unstable */
 export const PLAIN_CALLS = ["log","tz","classify","neighbors","progress","fail","emit","aborted"] as const;
 
 /** @api @unstable */

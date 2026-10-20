@@ -260,13 +260,13 @@ export const DEFAULTS = {
 };
 export type AppSettings = typeof DEFAULTS;
 
-/** Settings holding private information that should not be exfiltrated. @api @unstable */
+/** Settings holding private information that should not be exfiltrated. */
 export const PRIVATE_SETTINGS: ReadonlySet<keyof AppSettings> = new Set([
 	"nominatimApiKey",
 	"remoteApiKey",
 ]);
 
-/** App settings exposed as CSS custom properties on `:root`. @api @unstable */
+/** App settings exposed as CSS custom properties on `:root`. */
 export const CSS_VAR_SETTINGS: ReadonlyArray<
 	readonly [cssVar: string, value: (s: AppSettings) => string]
 > = [["--tag-gap", (s) => `${s.tagGap}px`]];
