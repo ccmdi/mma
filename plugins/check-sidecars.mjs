@@ -27,23 +27,6 @@ function attempt(fn) {
 	}
 }
 
-export function resolveBase(repo, requested = process.env.GATES_BASE) {
-	if (requested && !/^0+$/.test(requested)) {
-		const sha = attempt(() =>
-			git(repo, "rev-parse", "--verify", "--quiet", `${requested}^{commit}`).trim(),
-		);
-		if (!sha) throw new Error(`GATES_BASE does not resolve to a commit: ${requested}`);
-		return sha;
-	}
-	for (const ref of ["origin/master", "HEAD~1", "HEAD"]) {
-		const sha = attempt(() =>
-			git(repo, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`).trim(),
-		);
-		if (sha) return sha;
-	}
-	throw new Error("No commit available for the sidecar version check");
-}
-
 export function changedSidecarInputs(repo, base, sidecar) {
 	const paths = [
 		`${sidecar}/src`,
@@ -88,8 +71,6 @@ export function checkReleaseTags(registry, listRemoteTags, ci = !!process.env.CI
 }
 
 function main() {
-	const base = resolveBase(root);
-	console.log(`base ${base}`);
 	let fail = 0;
 	for (const name of readdirSync(join(root, "plugins")).sort()) {
 		const sidecar = `plugins/${name}/sidecar`;
@@ -98,12 +79,13 @@ function main() {
 		const current = cargoVersion(readFileSync(join(root, cargo), "utf8"));
 		const problems = [];
 		if (!current) problems.push(`${cargo} has no explicit package version`);
-		const changed = changedSidecarInputs(root, base, sidecar);
-		if (changed.length) {
-			const before = cargoVersion(attempt(() => git(root, "show", `${base}:${cargo}`)) ?? "");
-			if (current === before)
-				problems.push(`sidecar changed but ${cargo} is still ${current}: ${changed.join(", ")}`);
-		}
+		const released = `${name}-v${current}`;
+		const changed =
+			current && attempt(() => git(root, "rev-parse", "--verify", "--quiet", `${released}^{commit}`))
+				? changedSidecarInputs(root, released, sidecar)
+				: [];
+		if (changed.length)
+			problems.push(`sidecar changed since ${released} but ${cargo} is still ${current}: ${changed.join(", ")}`);
 		const manifest = join(root, "plugins", name, "manifest.json");
 		const named =
 			existsSync(manifest) && JSON.parse(readFileSync(manifest, "utf8")).sidecar?.version;

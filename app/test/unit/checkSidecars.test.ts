@@ -3,11 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	cargoVersion,
-	changedSidecarInputs,
-	resolveBase,
-} from "../../../plugins/check-sidecars.mjs";
+import { cargoVersion, changedSidecarInputs } from "../../../plugins/check-sidecars.mjs";
 
 describe("sidecar version policy", () => {
 	it("takes the package version, excluding dependency and metadata versions", () => {
@@ -50,9 +46,8 @@ describe("sidecar version policy", () => {
 				"-m",
 				"fixture",
 			);
-			const base = git("rev-parse", "HEAD").trim();
-			expect(resolveBase(repo, base)).toBe(base);
-			expect(() => resolveBase(repo, "missing-ref")).toThrow("GATES_BASE");
+			const base = "example-v1.0.0";
+			git("tag", base);
 			write("src/main.test.rs", "#[test] fn better_test() {}\n");
 			expect(changedSidecarInputs(repo, base, sidecar)).toEqual([]);
 			write("src/main.rs", "fn main() { panic!(); }\n");

@@ -23,8 +23,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-gates-v1-${{ hashFiles('app/package-lock.json', 'plugins/**/package-lock.json', '.nvmrc', 'app/vitest.config.ts') }}-
       - run: sh scripts/gates.sh --env node
-        env:
-          GATES_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
 
   rust:
     runs-on: ubuntu-22.04
