@@ -44,7 +44,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Color](#color)
 - [Commands](#commands)
 - [Commit diff](#commit-diff)
-- [Enrich](#enrich)
 - [Field projections](#field-projections)
 - [Host](#host)
 - [Import](#import)
@@ -6380,21 +6379,6 @@ CommitDiff.use(): Counts
 
 React hook: the uncommitted add/remove/modify counts.
 
-## Enrich
-
-### enrich
-
-`unstable` · since v0.10.3
-
-```ts
-enrich(
-  selector: Selector,
-  props?: RunOpts & {
-    resolve?: boolean;
-  },
-): Promise<ProcedureOutcomes>
-```
-
 ## Field projections
 
 ### partitionKeyOptions
@@ -7139,6 +7123,22 @@ BUILTIN_PROVIDERS: readonly Provider<unknown, unknown>[]
 ```
 
 The providers the app registers at startup.
+
+### enrich
+
+`unstable` · since v0.10.3
+
+```ts
+enrich(
+  selector: Selector,
+  props?: RunOpts & {
+    resolve?: boolean;
+  },
+): Promise<ProcedureOutcomes>
+```
+
+Enrich the locations in `selector` with every enrichment field the open map has on,
+resolving their panoramas first unless `resolve` is false.
 
 ### enrichRuns
 

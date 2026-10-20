@@ -1,4 +1,4 @@
-import { createFieldDef } from "@/types";
+import { createFieldDef, type Selector } from "@/types";
 import type { CapturePick, PanoType } from "@/bindings.consts";
 import {
 	enabledEnrichKeys,
@@ -6,12 +6,14 @@ import {
 	getDefaultEnrichKeys,
 	knownFieldDefs,
 } from "@/lib/data/fieldDefs";
-import { Procedure } from "@/lib/data/procedure";
+import { Procedure, type ProcedureOutcomes, type RunOpts } from "@/lib/data/procedure";
 import { Provider, type ProviderRun } from "@/lib/data/provider";
 import { SVMETA_FIELDS, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { cmd } from "@/lib/commands";
 import { toast } from "@/lib/util/toast";
 import { msg, t } from "@/lib/i18n";
+import { Store } from "@/store/store";
+import { all, any, lacks } from "@/store/selections";
 
 /** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
  *  read. Fields not offered in the enrichment settings are always included. @api @unstable */
@@ -150,3 +152,23 @@ export const BUILTIN_PROVIDERS: readonly Provider[] = [
 	subdivisionProvider,
 	headingRoadProvider,
 ];
+
+/** Enrich the locations in `selector` with every enrichment field the open map has on,
+ *  resolving their panoramas first unless `resolve` is false. @api @unstable */
+export async function enrich(
+	selector: Selector,
+	{ resolve = true, ...opts }: RunOpts & { resolve?: boolean } = {},
+): Promise<ProcedureOutcomes> {
+	const map = Store.get().map;
+	if (!map) return {};
+	const fields = enabledEnrichKeys(map.settings.enrichFields);
+	const runs = enrichRuns(map.settings.enrichFields ?? null);
+	if (resolve) {
+		runs.unshift({
+			provider: panoResolveProvider,
+			select: opts.force ? undefined : all(selector, any(...fields.map(lacks))),
+			force: false,
+		});
+	}
+	return Provider.run(runs, selector, opts);
+}

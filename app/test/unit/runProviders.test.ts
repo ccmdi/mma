@@ -206,7 +206,7 @@ import { Procedure, type ProcedurePart, type ProcedureSpec } from "@/lib/data/pr
 import { Provider } from "@/lib/data/provider";
 import { disposePlugin, runAsPlugin } from "@/plugins/scope";
 import { getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
-import { enrich } from "@/lib/sv/enrich";
+import { enrich } from "@/lib/sv/providers";
 import {
 	BUILTIN_PROVIDERS,
 	enrichRuns,

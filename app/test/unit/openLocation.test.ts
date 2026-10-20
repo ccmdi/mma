@@ -72,7 +72,8 @@ vi.mock("@/lib/commands", () => ({
 		},
 	},
 }));
-vi.mock("@/lib/sv/enrich", () => ({
+vi.mock("@/lib/sv/providers", async (actual) => ({
+	...(await actual<typeof import("@/lib/sv/providers")>()),
 	enrich: (
 		_selector: unknown,
 		opts: {

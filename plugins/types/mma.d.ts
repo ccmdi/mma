@@ -3452,116 +3452,6 @@ declare const Editor: {
     closePlugin: () => void;
 };
 
-/** The declared form of a wire struct: every field optional, absent where the wire says null. @unstable */
-export type Declared<T> = {
-    [K in keyof T]?: NonNullable<T[K]>;
-};
-/** A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
- *  what a run and a query both read) plus how a run schedules it. @unstable */
-export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> extends Declared<Omit<ProcedureDecl, "entry" | "config">>, Declared<Pick<ProviderDecl, "select" | "sink" | "instances">> {
-    /** Phantom field carrying the `TCollected` type. Never set at runtime. */
-    readonly collects?: TCollected;
-    /** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
-     *  procedures, or a relative filename (resolved against the plugin's directory). */
-    entry: string;
-    batch: BatchMode;
-    /** The procedure's own configuration, handed to every entry point as `config`. */
-    config?: TConfig;
-    /** Awaited before the procedure joins a run; returning false excludes it. */
-    prepare?: () => Promise<boolean>;
-}
-/** One location's answer from a `collect` run. @unstable */
-export interface CollectedEntry<T = unknown> {
-    id: number;
-    value: T;
-}
-/** @unstable */
-export interface BatchOutcome {
-    /** Count of locations the procedure processed successfully. */
-    succeeded: number;
-    /** IDs of locations the procedure failed on. */
-    failed: number[];
-}
-/** @unstable */
-export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
-    /** Answers from a `collect` run, in page order. Absent when results were written as patches. */
-    collected?: CollectedEntry<TCollected>[];
-}
-/** Every item a run scheduled, by id. @unstable */
-export type ProcedureOutcomes = Record<string, ProcedureOutcome>;
-/** One item's own progress. Counts are net of skipped locations. @unstable */
-export interface ProcedurePart {
-    label: string;
-    done: number;
-    total: number;
-    failed: number;
-    finished: boolean;
-}
-/** @unstable */
-export interface RunOpts {
-    signal?: AbortSignal;
-    force?: boolean;
-    /** Read locations and write results at this target instead of the map. */
-    on?: Target;
-    /** `done`/`total` reflect the slowest item. `parts` carries each labeled item's own
-     *  counts, ordered as declared. */
-    onProgress?: (done: number, total: number, parts: ProcedurePart[]) => void;
-    /** Each location as an item finishes with it (locations-only runs). The same location
-     *  arrives again from each later item. */
-    onPartial?: (rows: Location[]) => void;
-}
-/** @unstable */
-export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
-/** An item for `Procedure.drive`, with the label its progress shows. @unstable */
-export interface Scheduled {
-    id: string;
-    label: string | null;
-    item: RunItem;
-}
-/** What a one-off run may set on top of what the spec declares. @unstable */
-export interface RunSettings {
-    id: string;
-    label?: string;
-    /** `collect` takes the answers instead of writing them. */
-    sink?: Sink;
-    /** Recompute locations that already hold what the procedure writes. */
-    force?: boolean;
-}
-/** Procedure modules: ask one a question, or run one over locations. @api */
-declare const Procedure: {
-    /** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
-    entry: (name: string) => string;
-    /** The readable name behind an entry point, for surfaces that show one. @unstable */
-    name: (entry: string) => string;
-    /** The part of a spec the engine reads for a run and a query alike, with `config` as the
-     *  JSON text the wire carries. @unstable */
-    decl: (spec: ProcedureSpec, config?: unknown) => ProcedureDecl;
-    /** An outcome for work that never ran. @unstable */
-    noWork: () => BatchOutcome;
-    /** Ask a procedure a read-only question under its declared network limits. Rejects when it
-     *  exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
-     *  pages of answers as they resolve, ahead of the full result; each entry carries the id
-     *  the emitting side chose for it. @unstable */
-    query: <T = unknown, P = unknown>(spec: ProcedureSpec, input: unknown, opts?: {
-        signal?: AbortSignal;
-        onPartial?: (entries: {
-            id: number;
-            value: P;
-        }[]) => void;
-    }) => Promise<T>;
-    /** Run a single procedure over `selector` and return its typed results. @unstable */
-    run: <T, C>(spec: ProcedureSpec<T, C>, selector: Selector, opts: Omit<RunOpts, "force"> & RunSettings & {
-        config?: Partial<NoInfer<C>>;
-    }) => Promise<ProcedureOutcome<T>>;
-    /** Drive scheduled items through the engine as one run and gather what comes back. @unstable */
-    drive: (scheduled: Scheduled[], opts: RunOpts) => Promise<ProcedureOutcomes>;
-};
-
-/** @api @unstable */
-declare function enrich(selector: Selector, { resolve, ...opts }?: RunOpts & {
-    resolve?: boolean;
-}): Promise<ProcedureOutcomes>;
-
 /** Rename or remove metadata fields across the map. @api */
 declare const Field$1: {
     /** Rename extra-field `from` to `to` across all locations, its definition, and the listed
@@ -5260,6 +5150,111 @@ declare const Scene: {
     useSelected: () => SelectedIds;
 };
 
+/** The declared form of a wire struct: every field optional, absent where the wire says null. @unstable */
+export type Declared<T> = {
+    [K in keyof T]?: NonNullable<T[K]>;
+};
+/** A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
+ *  what a run and a query both read) plus how a run schedules it. @unstable */
+export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> extends Declared<Omit<ProcedureDecl, "entry" | "config">>, Declared<Pick<ProviderDecl, "select" | "sink" | "instances">> {
+    /** Phantom field carrying the `TCollected` type. Never set at runtime. */
+    readonly collects?: TCollected;
+    /** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
+     *  procedures, or a relative filename (resolved against the plugin's directory). */
+    entry: string;
+    batch: BatchMode;
+    /** The procedure's own configuration, handed to every entry point as `config`. */
+    config?: TConfig;
+    /** Awaited before the procedure joins a run; returning false excludes it. */
+    prepare?: () => Promise<boolean>;
+}
+/** One location's answer from a `collect` run. @unstable */
+export interface CollectedEntry<T = unknown> {
+    id: number;
+    value: T;
+}
+/** @unstable */
+export interface BatchOutcome {
+    /** Count of locations the procedure processed successfully. */
+    succeeded: number;
+    /** IDs of locations the procedure failed on. */
+    failed: number[];
+}
+/** @unstable */
+export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
+    /** Answers from a `collect` run, in page order. Absent when results were written as patches. */
+    collected?: CollectedEntry<TCollected>[];
+}
+/** Every item a run scheduled, by id. @unstable */
+export type ProcedureOutcomes = Record<string, ProcedureOutcome>;
+/** One item's own progress. Counts are net of skipped locations. @unstable */
+export interface ProcedurePart {
+    label: string;
+    done: number;
+    total: number;
+    failed: number;
+    finished: boolean;
+}
+/** @unstable */
+export interface RunOpts {
+    signal?: AbortSignal;
+    force?: boolean;
+    /** Read locations and write results at this target instead of the map. */
+    on?: Target;
+    /** `done`/`total` reflect the slowest item. `parts` carries each labeled item's own
+     *  counts, ordered as declared. */
+    onProgress?: (done: number, total: number, parts: ProcedurePart[]) => void;
+    /** Each location as an item finishes with it (locations-only runs). The same location
+     *  arrives again from each later item. */
+    onPartial?: (rows: Location[]) => void;
+}
+/** @unstable */
+export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
+/** An item for `Procedure.drive`, with the label its progress shows. @unstable */
+export interface Scheduled {
+    id: string;
+    label: string | null;
+    item: RunItem;
+}
+/** What a one-off run may set on top of what the spec declares. @unstable */
+export interface RunSettings {
+    id: string;
+    label?: string;
+    /** `collect` takes the answers instead of writing them. */
+    sink?: Sink;
+    /** Recompute locations that already hold what the procedure writes. */
+    force?: boolean;
+}
+/** Procedure modules: ask one a question, or run one over locations. @api */
+declare const Procedure: {
+    /** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
+    entry: (name: string) => string;
+    /** The readable name behind an entry point, for surfaces that show one. @unstable */
+    name: (entry: string) => string;
+    /** The part of a spec the engine reads for a run and a query alike, with `config` as the
+     *  JSON text the wire carries. @unstable */
+    decl: (spec: ProcedureSpec, config?: unknown) => ProcedureDecl;
+    /** An outcome for work that never ran. @unstable */
+    noWork: () => BatchOutcome;
+    /** Ask a procedure a read-only question under its declared network limits. Rejects when it
+     *  exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
+     *  pages of answers as they resolve, ahead of the full result; each entry carries the id
+     *  the emitting side chose for it. @unstable */
+    query: <T = unknown, P = unknown>(spec: ProcedureSpec, input: unknown, opts?: {
+        signal?: AbortSignal;
+        onPartial?: (entries: {
+            id: number;
+            value: P;
+        }[]) => void;
+    }) => Promise<T>;
+    /** Run a single procedure over `selector` and return its typed results. @unstable */
+    run: <T, C>(spec: ProcedureSpec<T, C>, selector: Selector, opts: Omit<RunOpts, "force"> & RunSettings & {
+        config?: Partial<NoInfer<C>>;
+    }) => Promise<ProcedureOutcome<T>>;
+    /** Drive scheduled items through the engine as one run and gather what comes back. @unstable */
+    drive: (scheduled: Scheduled[], opts: RunOpts) => Promise<ProcedureOutcomes>;
+};
+
 /** A registered provider to run, and what this run changes about it. @unstable */
 export interface ProviderRun<TConfig = unknown> {
     provider: Provider<unknown, TConfig>;
@@ -5827,6 +5822,11 @@ export interface HeadingRoadConfig {
 declare const headingRoadProvider: Provider<unknown, HeadingRoadConfig>;
 /** The providers the app registers at startup. @api @unstable */
 declare const BUILTIN_PROVIDERS: readonly Provider[];
+/** Enrich the locations in `selector` with every enrichment field the open map has on,
+ *  resolving their panoramas first unless `resolve` is false. @api @unstable */
+declare function enrich(selector: Selector, { resolve, ...opts }?: RunOpts & {
+    resolve?: boolean;
+}): Promise<ProcedureOutcomes>;
 
 /** @unstable */
 export interface PruneResult {
@@ -6853,10 +6853,6 @@ export type EditApi = {
 export type EditorApi = {
     Editor: typeof Editor;
 };
-export type EnrichApi = {
-    /** @unstable */
-    enrich: typeof enrich;
-};
 export type FieldApi = {
     Field: typeof Field$1;
 };
@@ -7146,6 +7142,8 @@ export type ProvidersApi = {
     /** @unstable */
     BUILTIN_PROVIDERS: typeof BUILTIN_PROVIDERS;
     /** @unstable */
+    enrich: typeof enrich;
+    /** @unstable */
     enrichRuns: typeof enrichRuns;
     /** @unstable */
     exactDateProvider: typeof exactDateProvider;
@@ -7414,7 +7412,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, EnrichApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginEventsApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginEventsApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {

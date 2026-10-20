@@ -42,7 +42,7 @@ import {
 	STANDARD_VALIDATION_CATEGORIES,
 	VALIDATION_CATEGORIES,
 } from "@/lib/sv/validationCategories";
-import { enrich } from "@/lib/sv/enrich";
+import { enrich } from "@/lib/sv/providers";
 import type { ProcedureOutcomes } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
 import { enabledEnrichKeys, getEnrichFieldOptions } from "@/lib/data/fieldDefs";

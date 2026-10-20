@@ -53,7 +53,6 @@ import { Commit } from "@/store/commit";
 import { CommitDiff } from "@/store/commitDiff";
 import { Edit } from "@/store/edit";
 import { Editor } from "@/store/editor";
-import { enrich } from "@/lib/sv/enrich";
 import { Field } from "@/store/field";
 import {
 	declaredValues,
@@ -204,6 +203,7 @@ import { Procedure } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
 import {
 	BUILTIN_PROVIDERS,
+	enrich,
 	enrichRuns,
 	exactDateProvider,
 	headingRoadProvider,
@@ -389,7 +389,6 @@ type CommitApi = { Commit: typeof Commit };
 type CommitDiffApi = { CommitDiff: typeof CommitDiff };
 type EditApi = { Edit: typeof Edit };
 type EditorApi = { Editor: typeof Editor };
-type EnrichApi = { enrich: typeof enrich };
 type FieldApi = { Field: typeof Field };
 type FieldDefRegistryApi = {
 	declaredValues: typeof declaredValues;
@@ -562,6 +561,7 @@ type ProcedureApi = { Procedure: typeof Procedure };
 type ProviderApi = { Provider: typeof Provider };
 type ProvidersApi = {
 	BUILTIN_PROVIDERS: typeof BUILTIN_PROVIDERS;
+	enrich: typeof enrich;
 	enrichRuns: typeof enrichRuns;
 	exactDateProvider: typeof exactDateProvider;
 	headingRoadProvider: typeof headingRoadProvider;
@@ -712,7 +712,6 @@ export interface MMA
 		CommitDiffApi,
 		EditApi,
 		EditorApi,
-		EnrichApi,
 		FieldApi,
 		FieldDefRegistryApi,
 		FieldDefsApi,
@@ -811,7 +810,6 @@ const mma: MMA = {
 	CommitDiff,
 	Edit,
 	Editor,
-	enrich,
 	Field,
 	declaredValues,
 	fieldLabel,
@@ -967,6 +965,7 @@ const mma: MMA = {
 	Procedure,
 	Provider,
 	BUILTIN_PROVIDERS,
+	enrich,
 	enrichRuns,
 	exactDateProvider,
 	headingRoadProvider,

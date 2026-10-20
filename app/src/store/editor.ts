@@ -10,7 +10,7 @@ import { trace } from "@/lib/util/debug";
 import { Import } from "./import";
 import { latest } from "@/lib/util/latest";
 import { touches } from "@/lib/util/jsonPatch";
-import { enrich } from "@/lib/sv/enrich";
+import { enrich } from "@/lib/sv/providers";
 
 /** Where an open location came from: the map, the seen history, or a pending import. */
 export type OpeningOrigin = "map" | "seen" | "import";
