@@ -422,19 +422,10 @@ function EditTagDialog({
 	const [bindings, setBindings] = useMapSetting("keyBindings");
 	const [hotkey, setHotkey] = useState(() => getTagBindingKey(bindings ?? [], tag.id) ?? "");
 
-	// Informational only: per-map bindings preempt these while this map is open,
-	// and assigning steals the key from whichever tag held it.
 	const globalConflicts = hotkey ? getConflicts("", hotkey) : [];
-	const holder = hotkey
-		? (bindings ?? []).find(
-				(b) => b.key === hotkey && !(b.action.type === "applyTag" && b.action.tagId === tag.id),
-			)
-		: undefined;
-	const holderAction = holder?.action;
-	const holderTag =
-		holderAction?.type === "applyTag"
-			? Tag.visible().find((t) => t.id === holderAction.tagId)
-			: undefined;
+	const sharedTags = Tag.visible().filter(
+		(t) => t.id !== tag.id && hotkey && getTagBindingKey(bindings ?? [], t.id) === hotkey,
+	);
 
 	const handleSave = () => {
 		const newName = name.trim() || tag.name;
@@ -470,9 +461,12 @@ function EditTagDialog({
 						<Button disabled={!hotkey} onClick={() => setHotkey("")}>
 							{t("Clear")}
 						</Button>
-						{(holderTag || globalConflicts.length > 0) && (
+						{(sharedTags.length > 0 || globalConflicts.length > 0) && (
 							<p className="edit-tag-modal__hotkey-note">
-								{holderTag && <>{t('Takes the key from "{name}". ', { name: holderTag.name })}</>}
+								{sharedTags.length > 0 &&
+									t("Toggles together with: {names}. ", {
+										names: sharedTags.map((tag) => tag.name).join(", "),
+									})}
 								{globalConflicts.length > 0 && (
 									<>
 										{t('Overrides "{label}" while this map is open.', {

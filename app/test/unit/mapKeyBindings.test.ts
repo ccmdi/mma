@@ -31,8 +31,8 @@ function mountBindings(bindings: MapKeyBinding[]) {
 function handleApplyTag(result: boolean | void = undefined): MapKeyAction[] {
 	const seen: MapKeyAction[] = [];
 	cleanups.push(
-		registerMapKeyActionHandler("applyTag", (a) => {
-			seen.push(a);
+		registerMapKeyActionHandler("applyTag", (actions) => {
+			seen.push(...actions);
 			return result;
 		}),
 	);
@@ -57,6 +57,22 @@ describe("matching a key to a binding", () => {
 		mountBindings(bindings);
 		press("m");
 		expect(seen).toEqual([applyTag(1)]);
+	});
+
+	it("dispatches tags sharing a key as one group", () => {
+		const groups: MapKeyAction[][] = [];
+		cleanups.push(
+			registerMapKeyActionHandler("applyTag", (actions) => {
+				groups.push(actions);
+			}),
+		);
+		mountBindings([
+			{ key: "m", action: applyTag(1) },
+			{ key: "m", action: applyTag(2) },
+			{ key: "x", action: applyTag(3) },
+		]);
+		expect(press("m").defaultPrevented).toBe(true);
+		expect(groups).toEqual([[applyTag(1), applyTag(2)]]);
 	});
 
 	it("matches a modifier combo", () => {
@@ -129,10 +145,19 @@ describe("tag binding helpers", () => {
 		expect(next).toHaveLength(3);
 	});
 
-	it("a key is unique: assigning steals it from its previous holder", () => {
+	it("tags share a key", () => {
 		const next = withTagKeyBinding(base, 3, "m");
 		expect(getTagBindingKey(next, 3)).toBe("m");
-		expect(getTagBindingKey(next, 1)).toBeUndefined();
+		expect(getTagBindingKey(next, 1)).toBe("m");
+		expect(getTagBindingKey(next, 2)).toBe("x");
+	});
+
+	it("clearing or reassigning a tag leaves its group intact", () => {
+		const group = withTagKeyBinding(base, 3, "m");
+		expect(withTagKeyBinding(group, 3, "")).toEqual(base);
+		const next = withTagKeyBinding(group, 1, "z");
+		expect(getTagBindingKey(next, 3)).toBe("m");
+		expect(getTagBindingKey(next, 1)).toBe("z");
 	});
 
 	it("a tag holds one key: reassigning drops its previous key", () => {
@@ -161,10 +186,17 @@ describe("map copy binding helpers", () => {
 	});
 
 	it("key uniqueness spans action kinds: copy binding steals a tag's key", () => {
-		const withTag = withTagKeyBinding([], 1, "m");
+		const withTag = withTagKeyBinding(withTagKeyBinding([], 1, "m"), 2, "m");
 		const next = withMapCopyBinding(withTag, "map-b", "m");
 		expect(getMapCopyBindingKey(next, "map-b")).toBe("m");
 		expect(getTagBindingKey(next, 1)).toBeUndefined();
+		expect(getTagBindingKey(next, 2)).toBeUndefined();
+	});
+
+	it("a tag assignment replaces a copy binding on its key", () => {
+		const next = withTagKeyBinding(withMapCopyBinding([], "map-b", "m"), 1, "m");
+		expect(getTagBindingKey(next, 1)).toBe("m");
+		expect(getMapCopyBindingKey(next, "map-b")).toBeUndefined();
 	});
 
 	it("does not confuse targets across kinds", () => {

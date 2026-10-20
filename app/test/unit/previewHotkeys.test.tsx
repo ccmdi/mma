@@ -37,7 +37,14 @@ vi.mock("@/lib/review/review", () => ({ Review: { useSession: () => null } }));
 vi.mock("@/store/edit", () => ({ Edit: { locations: h.edits } }));
 vi.mock("@/store/location", () => ({ Location: { addTo: h.addTo, add: async () => {} } }));
 vi.mock("@/store/tag", () => ({
-	Tag: { visible: () => [{ id: 1, name: "a" }], names: () => [], counts: () => ({}) },
+	Tag: {
+		visible: () => [
+			{ id: 1, name: "a" },
+			{ id: 2, name: "b" },
+		],
+		names: () => [],
+		counts: () => ({}),
+	},
 }));
 vi.mock("@/store/dialogBus", () => ({ openDialog: h.dialogs }));
 vi.mock("@/lib/sv/panoDownload", () => ({ downloadPano: async () => {} }));
@@ -48,9 +55,13 @@ import { useLocationHotkeys } from "@/components/editor/location/useLocationHotk
 import { useMapKeyBindings } from "@/lib/map/mapKeyBindings";
 import "@/store/commandDefs";
 import { getCommand } from "@/store/commands";
+import type { PendingTags } from "@/lib/data/tags";
 
 const mapKeys = [
 	{ key: "t", action: { type: "applyTag" as const, tagId: 1 } },
+	{ key: "t", action: { type: "applyTag" as const, tagId: 2 } },
+	{ key: "t", action: { type: "applyTag" as const, tagId: 99 } },
+	{ key: "d", action: { type: "applyTag" as const, tagId: 99 } },
 	{ key: "c", action: { type: "copyToMap" as const, mapId: "other" } },
 ];
 
@@ -90,6 +101,23 @@ afterEach(() => {
 });
 
 describe("location hotkeys on a preview", () => {
+	it("toggles all live tags in a group with one pending update", () => {
+		const setPendingTags = mount("map");
+		expect(pressConsumed("t")).toBe(true);
+		expect(setPendingTags).toHaveBeenCalledTimes(1);
+		const update = setPendingTags.mock.calls[0][0] as (cur: PendingTags) => PendingTags;
+		const partial = { ids: [1, 7], names: ["typed"] };
+		const all = update(partial);
+		expect(all).toEqual({ ids: [1, 7, 2], names: ["typed"] });
+		expect(update(all)).toEqual({ ids: [7], names: ["typed"] });
+		expect(update({ ids: [], names: [] })).toEqual({ ids: [1, 2], names: [] });
+	});
+
+	it("falls through when every tag in the group is deleted", () => {
+		const setPendingTags = mount("map");
+		expect(pressConsumed("d")).toBe(false);
+		expect(setPendingTags).not.toHaveBeenCalled();
+	});
 	it.each(["import", "seen"])(
 		"a %s preview is not duplicated, copied or tagged",
 		async (origin) => {

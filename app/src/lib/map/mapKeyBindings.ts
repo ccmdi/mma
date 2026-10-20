@@ -26,35 +26,19 @@ type ActionOf<T extends ActionType> = Extract<MapKeyAction, { type: T }>;
 
 /** A handler may return false to decline (e.g. action target no longer applies);
  *  the key then falls through to the global hotkey layer. */
-type MapKeyActionHandler<T extends ActionType> = (action: ActionOf<T>) => boolean | void;
+type MapKeyActionHandler<T extends ActionType> = (actions: ActionOf<T>[]) => boolean | void;
 
-const handlers = new Map<ActionType, (action: MapKeyAction) => boolean | void>();
+const handlers = new Map<ActionType, (actions: MapKeyAction[]) => boolean | void>();
 
 export function registerMapKeyActionHandler<T extends ActionType>(
 	type: T,
 	fn: MapKeyActionHandler<T>,
 ): () => void {
-	const wrapped = fn as (action: MapKeyAction) => boolean | void;
+	const wrapped = fn as (actions: MapKeyAction[]) => boolean | void;
 	handlers.set(type, wrapped);
 	return () => {
 		if (handlers.get(type) === wrapped) handlers.delete(type);
 	};
-}
-
-/**
- * New bindings list with `key` assigned to `action`. Enforces uniqueness both
- * ways: the key is taken from any binding that held it, and the action target's
- * previous key is dropped. An empty `key` just clears the target's binding.
- */
-function withKeyBinding(
-	bindings: MapKeyBinding[],
-	key: string,
-	action: MapKeyAction,
-	sameTarget: (a: MapKeyAction) => boolean,
-): MapKeyBinding[] {
-	const rest = bindings.filter((b) => !sameTarget(b.action) && (!key || b.key !== key));
-	if (!key) return rest;
-	return [...rest, { key, action }];
 }
 
 /** Combo currently assigned to a tag, if any. */
@@ -67,12 +51,10 @@ export function withTagKeyBinding(
 	tagId: number,
 	key: string,
 ): MapKeyBinding[] {
-	return withKeyBinding(
-		bindings,
-		key,
-		{ type: "applyTag", tagId },
-		(a) => a.type === "applyTag" && a.tagId === tagId,
+	const rest = bindings.filter((b) =>
+		b.action.type === "applyTag" ? b.action.tagId !== tagId : !key || b.key !== key,
 	);
+	return key ? [...rest, { key, action: { type: "applyTag", tagId } }] : rest;
 }
 
 /** Combo currently assigned to copy-to-`mapId`, if any. */
@@ -85,12 +67,10 @@ export function withMapCopyBinding(
 	mapId: string,
 	key: string,
 ): MapKeyBinding[] {
-	return withKeyBinding(
-		bindings,
-		key,
-		{ type: "copyToMap", mapId },
-		(a) => a.type === "copyToMap" && a.mapId === mapId,
+	const rest = bindings.filter(
+		(b) => !(b.action.type === "copyToMap" && b.action.mapId === mapId) && (!key || b.key !== key),
 	);
+	return key ? [...rest, { key, action: { type: "copyToMap", mapId } }] : rest;
 }
 
 /** Per-map bindings plus the global copy bindings. Map bindings come first (the matcher
@@ -117,11 +97,16 @@ export function useMapKeyBindings(getBindings: () => MapKeyBinding[]) {
 		const handler = (e: KeyboardEvent) => {
 			if (e.defaultPrevented || e.repeat) return;
 			if (pluginOverlayOwnsInput() || isEditableElement(e.target)) return;
-			const binding = getBindings().find(
+			const bindings = getBindings();
+			const binding = bindings.find(
 				(b) => b.key && parseHotkey(b.key).some((alt) => alt.length === 1 && matchesKey(e, alt[0])),
 			);
 			const run = binding && handlers.get(binding.action.type);
-			if (run && run(binding.action) !== false) e.preventDefault();
+			if (!binding || !run) return;
+			const actions = bindings
+				.filter((b) => b.key === binding.key && b.action.type === binding.action.type)
+				.map((b) => b.action);
+			if (run(actions) !== false) e.preventDefault();
 		};
 		window.addEventListener("keydown", handler, true);
 		return () => window.removeEventListener("keydown", handler, true);

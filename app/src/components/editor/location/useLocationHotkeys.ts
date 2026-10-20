@@ -19,6 +19,7 @@ import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
 import { downloadPano } from "@/lib/sv/panoDownload";
 import { dropLocation } from "@/types";
+import type { MapKeyAction } from "@/bindings.gen";
 import { cycle } from "@/types/util";
 import { Review } from "@/lib/review/review";
 import { registerMapKeyActionHandler } from "@/lib/map/mapKeyBindings";
@@ -198,12 +199,18 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		setPendingTags(togglePendingTag(pendingTags, tag.id));
 	};
 
-	const onApplyTag = useEffectEvent(({ tagId }: { tagId: number }) => {
+	const onApplyTag = useEffectEvent((actions: Extract<MapKeyAction, { type: "applyTag" }>[]) => {
 		const active = Editor.get().open?.location;
 		if (!active) return false;
-		const tag = Tag.visible().find((t) => t.id === tagId);
-		if (!tag) return false;
-		setPendingTags((cur) => togglePendingTag(cur, tag.id));
+		const visible = new Set(Tag.visible().map((tag) => tag.id));
+		const ids = new Set(actions.map(({ tagId }) => tagId).filter((id) => visible.has(id)));
+		if (!ids.size) return false;
+		setPendingTags((cur) => ({
+			...cur,
+			ids: [...ids].every((id) => cur.ids.includes(id))
+				? cur.ids.filter((id) => !ids.has(id))
+				: [...new Set([...cur.ids, ...ids])],
+		}));
 	});
 
 	const onDropToMap = useEffectEvent(async (mapId: string) => {
@@ -214,7 +221,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	useEffect(() => {
 		if (!onMap) return;
 		const unregisterApply = registerMapKeyActionHandler("applyTag", (action) => onApplyTag(action));
-		const unregisterCopy = registerMapKeyActionHandler("copyToMap", ({ mapId }) => {
+		const unregisterCopy = registerMapKeyActionHandler("copyToMap", ([{ mapId }]) => {
 			const loc = Editor.get().open?.location;
 			if (!loc) return false;
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
