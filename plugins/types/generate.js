@@ -369,13 +369,14 @@ function stampUnpromisedExports(native, text) {
 }
 
 // The release each member path (`addLocations`, `ui.Sidebar`) first shipped in, read from the
-// `mma.d.ts` at every release tag. Names only: no libraries resolve, so each release parses in
+// `mma.d.ts` at every release tag, with `current` standing in for app/package.json's version
+// until that version is tagged. Names only: no libraries resolve, so each release parses in
 // milliseconds. Empty without tags (a shallow clone), and the reference then omits "since".
-function firstReleases(native) {
+function firstReleases(native, current, root = repoRoot) {
   const git = (args, input) => {
     try {
       return execFileSync("git", args, {
-        cwd: repoRoot,
+        cwd: root,
         input,
         encoding: "utf-8",
         maxBuffer: 1 << 30,
@@ -395,6 +396,8 @@ function firstReleases(native) {
     .filter((t) => /^v\d+\.\d+\.\d+$/.test(t))
     .sort(cmpVer);
   if (tags.length === 0) return new Map();
+  const version = `v${JSON.parse(fs.readFileSync(path.join(root, "app", "package.json"), "utf-8")).version}`;
+  const untagged = !tags.includes(version);
 
   const spec = (tag) => `${tag}:plugins/types/mma.d.ts`;
   const blobOf = git(["cat-file", "--batch-check=%(objectname) %(objecttype)"], tags.map(spec).join("\n") + "\n")
@@ -414,6 +417,7 @@ function firstReleases(native) {
     files.set(path.join(__dirname, `.release-${sha}.d.ts`), bytes.subarray(eol + 1, eol + 1 + size).toString("utf-8"));
     at = eol + 1 + size + 1;
   }
+  if (untagged) files.set(path.join(__dirname, ".release-current.d.ts"), current);
   const names = memberNames(native, files);
   const namesByBlob = new Map(distinct.map((sha, i) => [sha, names[i]]));
 
@@ -421,6 +425,7 @@ function firstReleases(native) {
   tags.forEach((tag, i) => {
     for (const name of namesByBlob.get(blobOf[i]) ?? []) if (!first.has(name)) first.set(name, tag);
   });
+  if (untagged) for (const name of names[distinct.length]) if (!first.has(name)) first.set(name, version);
   return first;
 }
 
@@ -453,7 +458,7 @@ function memberNames({ ts, withProgram }, files) {
 // The human-readable companion to mma.d.ts: one section per API surface on the MMA
 // interface, each member with its badges, signature and doc. Stable surfaces come first.
 // Output-only -- regenerated with the d.ts, never hand-edited.
-async function generateApiMarkdown(native, text, since = firstReleases(native)) {
+async function generateApiMarkdown(native, text, since = firstReleases(native, text)) {
   const { ts } = native;
   const { format } = await import(pathToFileURL(path.join(appDir, "node_modules", "oxfmt", "dist", "index.js")).href);
   const flags = ts.NodeBuilderFlags.NoTruncation | ts.NodeBuilderFlags.UseAliasDefinedOutsideCurrentScope;
@@ -680,7 +685,7 @@ async function generateApiMarkdown(native, text, since = firstReleases(native)) 
   return md;
 }
 
-module.exports = { generateApiMarkdown, propagateUnstable };
+module.exports = { firstReleases, generateApiMarkdown, propagateUnstable };
 if (require.main === module) main().catch((e) => {
   console.error(e);
   process.exit(1);
