@@ -26,12 +26,12 @@ export type PluginBehavior = Partial<Plugin> & {
 const plugins = new Map<string, Plugin>();
 let pendingManifest: PluginManifest | null = null;
 
-/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @unstable */
+/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @api @unstable */
 export function setPendingManifest(manifest: PluginManifest | null) {
 	pendingManifest = manifest;
 }
 
-/** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. */
+/** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. @api */
 export function registerPlugin(plugin: Plugin | PluginBehavior) {
 	if (pendingManifest) {
 		const merged: Plugin = {
@@ -50,23 +50,23 @@ export function registerPlugin(plugin: Plugin | PluginBehavior) {
 	emitEvent("plugins:changed");
 }
 
-/** All registered plugins, sorted by name. */
+/** All registered plugins, sorted by name. @api */
 export function getPlugins(): Plugin[] {
 	return [...plugins.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Look up a registered plugin by id. */
+/** Look up a registered plugin by id. @api */
 export function getPlugin(id: string): Plugin | undefined {
 	return plugins.get(id);
 }
 
-/** True when the plugin contributes data only and has no UI surfaces. */
+/** True when the plugin contributes data only and has no UI surfaces. @api */
 export function isBackgroundPlugin(id: string): boolean {
 	const plugin = plugins.get(id);
 	return !!plugin && !plugin.sidebar && !plugin.modal && !plugin.locationPanel;
 }
 
-/** Remove a plugin from the registry. @unstable */
+/** Remove a plugin from the registry. @api @unstable */
 export function unregisterPlugin(id: string) {
 	plugins.delete(id);
 	emitEvent("plugins:changed");

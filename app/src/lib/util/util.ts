@@ -1,18 +1,18 @@
-/** Base URL for a custom URI scheme, platform-adjusted. */
+/** Base URL for a custom URI scheme, platform-adjusted. @api @unstable */
 export function schemeBase(scheme: string): string {
 	return navigator.platform.startsWith("Win")
 		? `http://${scheme}.localhost/`
 		: `${scheme}://localhost/`;
 }
 
-/** URL that serves a local file over the `mma-buf://` protocol. */
+/** URL that serves a local file over the `mma-buf://` protocol. @api @unstable */
 export function mmaBufUrl(path: string): string {
 	return (
 		schemeBase("mma-buf") + path.replace(/\\/g, "/").split("/").map(encodeURIComponent).join("/")
 	);
 }
 
-/** Copy of `set` with `value` toggled, or forced on/off by `on`. */
+/** Copy of `set` with `value` toggled, or forced on/off by `on`. @api @unstable */
 export function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T> {
 	const next = new Set(set);
 	if (on ?? !next.has(value)) next.add(value);
@@ -20,7 +20,7 @@ export function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set
 	return next;
 }
 
-/** The item `isBetter` prefers over every other, or null when there are none. */
+/** The item `isBetter` prefers over every other, or null when there are none. @api @unstable */
 export function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null {
 	let best: T | null = null;
 	for (const item of items) {
@@ -29,7 +29,7 @@ export function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean)
 	return best;
 }
 
-/** Shuffle `items` in place (Fisher-Yates) and return them. */
+/** Shuffle `items` in place (Fisher-Yates) and return them. @api @unstable */
 export function shuffle<T>(items: T[]): T[] {
 	for (let i = items.length - 1; i > 0; i--) {
 		const j = (Math.random() * (i + 1)) | 0;
@@ -40,7 +40,7 @@ export function shuffle<T>(items: T[]): T[] {
 	return items;
 }
 
-/** Split `arr` into sub-arrays of at most `n` elements. */
+/** Split `arr` into sub-arrays of at most `n` elements. @api @unstable */
 export function chunk<T>(arr: readonly T[], n: number): T[][] {
 	const out: T[][] = [];
 	for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
@@ -48,7 +48,7 @@ export function chunk<T>(arr: readonly T[], n: number): T[][] {
 }
 
 /** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
- *  Build metadata is ignored; a pre-release sorts below the release it precedes. */
+ *  Build metadata is ignored; a pre-release sorts below the release it precedes. @api @unstable */
 export function cmpVersion(a: string, b: string): number {
 	const [coreA, preA] = splitVersion(a);
 	const [coreB, preB] = splitVersion(b);
@@ -76,25 +76,25 @@ export function cmpVersion(a: string, b: string): number {
 	return 0;
 }
 
-/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. */
+/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. @api @unstable */
 export function splitVersion(v: string): [core: string, pre: string] {
 	const m = /^v?([^-+]*)(?:-([^+]*))?/.exec(v.trim());
 	return [m?.[1] ?? "", m?.[2] ?? ""];
 }
 
-/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". */
+/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @api @unstable */
 export function isPrereleaseVersion(v: string): boolean {
 	return splitVersion(v)[1] !== "";
 }
 
-/** True when the app runs in a browser instead of the desktop app. */
+/** True when the app runs in a browser instead of the desktop app. @api @unstable */
 export function isWeb(): boolean {
 	return Boolean(
 		(window as { __TAURI_INTERNALS__?: { __webserve?: boolean } }).__TAURI_INTERNALS__?.__webserve,
 	);
 }
 
-/** Prompt for files; resolves empty when the picker is dismissed. */
+/** Prompt for files; resolves empty when the picker is dismissed. @api @unstable */
 export function pickFiles(accept: string, opts: { multiple?: boolean } = {}): Promise<File[]> {
 	return new Promise((resolve) => {
 		const input = document.createElement("input");
@@ -107,7 +107,7 @@ export function pickFiles(accept: string, opts: { multiple?: boolean } = {}): Pr
 	});
 }
 
-/** Trigger a browser download from an in-memory Blob. */
+/** Trigger a browser download from an in-memory Blob. @api @unstable */
 export function downloadBlob(blob: Blob, fileName: string) {
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
@@ -117,7 +117,7 @@ export function downloadBlob(blob: Blob, fileName: string) {
 	URL.revokeObjectURL(url);
 }
 
-/** Copy an image Blob to the clipboard. False when the platform refuses it. */
+/** Copy an image Blob to the clipboard. False when the platform refuses it. @api @unstable */
 export async function copyImageToClipboard(blob: Blob): Promise<boolean> {
 	if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") return false;
 	try {
@@ -128,12 +128,12 @@ export async function copyImageToClipboard(blob: Blob): Promise<boolean> {
 	}
 }
 
-/** Compare strings with natural (numeric-aware) ordering. */
+/** Compare strings with natural (numeric-aware) ordering. @api @unstable */
 export function compareNatural(a: string, b: string): number {
 	return a.localeCompare(b, undefined, { numeric: true });
 }
 
-/** Current time as Unix seconds, the form Location timestamps use. */
+/** Current time as Unix seconds, the form Location timestamps use. @api @unstable */
 export function nowUnix(): number {
 	return Math.floor(Date.now() / 1000);
 }
@@ -148,7 +148,7 @@ export interface PhaseRate {
 
 /** Compute a locations/second rate for the current progress phase. Re-anchors when a
  *  new phase is detected (done went backward or total grew). Null until a quarter second
- *  of work has elapsed. */
+ *  of work has elapsed. @api @unstable */
 export function phaseRate(
 	prev: PhaseRate | null,
 	done: number,

@@ -6,6 +6,7 @@ import { enrichRuns, panoResolveProvider } from "@/lib/sv/providers";
 import { all, any, lacks } from "@/store/selections";
 import type { Selector } from "@/types";
 
+/** @api @unstable */
 export async function enrich(
 	selector: Selector,
 	{ resolve = true, ...opts }: RunOpts & { resolve?: boolean } = {},

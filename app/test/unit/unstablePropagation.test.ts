@@ -53,17 +53,16 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 	});
 
 	it("a type only unstable members reach is unstable", () => {
-		expect(dts).toMatch(/@unstable[^\n]*\n\s*type DbStats = /);
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*(export )?type DbStats = /);
 	});
 
 	it("a type a stable member reaches stays a promise", () => {
-		expect(dts).toMatch(/\*\/\n\s*type Location = \{/);
-		expect(dts).not.toMatch(/@unstable[^\n]*\n(\s*\*[^\n]*\n)*\s*type Location = \{/);
+		expect(dts).toMatch(/\*\/\n\s*(export )?type Location = \{/);
+		expect(dts).not.toMatch(/@unstable[^\n]*\n(\s*\*[^\n]*\n)*\s*(export )?type Location = \{/);
 	});
 
 	it("a bundler namespace alias is never a promise", () => {
-		expect(dts).toMatch(/@unstable[^\n]*\n\s*export type settings_AppSettings = AppSettings;/);
-		expect(dts).toMatch(/@unstable[^\n]*\n\s*export type consts_CameraType = CameraType;/);
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const testApi_closeMap: typeof closeMap;/);
 	});
 
 	it("a stamped bundler alias leaves the member it names stable", () => {

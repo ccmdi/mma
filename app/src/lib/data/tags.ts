@@ -5,7 +5,7 @@ import { colorForName } from "@/lib/util/color";
 import { getSettings } from "@/store/settings";
 import { shortestUniqueSuffixes } from "@/lib/data/tagPaths";
 
-/** Sort tags by the chosen mode: name, location count, or manual order. */
+/** Sort tags by the chosen mode: name, location count, or manual order. @api */
 export function sortTagsByMode(
 	tags: Tag[],
 	mode: TagSortMode,
@@ -19,7 +19,7 @@ export function sortTagsByMode(
 	);
 }
 
-/** Color for a tag named `name`. An existing tag uses its stored color. */
+/** Color for a tag named `name`. An existing tag uses its stored color. @api */
 export function tagColorFor(name: string, tags: Tag[]): string {
 	const existing = tags.find((t) => t.name.toLowerCase() === name.toLowerCase());
 	return existing?.color ?? colorForName(name);
@@ -32,7 +32,7 @@ export interface PendingTags {
 }
 
 /** Stage typed text as the existing tag it names, ignoring case, or as a name to create.
- *  Returns `pending` unchanged if already staged. */
+ *  Returns `pending` unchanged if already staged. @api */
 export function addPendingTag(pending: PendingTags, name: string, tags: Tag[]): PendingTags {
 	const lower = name.toLowerCase();
 	const existing = tags.find((t) => t.name.toLowerCase() === lower);
@@ -46,13 +46,13 @@ export function addPendingTag(pending: PendingTags, name: string, tags: Tag[]): 
 		: { ...pending, names: [...pending.names, name] };
 }
 
-/** Stage the tag, or unstage it if it is already staged. */
+/** Stage the tag, or unstage it if it is already staged. @api */
 export function togglePendingTag(pending: PendingTags, id: number): PendingTags {
 	const ids = pending.ids.includes(id) ? pending.ids.filter((i) => i !== id) : [...pending.ids, id];
 	return { ...pending, ids };
 }
 
-/** The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out. */
+/** The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out. @api */
 export async function pendingTagIds({ ids, names }: PendingTags): Promise<number[]> {
 	const live = ids.filter((id) => Tag.get(id));
 	if (!names.length) return live;
@@ -66,7 +66,7 @@ export async function pendingTagIds({ ids, names }: PendingTags): Promise<number
 let suffixCache: { tags: Tag[]; suffixes: Map<string, string> } | null = null;
 
 /** Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
- *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. */
+ *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. @api */
 export function displayTagName(name: string): string {
 	const s = getSettings();
 	if (s.tagViewMode !== "tree" || !s.truncateTagPaths) return name;

@@ -60,6 +60,7 @@ function definition(p: Provider): ProviderDef {
 	};
 }
 
+/** Registered field producers: register one, list them, or run them over locations. @api */
 export const Provider = {
 	/** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
 	 *  deactivates. Resolves once the provider can run. */

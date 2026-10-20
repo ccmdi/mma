@@ -7,6 +7,7 @@
 
 import type { PanoAnswer, PanoQuery } from "@/bindings.gen";
 
+/** @api */
 export interface ProcedureRequest {
 	method: string;
 	url: string;
@@ -14,6 +15,7 @@ export interface ProcedureRequest {
 	body?: string | Uint8Array | ArrayBuffer;
 }
 
+/** @api */
 export interface ProcedureResponse {
 	/** 0 when the host could not issue the request at all. */
 	status: number;
@@ -28,6 +30,7 @@ export interface ProcedureNeighbor {
 	[field: string]: unknown;
 }
 
+/** @api */
 export interface ProcedureHost {
 	/** One request, or every request of a list at once, answered in order. A single
 	 *  request that cannot be issued throws; inside a list it answers `status: 0`, so the

@@ -99,6 +99,7 @@ async function doLoadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 	}
 }
 
+/** The marker scene the map surfaces render from, and its load lifecycle. @api @unstable */
 export const Scene = {
 	/** The shared scene that all map surfaces render from. */
 	get: (): CellManager => {

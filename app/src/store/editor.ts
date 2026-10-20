@@ -199,6 +199,7 @@ async function openPreview(loc: Location, origin: OpeningOrigin): Promise<Opened
 	}
 }
 
+/** Open locations and change the editor pane. @api */
 export const Editor = {
 	/** Imperative snapshot of the editor state. */
 	get: (): Readonly<EditorState> => {

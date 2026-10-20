@@ -85,20 +85,4 @@ describe("one companion roster", () => {
 		expect(lint("export const Other = { a: 1 };", "widget.ts").status).toBe(0);
 		expect(lint("export const Widget = () => null;", "widget.tsx").status).toBe(0);
 	});
-
-	it("the MMA interface and object carry every plugin-facing companion and nothing else", () => {
-		const result = lint(
-			"declare const Store: unknown, Feed: unknown; interface MMA { Store: unknown; Feed: unknown } const mma: MMA = { Store, Feed }; void mma;",
-		);
-		expect(result.status).toBe(1);
-		expect(result.output).toContain("The companion Scene is missing from the MMA interface.");
-		expect(result.output).toContain("The companion Scene is missing from the MMA object.");
-		expect(result.output).toContain("Feed is in the MMA interface but is not a plugin-facing");
-		expect(result.output).not.toContain("The companion Store is missing");
-	});
-
-	it("the real plugin surface matches the roster", () => {
-		const result = lint("", "caller.ts", resolve("src/api.ts"));
-		expect(result.output).not.toContain("local(domain-objects)");
-	});
 });

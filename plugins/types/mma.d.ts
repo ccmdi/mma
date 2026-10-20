@@ -2,16 +2,18 @@
 
 import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
-import { Channel, invoke } from '@tauri-apps/api/core';
+import { Channel, invoke as invoke$1 } from '@tauri-apps/api/core';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
 import { Layer as Layer$1, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
+import * as react from 'react';
+import { SetStateAction, ComponentType, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
 import { Command } from '@tauri-apps/plugin-shell';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import * as react from 'react';
-import { ComponentType, SetStateAction, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
+import * as _base_ui_components_react_dialog from '@base-ui-components/react/dialog';
 import { Dialog as Dialog$1 } from '@base-ui-components/react/dialog';
 
+/** @api */
 declare const CameraType: {
     /** First-generation Street View camera. */
     readonly Gen1: "gen1";
@@ -26,16 +28,16 @@ declare const CameraType: {
     /** A special collect carried on foot or on another vehicle, such as a trekker. */
     readonly Trekker: "trekker";
 };
-type CameraType = (typeof CameraType)[keyof typeof CameraType];
-/** A capture of a pano's timeline to settle on. */
+export type CameraType = (typeof CameraType)[keyof typeof CameraType];
+/** A capture of a pano's timeline to settle on. @api */
 declare const CapturePick: {
     /** The newest official capture. */
     readonly Newest: "newest";
     /** The oldest official capture. */
     readonly Oldest: "oldest";
 };
-type CapturePick = (typeof CapturePick)[keyof typeof CapturePick];
-/** A calendar component to group dates by. */
+export type CapturePick = (typeof CapturePick)[keyof typeof CapturePick];
+/** A calendar component to group dates by. @api */
 declare const DatePart: {
     /** The calendar year. */
     readonly Year: "year";
@@ -48,10 +50,11 @@ declare const DatePart: {
     /** The hour of the day. */
     readonly HourOfDay: "hourOfDay";
 };
-type DatePart = (typeof DatePart)[keyof typeof DatePart];
+export type DatePart = (typeof DatePart)[keyof typeof DatePart];
 /**
  * Type discriminant for `Location.extra` field definitions.
  * Determines how the field is displayed and filtered in the UI.
+ * @api
  */
 declare const FieldType: {
     /** Text. */
@@ -69,19 +72,19 @@ declare const FieldType: {
     /** A list of values. */
     readonly Array: "array";
 };
-type FieldType = (typeof FieldType)[keyof typeof FieldType];
-/** How a group of selections joins its members. */
+export type FieldType = (typeof FieldType)[keyof typeof FieldType];
+/** How a group of selections joins its members. @api */
 declare const Group: {
     /** The locations any member selects. */
     readonly Union: "Union";
     /** The locations every member selects. */
     readonly Intersection: "Intersection";
 };
-type Group = (typeof Group)[keyof typeof Group];
+export type Group = (typeof Group)[keyof typeof Group];
 /**
  * First-sync seeding when both sides already have pins. Only meaningful on the first sync
  * (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
- * @unstable
+ * @api @unstable
  */
 declare const FirstSyncMode: {
     /** Both maps keep everything; nothing is deleted. @unstable */
@@ -92,8 +95,8 @@ declare const FirstSyncMode: {
     readonly MirrorFromLocal: "mirrorFromLocal";
 };
 /** @unstable */
-type FirstSyncMode = (typeof FirstSyncMode)[keyof typeof FirstSyncMode];
-/** @unstable */
+export type FirstSyncMode = (typeof FirstSyncMode)[keyof typeof FirstSyncMode];
+/** @api @unstable */
 declare const IssueState: {
     /** The issue is still open. @unstable */
     readonly Open: "open";
@@ -101,8 +104,8 @@ declare const IssueState: {
     readonly Closed: "closed";
 };
 /** @unstable */
-type IssueState = (typeof IssueState)[keyof typeof IssueState];
-/** How much of a map a destination keeps. Each shape keeps everything the one before it does. */
+export type IssueState = (typeof IssueState)[keyof typeof IssueState];
+/** How much of a map a destination keeps. Each shape keeps everything the one before it does. @api */
 declare const MapShape: {
     /** Coordinates, camera and pinned panoramas: what GeoGuessr stores. */
     readonly GeoGuessr: "geoguessr";
@@ -111,26 +114,27 @@ declare const MapShape: {
     /** Everything this app stores, including custom fields. */
     readonly Local: "local";
 };
-type MapShape = (typeof MapShape)[keyof typeof MapShape];
-/** When a move target already holds a value, which side survives. */
+export type MapShape = (typeof MapShape)[keyof typeof MapShape];
+/** When a move target already holds a value, which side survives. @api */
 declare const MergeWinner: {
     /** The moved value replaces what the target already holds. */
     readonly From: "from";
     /** The target keeps its own value and the moved value is dropped. */
     readonly To: "to";
 };
-type MergeWinner = (typeof MergeWinner)[keyof typeof MergeWinner];
-/** Where a moved selection lands beside its target. */
+export type MergeWinner = (typeof MergeWinner)[keyof typeof MergeWinner];
+/** Where a moved selection lands beside its target. @api */
 declare const Place: {
     /** In front of the target. */
     readonly Before: "before";
     /** Behind the target. */
     readonly After: "after";
 };
-type Place = (typeof Place)[keyof typeof Place];
+export type Place = (typeof Place)[keyof typeof Place];
 /**
  * What one attempt charges the bucket: the call itself, or one per row in its batch
  * (for APIs that bill multi-row requests per row).
+ * @api
  */
 declare const RateCost: {
     /** Each attempt charges the rate limit once, however many rows it carries. */
@@ -138,16 +142,16 @@ declare const RateCost: {
     /** Each attempt charges the rate limit once per row it carries; a query carries no rows and charges once. */
     readonly Row: "row";
 };
-type RateCost = (typeof RateCost)[keyof typeof RateCost];
-/** Which locations of a review session a selection holds. */
+export type RateCost = (typeof RateCost)[keyof typeof RateCost];
+/** Which locations of a review session a selection holds. @api */
 declare const ReviewMode: {
     /** The locations already reviewed. */
     readonly Reviewed: "reviewed";
     /** The locations still to review. */
     readonly Unreviewed: "unreviewed";
 };
-type ReviewMode = (typeof ReviewMode)[keyof typeof ReviewMode];
-/** Which side won a resolved conflict. @unstable */
+export type ReviewMode = (typeof ReviewMode)[keyof typeof ReviewMode];
+/** Which side won a resolved conflict. @api @unstable */
 declare const ResolutionSide: {
     /** This map's version won the conflict. @unstable */
     readonly Local: "local";
@@ -155,11 +159,12 @@ declare const ResolutionSide: {
     readonly Remote: "remote";
 };
 /** @unstable */
-type ResolutionSide = (typeof ResolutionSide)[keyof typeof ResolutionSide];
+export type ResolutionSide = (typeof ResolutionSide)[keyof typeof ResolutionSide];
 /**
  * Where a provider's results go. `Patch` applies them to the locations they name;
  * `Collect` delivers them to the caller and writes nothing. The declaration decides
  * this, never the contents of a result.
+ * @api
  */
 declare const Sink: {
     /** Results are written to the locations they name. */
@@ -167,24 +172,24 @@ declare const Sink: {
     /** Results are handed back and nothing is written. */
     readonly Collect: "collect";
 };
-type Sink = (typeof Sink)[keyof typeof Sink];
-/** Which edit history stack to step through. */
+export type Sink = (typeof Sink)[keyof typeof Sink];
+/** Which edit history stack to step through. @api */
 declare const Stack: {
     /** The steps that can be undone. */
     readonly Undo: "undo";
     /** The undone steps that can be redone. */
     readonly Redo: "redo";
 };
-type Stack = (typeof Stack)[keyof typeof Stack];
-/** Which edit history to step through. Each part of the map that undoes on its own has one. */
+export type Stack = (typeof Stack)[keyof typeof Stack];
+/** Which edit history to step through. Each part of the map that undoes on its own has one. @api */
 declare const Timeline: {
     /** Edits to locations, value records, and field definitions. */
     readonly Edits: "edits";
     /** Changes to the listed selections. */
     readonly Selections: "selections";
 };
-type Timeline = (typeof Timeline)[keyof typeof Timeline];
-/** What started a sync pass. @unstable */
+export type Timeline = (typeof Timeline)[keyof typeof Timeline];
+/** What started a sync pass. @api @unstable */
 declare const SyncTrigger: {
     /** Sync now was pressed. @unstable */
     readonly Manual: "manual";
@@ -196,8 +201,8 @@ declare const SyncTrigger: {
     readonly Resolve: "resolve";
 };
 /** @unstable */
-type SyncTrigger = (typeof SyncTrigger)[keyof typeof SyncTrigger];
-/** Per-location bitfield, sent and stored as a plain `u32`. */
+export type SyncTrigger = (typeof SyncTrigger)[keyof typeof SyncTrigger];
+/** Per-location bitfield, sent and stored as a plain `u32`. @api */
 declare const LocationFlag: {
     /** No flags set. */
     readonly None: 0;
@@ -206,8 +211,8 @@ declare const LocationFlag: {
     /** Legacy marker (web). Kept as imported, with no effect in the app. */
     readonly Informational: 2;
 };
-type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
-/** Which imagery collection a pano id belongs to. */
+export type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
+/** Which imagery collection a pano id belongs to. @api */
 declare const PanoType: {
     /** Official Street View coverage. */
     readonly Official: 2;
@@ -216,10 +221,11 @@ declare const PanoType: {
     /** Imagery uploaded by users. */
     readonly UserUploaded: 10;
 };
-type PanoType = (typeof PanoType)[keyof typeof PanoType];
+export type PanoType = (typeof PanoType)[keyof typeof PanoType];
 /**
  * Which pano the search picks; omitted means closest. BEST at a small radius can return a
  * neighbouring pano from the same capture run, so probe a pano's own coordinate with CLOSEST.
+ * @api
  */
 declare const RankingStrategy: {
     /** The pano the search ranks best within the radius, which may not be the nearest. */
@@ -227,10 +233,11 @@ declare const RankingStrategy: {
     /** The pano nearest the searched point, and the choice when none is given. */
     readonly Closest: 2;
 };
-type RankingStrategy = (typeof RankingStrategy)[keyof typeof RankingStrategy];
+export type RankingStrategy = (typeof RankingStrategy)[keyof typeof RankingStrategy];
 /**
  * One finding of a Street View coverage check. `validate` answers each row with the
  * findings that apply, combined into one number.
+ * @api
  */
 declare const ValidationFlag: {
     /** No findings: the location's coverage checked out. */
@@ -250,8 +257,8 @@ declare const ValidationFlag: {
     /** No coverage was found, neither the stored pano nor any within the search radius. */
     readonly NotFound: 64;
 };
-type ValidationFlag = (typeof ValidationFlag)[keyof typeof ValidationFlag];
-/** Which way a link carries changes. @unstable */
+export type ValidationFlag = (typeof ValidationFlag)[keyof typeof ValidationFlag];
+/** Which way a link carries changes. @api @unstable */
 declare const SyncDirection: {
     /** Changes travel both ways, and conflicts wait for review. @unstable */
     readonly Bidirectional: "bidirectional";
@@ -259,7 +266,8 @@ declare const SyncDirection: {
     readonly PullOnly: "pullOnly";
 };
 /** @unstable */
-type SyncDirection = (typeof SyncDirection)[keyof typeof SyncDirection];
+export type SyncDirection = (typeof SyncDirection)[keyof typeof SyncDirection];
+/** @api */
 declare const BUILTIN_FIELDS: {
     readonly id: {
         readonly type: "number";
@@ -373,7 +381,7 @@ declare const BUILTIN_FIELDS: {
         readonly clearable: false;
     };
 };
-/** What a render frame does to the scene. @unstable */
+/** What a render frame does to the scene. @api @unstable */
 declare const FrameKind: {
     /** Clears the scene, then adds every row the frame carries. @unstable */
     readonly Replace: 0;
@@ -381,16 +389,18 @@ declare const FrameKind: {
     readonly Patch: 1;
 };
 /** @unstable */
-type FrameKind = (typeof FrameKind)[keyof typeof FrameKind];
-/** @unstable */
+export type FrameKind = (typeof FrameKind)[keyof typeof FrameKind];
+/** @api @unstable */
 declare const NO_SEL: 4294967295;
+/** @api */
 declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
-/** @unstable */
+/** @api @unstable */
 declare const EFFECT_CALLS: readonly ["fetch", "panos", "sidecar"];
-/** @unstable */
+/** @api @unstable */
 declare const PLAIN_CALLS: readonly ["log", "tz", "classify", "neighbors", "progress", "fail", "emit", "aborted"];
-/** @unstable */
+/** @api @unstable */
 declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
+/** @api */
 declare const KNOWN_FIELDS: readonly [{
     readonly key: "altitude";
     readonly type: "number";
@@ -480,8 +490,9 @@ declare const KNOWN_FIELDS: readonly [{
     readonly circularPeriod: null;
     readonly defaultOff: true;
 }];
+/** @api */
 declare const DEFAULT_MARKER_COLOR: readonly [42, 42, 42];
-/** @unstable */
+/** @api @unstable */
 declare const PROJECTIONS: readonly [{
     readonly id: "value";
     readonly appliesTo: readonly ["string", "enum", "boolean", "number", "month", "array"];
@@ -507,7 +518,7 @@ declare const PROJECTIONS: readonly [{
     readonly appliesTo: readonly ["date"];
     readonly needsTz: true;
 }];
-/** Every sync provider: which way it carries changes, and what it keeps of a map. @unstable */
+/** Every sync provider: which way it carries changes, and what it keeps of a map. @api @unstable */
 declare const SYNC_PROVIDERS: {
     /** @unstable */
     readonly file: {
@@ -525,109 +536,15 @@ declare const SYNC_PROVIDERS: {
         readonly shape: "mapMaking";
     };
 };
-/** @unstable */
+/** @api @unstable */
 declare const SCRATCH_MAP_ID: "scratch";
-/** @unstable */
+/** @api @unstable */
 declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "reply-rejected", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large", "data-folder-unavailable", "database-unreadable", "database-newer", "migration-failed", "map-missing", "map-unreadable"];
-/** Country codes Vali has coverage data for. @unstable */
+/** Country codes Vali has coverage data for. @api @unstable */
 declare const VALI_COUNTRIES: readonly ["AE", "AF", "AL", "AM", "AR", "AT", "AU", "AZ", "BA", "BD", "BE", "BG", "BH", "BN", "BO", "BR", "BT", "BW", "BY", "BZ", "CA", "CD", "CH", "CI", "CL", "CM", "CN", "CO", "CR", "CU", "CZ", "DE", "DK", "DO", "DZ", "EC", "EE", "EG", "ER", "ES", "ET", "FI", "FO", "FR", "GB", "GE", "GL", "GR", "GT", "HK", "HN", "HR", "HT", "HU", "ID", "IE", "IL", "IN", "IQ", "IR", "IS", "IT", "JM", "JO", "JP", "KE", "KG", "KH", "KR", "KW", "KZ", "LA", "LB", "LI", "LK", "LT", "LU", "LV", "LY", "MA", "MC", "MD", "ME", "MK", "ML", "MM", "MN", "MO", "MT", "MV", "MX", "MY", "NG", "NI", "NL", "NO", "NP", "NZ", "OM", "PA", "PE", "PH", "PK", "PL", "PR", "PT", "PY", "QA", "RE", "RO", "RS", "RU", "RW", "SA", "SE", "SG", "SI", "SK", "SN", "SO", "SV", "SY", "TH", "TJ", "TM", "TN", "TR", "TT", "TW", "UA", "US", "UY", "UZ", "VE", "VN", "XK", "YE", "ZA", "ZW", "CW", "AD", "AG", "AI", "AO", "AQ", "AS", "AW", "AX", "BB", "BF", "BI", "BJ", "BL", "BM", "BQ", "BS", "BV", "CC", "CF", "CG", "CK", "CV", "CX", "CY", "DJ", "DM", "EH", "FJ", "FK", "FM", "GA", "GD", "GF", "GG", "GH", "GI", "GM", "GN", "GP", "GQ", "GS", "GU", "GW", "GY", "HM", "IM", "IO", "JE", "KI", "KM", "KN", "KP", "KY", "LC", "LR", "LS", "MF", "MG", "MH", "MP", "MQ", "MR", "MS", "MU", "MW", "MZ", "NA", "NC", "NE", "NF", "NR", "NU", "PF", "PG", "PM", "PN", "PS", "PW", "SB", "SC", "SD", "SH", "SJ", "SL", "SM", "SR", "SS", "ST", "SX", "SZ", "TC", "TD", "TF", "TG", "TK", "TL", "TO", "TV", "TZ", "UG", "UM", "VA", "VC", "VG", "VI", "VU", "WF", "WS", "YT", "ZM"];
 
-declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
-declare const consts_CameraType: typeof CameraType;
-/** @unstable */
-export type consts_CameraType = CameraType;
-declare const consts_CapturePick: typeof CapturePick;
-/** @unstable */
-export type consts_CapturePick = CapturePick;
-declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
-declare const consts_DEFAULT_MARKER_COLOR: typeof DEFAULT_MARKER_COLOR;
-declare const consts_DatePart: typeof DatePart;
-/** @unstable */
-export type consts_DatePart = DatePart;
-declare const consts_EFFECT_CALLS: typeof EFFECT_CALLS;
-declare const consts_ERROR_CODES: typeof ERROR_CODES;
-declare const consts_FieldType: typeof FieldType;
-/** @unstable */
-export type consts_FieldType = FieldType;
-/** @unstable */
-declare const consts_FirstSyncMode: typeof FirstSyncMode;
-/** @unstable */
-export type consts_FirstSyncMode = FirstSyncMode;
-/** @unstable */
-declare const consts_FrameKind: typeof FrameKind;
-/** @unstable */
-export type consts_FrameKind = FrameKind;
-declare const consts_Group: typeof Group;
-/** @unstable */
-export type consts_Group = Group;
-/** @unstable */
-declare const consts_IssueState: typeof IssueState;
-/** @unstable */
-export type consts_IssueState = IssueState;
-declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
-declare const consts_LocationFlag: typeof LocationFlag;
-/** @unstable */
-export type consts_LocationFlag = LocationFlag;
-declare const consts_MapShape: typeof MapShape;
-/** @unstable */
-export type consts_MapShape = MapShape;
-declare const consts_MergeWinner: typeof MergeWinner;
-/** @unstable */
-export type consts_MergeWinner = MergeWinner;
-declare const consts_NO_SEL: typeof NO_SEL;
-declare const consts_OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
-declare const consts_PLAIN_CALLS: typeof PLAIN_CALLS;
-declare const consts_PROJECTIONS: typeof PROJECTIONS;
-declare const consts_PanoType: typeof PanoType;
-/** @unstable */
-export type consts_PanoType = PanoType;
-declare const consts_Place: typeof Place;
-/** @unstable */
-export type consts_Place = Place;
-declare const consts_RankingStrategy: typeof RankingStrategy;
-/** @unstable */
-export type consts_RankingStrategy = RankingStrategy;
-declare const consts_RateCost: typeof RateCost;
-/** @unstable */
-export type consts_RateCost = RateCost;
-/** @unstable */
-declare const consts_ResolutionSide: typeof ResolutionSide;
-/** @unstable */
-export type consts_ResolutionSide = ResolutionSide;
-declare const consts_ReviewMode: typeof ReviewMode;
-/** @unstable */
-export type consts_ReviewMode = ReviewMode;
-declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
-/** @unstable */
-declare const consts_SYNC_PROVIDERS: typeof SYNC_PROVIDERS;
-declare const consts_Sink: typeof Sink;
-/** @unstable */
-export type consts_Sink = Sink;
-declare const consts_Stack: typeof Stack;
-/** @unstable */
-export type consts_Stack = Stack;
-/** @unstable */
-declare const consts_SyncDirection: typeof SyncDirection;
-/** @unstable */
-export type consts_SyncDirection = SyncDirection;
-/** @unstable */
-declare const consts_SyncTrigger: typeof SyncTrigger;
-/** @unstable */
-export type consts_SyncTrigger = SyncTrigger;
-declare const consts_Timeline: typeof Timeline;
-/** @unstable */
-export type consts_Timeline = Timeline;
-declare const consts_VALI_COUNTRIES: typeof VALI_COUNTRIES;
-declare const consts_ValidationFlag: typeof ValidationFlag;
-/** @unstable */
-export type consts_ValidationFlag = ValidationFlag;
-declare namespace consts {
-  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_DEFAULT_MARKER_COLOR as DEFAULT_MARKER_COLOR, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS, consts_VALI_COUNTRIES as VALI_COUNTRIES };
-  export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_FrameKind as FrameKind, consts_Group as Group, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MapShape as MapShape, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_Place as Place, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_ReviewMode as ReviewMode, consts_Sink as Sink, consts_Stack as Stack, consts_SyncDirection as SyncDirection, consts_SyncTrigger as SyncTrigger, consts_Timeline as Timeline, consts_ValidationFlag as ValidationFlag };
-}
-
 /** Commands @unstable */
-declare const commands$1: {
+declare const commands: {
     /** Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing. @unstable */
     storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key_1 in number]: ValueRecord; }; }) => Promise<EditResult>;
     /** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. @unstable */
@@ -1298,7 +1215,7 @@ type BatchMode = {
     mode: "dedupeBy";
     key: string;
 };
-/**  Where the camera looks: the heading it faces and its pitch off level, in degrees. */
+/**  Where the camera looks: the heading it faces and its pitch off level, in degrees. @unstable */
 type CameraFrame = {
     heading: number;
     pitch: number;
@@ -1460,7 +1377,7 @@ type DeviceCodeInfo = {
     /**  Seconds until `userCode` stops working. */
     expiresIn: number;
 };
-/**  What a location edit did. */
+/**  What a location edit did. @unstable */
 type EditResult = {
     /**  The version the edit reached and the keys it assigned. */
     mutation: Mutation;
@@ -1713,6 +1630,7 @@ type IdRange<_T> = {
     /**  How many ids the run holds. */
     len: number;
 };
+/** @unstable */
 type ImageSize = {
     height: number;
     width: number;
@@ -2094,7 +2012,7 @@ type Op<T, P, K> =
     put?: never;
     set?: never;
 });
-/**  A decoded Street View panorama: flat data with no live objects. */
+/**  A decoded Street View panorama: flat data with no live objects. @unstable */
 type Pano = {
     /**  This image's own pano id, "" when the response carries no key. */
     id: string;
@@ -2151,17 +2069,20 @@ type PanoAnswer = {
 } | {
     state: "skipped";
 };
+/** @unstable */
 type PanoDate = {
     year: number;
     month: number;
     day: number;
 };
+/** @unstable */
 type PanoLink = {
     panoId: string;
     heading: number;
 };
 /**  One pano lookup: a pano id resolves over GetMetadata, a search over SingleImageSearch. @unstable */
 type PanoQuery = IdQuery | SearchQuery;
+/** @unstable */
 type PanoTime = {
     panoId: string;
     /**  The civil day, `YYYY-MM-DD`. */
@@ -2311,6 +2232,7 @@ type PolygonGeometry = {
     extraPolygons: ((([number, number])[])[])[] | null;
     properties?: any | null;
 };
+/** @unstable */
 type Pov = {
     heading: number;
     tilt: number;
@@ -3037,16 +2959,16 @@ type WorkResult = {
  * pass request lists for concurrency. `map` and `run` receive locations;
  * `query` handles read-only requests. Each entry point receives `{ fields, force, config }`.
  * Results are location patches under `patch`, or module-defined answers under `collect`.
- *  @unstable
  */
 
+/** @api @unstable */
 interface ProcedureRequest {
     method: string;
     url: string;
     headers?: Record<string, string>;
     body?: string | Uint8Array | ArrayBuffer;
 }
-/** @unstable */
+/** @api @unstable */
 interface ProcedureResponse {
     /** 0 when the host could not issue the request at all. */
     status: number;
@@ -3060,7 +2982,7 @@ export interface ProcedureNeighbor {
     distM: number;
     [field: string]: unknown;
 }
-/** @unstable */
+/** @api @unstable */
 interface ProcedureHost {
     /** One request, or every request of a list at once, answered in order. A single
      *  request that cannot be issued throws; inside a list it answers `status: 0`, so the
@@ -3098,186 +3020,71 @@ declare global {
     const mma: ProcedureHost;
 }
 
-/** The full local mirror of the store's derived state, as of the map version it reflects. */
-export type EngineState = Omit<Derived, "map"> & {
-    version: number;
-};
-/** The open map's own details. Its value records, field definitions, and counts live in their
- *  own slices. */
-export type MapDetails = Derived["map"];
-export interface UiState {
-    mapId: string | null;
-    /** Persisted identity slice (metadata + settings). Changes rarely. */
-    map: MapDetails | null;
-    /** Why the map in `mapId` could not be opened, or null. */
-    openError: string | null;
-}
-export type MapState = UiState & EngineState;
-declare const Store: {
-    /** Replace state fields and notify subscribers. @unstable */
-    patch: (patch: Partial<MapState>) => void;
-    /** Apply a change's JSON Patch over the derived state, as of `version`. @unstable */
-    apply: (patch: PatchOp[], version: number) => void;
-    /** Reactive slice of the map state. Re-renders only when the selected value's
-     *  reference changes (`Object.is`), so selectors must return state fields or
-     *  memoized values, not a new value per call. */
-    use: <T>(selector: (s: MapState) => T) => T;
-    /** Imperative snapshot of the map state. */
-    get: () => Readonly<MapState>;
-    /** Clear derived state when the map closes. @unstable */
-    resetDerived: () => void;
+/** Debounced persistence of the open map: schedule, hold, cancel, or flush it. @api */
+declare const Autosave: {
+    /** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
+    hold: () => (() => void);
+    /** Schedule a debounced autosave. Mutations call this automatically. @unstable */
+    schedule: () => void;
+    /** Cancel any pending autosave timer. @unstable */
+    cancel: () => void;
+    /** Wait until every save and background commit started so far has finished. @unstable */
+    waitForInflight: () => Promise<void>;
+    /** Run `write` once every save started so far has finished, and hold later saves until it does.
+     *  Writes to the map's files that must not interleave with a save go through here. @unstable */
+    exclusive: <T>(write: () => Promise<T>) => Promise<T>;
+    /** Save any unsaved changes now instead of waiting for the timer. @unstable */
+    flush: () => Promise<void>;
 };
 
-/** Every app event and what it hands its listeners. A `<noun>:change` event carries the change
- *  itself; a `<noun>:changed` event carries nothing and means the state its noun names moved,
- *  so listeners re-read it. A noun takes one of the two forms, never both. */
-declare const EVENT_DEFS: {
-    /** A change to the open map: the version it reached, the locations it added, removed and
-     *  updated, and the derived state that moved. */
-    "store:change": ChangeEvent;
-    "selection:change": Selection[];
-    "open:change": number | null;
-    /** @deprecated v0.12.0. Listen for `open:change`. @unstable */
-    "active:change": number | null;
-    "map:open": Omit<MapMeta, "extra" | "locationCount" | "pending">;
-    "map:close": void;
-    /** @unstable */
-    "map:saved": void;
-    /** The open map's state, as `Store.get` and `Store.use` read it, moved. @unstable */
-    "snapshot:changed": void;
-    /** @unstable */
-    "editor:changed": void;
-    "map-list:changed": void;
-    /** @unstable */
-    "saved-selections:changed": void;
-    "settings:changed": void;
-    /** @unstable */
-    "fullscreen:changed": void;
-    "plugins:changed": void;
-    /** @unstable */
-    "sync-links:changed": void;
-    /** @unstable */
-    "map-badges:changed": void;
-    /** @unstable */
-    "hotkeys:changed": void;
-    /** @unstable */
-    "toasts:changed": void;
-    /** @unstable */
-    "jobs:changed": void;
-    /** @unstable */
-    "bulkruns:changed": void;
-    /** @unstable */
-    "scene:changed": void;
-    /** @unstable */
-    "measure:changed": void;
-    /** @unstable */
-    "anchor:changed": void;
-    /** @unstable */
-    "viewport-lock:changed": void;
-    /** @unstable */
-    "trail:changed": void;
-    "seen:changed": void;
-    /** @unstable */
-    "update:changed": void;
-    /** @unstable */
-    "review:changed": void;
-    "fields:changed": void;
-    /** @unstable */
-    "route:changed": void;
-    /** @unstable */
-    "import-markers:changed": void;
-    /** @unstable */
-    "diff-markers:changed": void;
+/** An [r, g, b, a] byte tuple. @unstable */
+export type RGBA = [...RGB, number];
+/** Hue in degrees, saturation and lightness in percent. @unstable */
+export type HSL = {
+    h: number;
+    s: number;
+    l: number;
 };
-export type EditorEventMap = typeof EVENT_DEFS;
-export type EditorEvent = keyof EditorEventMap;
-declare const pluginEventPayload: unique symbol;
-/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
- *  hears it. `definePluginEvent` makes one. @unstable */
-export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
-    readonly [pluginEventPayload]: T;
-};
-/** What an event hands its handlers. */
-export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
-export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
+/** Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex. @api @unstable */
+declare function hexToRgb(hex: string): RGB;
+/** Return "#000" or "#fff" for readable text on the given hex background. @api @unstable */
+declare function textColorFor(bg: string): string;
+/** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
+ *  ramp name (legacy stored format). @api @unstable */
+declare function resolveSvColorHex(color: string): string;
+/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @api @unstable */
+declare function applyAccentColor(hex: string): void;
+/** Convert "#rrggbb" to HSL. @api @unstable */
+declare function hexToHsl(hex: string): HSL;
+/** Convert HSL to "#rrggbb". @api @unstable */
+declare function hslToHex({ h, s, l }: HSL): string;
+/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @api @unstable */
+declare function hslToRgb(h: number, s: number, l: number): RGB;
+/**
+ * Deterministic tag color from a name.
+ * @api @unstable
+ */
+declare function colorForName(name: string): string;
+/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. @api @unstable */
+declare function rgbCss([r, g, b]: RGB): string;
+/** Convert an RGB byte tuple to "#rrggbb". @api @unstable */
+declare function rgbToHex(rgb: RGB): string;
+/** A label's color: a user override if set, else a deterministic color from its name. @api @unstable */
+declare function labelColor(name: string, overrides: Record<string, string>): string;
 
-/** A mark drawn after a map's name in the map list: an icon, or a count of changes. @unstable */
-export type MapBadge = {
-    key: string;
-    title: string;
-} & ({
-    icon: string;
-} | {
-    diff: Counts;
-});
-/** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
-export interface BadgeSource {
-    /** Stable id, remembered by the setting that hides it. */
-    id: string;
-    /** Name shown next to its checkbox in settings. */
-    label: string;
-    /** Events after which the badges are collected again. */
-    events: readonly EditorEvent[];
-    /** Yields the badges to show, each paired with its map id. */
-    collect(): Iterable<[mapId: string, badge: MapBadge]>;
-}
-declare const Maps: {
-    /** One-time store startup. The app calls this; plugins never need to. @unstable */
-    init: () => Promise<void>;
-    /** Open a map in this window, closing any currently open map first. */
-    open: (id: string) => Promise<void>;
-    /** Close the open map, saving unsaved changes first. */
-    close: () => Promise<void>;
-    /** Drop the open map without persisting anything @unstable */
-    discard: () => void;
-    /** Reactive list of all maps (metadata only). */
-    useList: () => MapMeta[];
-    /** The list of all maps (metadata only). */
-    list: () => MapMeta[];
-    /** Refresh the map list from disk. @unstable */
-    reload: () => Promise<void>;
-    /** Refresh the map list and notify other windows of the change. @unstable */
-    invalidate: () => Promise<void>;
-    /** Create a new empty map and return its metadata. */
-    create: (name: string, folder?: string | null) => Promise<MapMeta>;
-    /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
-    duplicate: (id: string, name: string) => Promise<MapMeta>;
-    /** Permanently delete a map and all its data. Not undoable. */
-    remove: (id: string) => Promise<void>;
-    /** Open the scratch map, creating it on first use. */
-    openScratch: () => Promise<void>;
-    /** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
-    isReserved: (id: string | null) => boolean;
-    /** The name a copy of the map named `name` starts with. @unstable */
-    copyName: (name: string) => string;
-    /** Rename a folder, moving all its maps to the new name. */
-    renameFolder: (from: string, to: string) => Promise<void>;
-    /** Move a map into a folder, or to the root when `folder` is null. */
-    moveToFolder: (mapId: string, folder: string | null) => Promise<void>;
-    /** Delete a folder. Maps in it become unfoldered. */
-    removeFolder: (name: string) => Promise<void>;
-    /** Add a source of map-row badges. @unstable */
-    registerBadges: (source: BadgeSource) => void;
-    /** Every registered badge source, in registration order. @unstable */
-    badgeSources: () => readonly BadgeSource[];
-    /** Badges per map id, from every registered source. @unstable */
-    badges: () => Map<string, MapBadge[]>;
-    /** Reactive {@link Maps.badges}. @unstable */
-    useBadges: () => Map<string, MapBadge[]>;
-};
-
-export type Cmd = typeof commands$1;
-/** Every backend command, typed. Any of them can change in a release. @unstable */
+export type Cmd = typeof commands;
+/** Every backend command, typed. Any of them can change in a release. @api @unstable */
 declare const cmd: Cmd;
 
-/** @unstable */
-export type commands_Cmd = Cmd;
-/** @unstable */
-declare const commands_cmd: typeof cmd;
-declare namespace commands {
-  export { commands_cmd as cmd };
-  export type { commands_Cmd as Cmd };
-}
+/** Save and restore map versions. @api */
+declare const Commit: {
+    /** Commit all pending changes to the map's version history. Clears the undo stack. */
+    create: (message?: string) => Promise<string>;
+    /** Commit `mapId` in the background once pending saves finish. @unstable */
+    background: (mapId: string, message: string) => void;
+    /** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
+    checkout: (commitId: string) => Promise<void>;
+};
 
 /** @unstable */
 export type Digits = {
@@ -3358,7 +3165,7 @@ export type JobState<T, P = never, E = Error> = Idle | Running<P> | Settled<T, E
 
 type Selector = Parameters<Cmd["storeRead"]>[1];
 
-/** A field definition with every optional attribute spelled absent. */
+/** A field definition with every optional attribute spelled absent. @api */
 declare function createFieldDef(type: FieldType, over?: Partial<Omit<FieldDef, "type">>): FieldDef;
 /** A tag's display identity: name, color, sidebar order, and document links. */
 export interface Tag {
@@ -3385,39 +3192,37 @@ export type PanoCapture = LocationPOV & Pick<Location, "lat" | "lng" | "panoId">
 export type LatLng = google.maps.LatLngLiteral;
 /** A {west, south, east, north} bounding box. */
 export type Bounds = google.maps.LatLngBoundsLiteral;
-/** True when bounds span the entire world. */
+/** True when bounds span the entire world. @api */
 declare function isWorldBounds(b: Bounds): boolean;
-/** Convert a [south, west, north, east] tuple to a Bounds object. @unstable */
+/** Convert a [south, west, north, east] tuple to a Bounds object. @api @unstable */
 declare function scoreTupleToBounds([s, w, n, e]: [number, number, number, number]): Bounds;
-/** Convert a [west, south, east, north] bbox tuple to Bounds, or null. @unstable */
+/** Convert a [west, south, east, north] bbox tuple to Bounds, or null. @api @unstable */
 declare function bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null;
-/** Convert a Bounds object to a [south, west, north, east] tuple. @unstable */
+/** Convert a Bounds object to a [south, west, north, east] tuple. @api @unstable */
 declare function boundsToScoreTuple(b: Bounds): [number, number, number, number];
-/** Pinned: the location always opens this exact pano. */
+/** Pinned: the location always opens this exact pano. @api */
 declare function isPinned(loc: Location): loc is Location & {
     panoId: string;
 };
-/** The location pinned to the pano it carries, or unpinned to float on default coverage. */
+/** The location pinned to the pano it carries, or unpinned to float on default coverage. @api */
 declare function setPinned(loc: Location, on: boolean): Location;
 /** A full location or just its id (to be fetched on demand). */
 export type MaybeLocation = Location | number;
-/** Extract the id from a MaybeLocation. */
+/** Extract the id from a MaybeLocation. @api */
 declare function locId(m: MaybeLocation): number;
 /** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
- *  overrides hold; adding it to the map returns its real id. */
+ *  overrides hold; adding it to the map returns its real id. @api */
 declare function createLocation(partial: Partial<Location> & LatLng): Location;
 /** A new Location at the viewer's live camera, carrying `source`'s flags, tagged `tagNames`
  *  through `records`, which the map it lands in matches to its own tags by name. `extra`
  *  describes the pano it was fetched for, so it only survives a drop that stayed on that
- *  pano. @unstable */
+ *  pano. @api @unstable */
 declare function dropLocation(source: Location, live: PanoCapture, panoId: string | null, tagNames: string[]): {
     location: Location;
     records: {
         tags: Record<number, ValueRecord>;
     };
 };
-/** @unstable */
-export type SortMode = "name" | "created" | "opened" | "amount";
 export type TagSortMode = "default" | "name" | "amount";
 /** @unstable */
 export type WorkArea = "overview" | "location" | "duplicates" | "import" | "plugin" | "diff";
@@ -3432,126 +3237,35 @@ export type SvThickness = "default" | "high";
 /** @unstable */
 export type MarkerStyle = "pin" | "circle" | "arrow";
 
-/** @unstable */
-export type types_Bounds = Bounds;
-/** @unstable */
-export type types_LatLng = LatLng;
-/** @unstable */
-export type types_LocationPOV = LocationPOV;
-/** @unstable */
-export type types_MapTypeKey = MapTypeKey;
-/** @unstable */
-export type types_MarkerStyle = MarkerStyle;
-/** @unstable */
-export type types_MaybeLocation = MaybeLocation;
-/** @unstable */
-export type types_PanoCapture = PanoCapture;
-/** @unstable */
-export type types_PanoView = PanoView;
-/** @unstable */
-export type types_Patch<T extends {
-    id: unknown;
-}> = Patch<T>;
-/** @unstable */
-export type types_Selector = Selector;
-/** @unstable */
-export type types_SortMode = SortMode;
-/** @unstable */
-export type types_SvColor = SvColor;
-/** @unstable */
-export type types_SvCoverageType = SvCoverageType;
-/** @unstable */
-export type types_SvThickness = SvThickness;
-/** @unstable */
-export type types_TagSortMode = TagSortMode;
-/** @unstable */
-export type types_WorkArea = WorkArea;
-/** @unstable */
-declare const types_bboxTupleToBounds: typeof bboxTupleToBounds;
-/** @unstable */
-declare const types_boundsToScoreTuple: typeof boundsToScoreTuple;
-declare const types_createFieldDef: typeof createFieldDef;
-declare const types_createLocation: typeof createLocation;
-/** @unstable */
-declare const types_dropLocation: typeof dropLocation;
-declare const types_isPinned: typeof isPinned;
-declare const types_isWorldBounds: typeof isWorldBounds;
-declare const types_locId: typeof locId;
-/** @unstable */
-declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
-declare const types_setPinned: typeof setPinned;
-declare namespace types {
-  export { types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_isPinned as isPinned, types_isWorldBounds as isWorldBounds, types_locId as locId, types_scoreTupleToBounds as scoreTupleToBounds, types_setPinned as setPinned };
-  export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_Patch as Patch, types_Selector as Selector, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, Tag as Tag, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
+/** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
+ *  interleaved `[lng, lat]` Float32Arrays. @unstable */
+export interface CommitDiffPreview {
+    hash: string;
+    counts: Counts;
+    added: Float32Array;
+    removed: Float32Array;
+    updated: Float32Array;
 }
-
-export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
-    kind: K;
-}>;
-export type Payload<T> = {
-    [K in keyof T]: Exclude<keyof T, K> extends never ? T[K] : T;
-}[keyof T];
-export type Materialized<T> = T extends LocationList ? Location[] : T;
-export type ReadResult<A extends Answer> = A extends Answer ? Materialized<Payload<Omit<A, "kind">>> : never;
-declare const Query: {
-    /** Ask one question about the locations `selector` matches. A full-location answer loads any
-     *  backing file automatically; ask for ids or columns when full locations are unnecessary. */
-    read: <A extends Ask>(selector: Selector, ask: A, target?: Target) => Promise<ReadResult<AnswerOf<A["kind"]>>>;
-    /** The locations an answer carries, fetched from its temp file when it was too large to send inline. */
-    locationsOf: (list: LocationList) => Promise<Location[]>;
+/** Uncommitted changes and their preview on the map. @api @unstable */
+declare const CommitDiff: {
+    /** Whether there are uncommitted changes (adds, removes, or updates). @unstable */
+    has: () => boolean;
+    /** React hook: the uncommitted add/remove/modify counts. @unstable */
+    use: () => Counts;
+    /** The current commit-diff preview, or null when not previewing. @unstable */
+    preview: () => CommitDiffPreview | null;
+    /** Clear commit-diff preview state. @unstable */
+    reset: () => void;
+    /** Pack `[lng, lat]` pairs into an interleaved Float32Array. @unstable */
+    positions: (locs: LatLng[]) => Float32Array;
+    /** Fetch a commit's change and overlay its added/removed/updated locations on the map,
+     *  temporarily replacing the regular markers. @unstable */
+    begin: (commit: CommitInfo) => Promise<void>;
+    /** Leave commit-diff preview and restore the regular markers. @unstable */
+    end: () => void;
 };
 
-declare const Mutation: {
-    /** The result of a mutation that reached no map. */
-    none: () => Mutation;
-    /** Resolves once the open map's state and its markers both show `m`. A mutation that reached
-     *  no map (version 0) settles at once. */
-    settle: (m: Mutation) => Promise<void>;
-    run: <R extends Mutation | {
-        mutation: Mutation;
-    } = Mutation>(fn: () => Promise<R>, ...fallback: Mutation extends R ? [empty?: R] : [empty: R]) => Promise<R>;
-};
-
-/** @unstable */
-declare const SelectionList: {
-    /** The listed selections, in list order. @unstable */
-    listed: () => ListedSelection[];
-    /** Tag ids with a top-level listed tag selection, including ghosted selections. @unstable */
-    tagIds: () => ReadonlySet<number>;
-    /** Tag ids from active selection leaves, including repeated ids and composite children. @unstable */
-    tagIdsDeep: () => readonly number[];
-    /** Listed selections that are not ghosted. @unstable */
-    active: () => Selection[];
-    /** Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections. @unstable */
-    update: (op: SelectionOp) => Promise<void>;
-    /** Run a mutation that may change the listed selections, and announce the change when it
-     *  does. @unstable */
-    run: (write: () => Promise<Mutation>) => Promise<void>;
-    /** @unstable */
-    select: <R extends number[] | {
-        ids: number[];
-    }>(pick: (selector: Selector) => Promise<R>, perSelection?: boolean) => Promise<{
-        picked: number;
-        results: R[];
-    }>;
-};
-
-declare const Autosave: {
-    /** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
-    hold: () => (() => void);
-    /** Schedule a debounced autosave. Mutations call this automatically. @unstable */
-    schedule: () => void;
-    /** Cancel any pending autosave timer. @unstable */
-    cancel: () => void;
-    /** Wait until every save and background commit started so far has finished. @unstable */
-    waitForInflight: () => Promise<void>;
-    /** Run `write` once every save started so far has finished, and hold later saves until it does.
-     *  Writes to the map's files that must not interleave with a save go through here. @unstable */
-    exclusive: <T>(write: () => Promise<T>) => Promise<T>;
-    /** Save any unsaved changes now instead of waiting for the timer. @unstable */
-    flush: () => Promise<void>;
-};
-
+/** Edit map locations, metadata, value records, and selections. @api */
 declare const Edit: {
     /** Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
      *  by their ids in `records`, matched to the map's by name. Map changes are undoable in that
@@ -3569,241 +3283,28 @@ declare const Edit: {
     work: (selector: Selector, op: Work, target?: Target) => Promise<WorkResult>;
 };
 
-export type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "visible">>;
-declare const Tag: {
-    /** Per-tag location counts, keyed by numeric id. */
-    counts: () => Record<number, number>;
-    /** Tag records, including unreferenced records. */
-    all: () => Record<number, Tag>;
-    /** Tag records referenced by at least one location. */
-    visible: () => Tag[];
-    /** Look up a tag record, including unreferenced tags. */
-    get: (id: number) => Tag | undefined;
-    /** Tag names for the given ids, skipping any that no longer resolve. */
-    names: (ids: number[]) => string[];
-    /** Remove tags from every location in one undoable step.
-     * Unreferenced tags are hidden; undo restores them. */
-    remove: (tagIds: number[]) => Promise<WorkResult>;
-    /** Update tag display records in one undoable edit. */
-    update: (updates: Patch<Tag>[]) => Promise<Mutation<ValueRecord>>;
-    /** Get or create tag records by name and return their ids. */
-    create: (records: TagCreate[]) => Promise<number[]>;
-    /** Set tag display order from an ordered list of ids. */
-    reorder: (ids: number[]) => Promise<Mutation<ValueRecord>>;
-    /** Move matching locations to a tag with the given name, optionally within a selector. */
-    rename: (ids: number[], name: string, scope?: Selector | null) => Promise<void>;
-    /** Get or create tag records and assign them to matching locations. */
-    assign: (selector: Selector, records: TagCreate[]) => Promise<WorkResult>;
+export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
+    kind: K;
+}>;
+export type Payload<T> = {
+    [K in keyof T]: Exclude<keyof T, K> extends never ? T[K] : T;
+}[keyof T];
+export type Materialized<T> = T extends LocationList ? Location[] : T;
+export type ReadResult<A extends Answer> = A extends Answer ? Materialized<Payload<Omit<A, "kind">>> : never;
+/** Read locations and summaries for a selector. @api */
+declare const Query: {
+    /** Ask one question about the locations `selector` matches. A full-location answer loads any
+     *  backing file automatically; ask for ids or columns when full locations are unnecessary. */
+    read: <A extends Ask>(selector: Selector, ask: A, target?: Target) => Promise<ReadResult<AnswerOf<A["kind"]>>>;
+    /** The locations an answer carries, fetched from its temp file when it was too large to send inline. */
+    locationsOf: (list: LocationList) => Promise<Location[]>;
 };
 
-/** The read-only id-membership surface shared by `Set<number>` and `SelectedIds`, for code
- *  that only needs `size` / `has` / iteration over either. */
-export interface ReadonlyIdSet extends Iterable<number> {
-    readonly size: number;
-    has(id: number): boolean;
-}
-/**
- * Membership set of selected location ids, backed by a bit array indexed by id rather than a
- * hash `Set`. Location ids are dense u32s, so a bitset makes the build ~10x cheaper than 1M
- * `Set.add`s (a typed-array OR vs hashing), with O(1) `has`/`size`. Iteration yields the
- * selected ids from the overlay's id array. Exposes the Set-like surface its consumers use.
- */
-declare class SelectedIds {
-    /** Shared empty selection (no map open / cleared). */
-    static readonly EMPTY: SelectedIds;
-    private readonly bits;
-    /** Count of distinct selected ids (not overlay entries - an id selected by N
-     *  overlapping selections still counts once). */
-    readonly size: number;
-    constructor(bits: Uint8Array, size: number);
-    has(id: number): boolean;
-    /** Yields each selected id once, ascending. Scans the bit array, so it's O(maxId/8);
-     *  used by deliberate bulk consumers (export, bulk-tag, delete), not the per-frame path. */
-    [Symbol.iterator](): Iterator<number>;
-}
-/**
- * The markers drawn by the selection overlay, keyed by location id.
- *
- * Sole authority on "is this row drawn by the overlay rather than the base layer" - the
- * base cells hold no selection state, they derive their visibility byte from `has`.
- * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
- * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
- * alone, and every by-id operation is O(1).
- *
- * Writes swap-remove, so slots land unordered - but the overlay is one deck.gl layer and
- * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
- * puts the slots back in selection order, and the batch entry points call it once they
- * settle. Nothing else may hand these arrays to a layer.
- */
-declare class SelectionOverlay {
-    positions: Float32Array<ArrayBuffer>;
-    colors: Uint8Array<ArrayBuffer>;
-    angles: Float32Array<ArrayBuffer>;
-    ids: Uint32Array<ArrayBuffer>;
-    /** Per-entry index of the selection drawing it, and the sort key `order()` uses.
-     *  CPU-side bookkeeping like `ids` - never an attribute, never uploaded. */
-    sel: Uint32Array<ArrayBuffer>;
-    count: number;
-    version: number;
-    private capacity;
-    private bits;
-    /** id -> slot. Only meaningful where `bits` is set, so it needs no empty sentinel. */
-    private slot;
-    /** Scratch for `order()`: entry -> destination slot. Reused across calls. */
-    private dest;
-    has(id: number): boolean;
-    /** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
-     *  selection's index - the sort key `order()` needs, which no caller can recover from
-     *  the colour alone once two selections share one. */
-    set(id: number, lng: number, lat: number, heading: number, color: Readonly<RGB>, selIdx: number): void;
-    /** Follow a row that moved. No-op when the row isn't in the overlay. */
-    move(id: number, lng?: number, lat?: number, heading?: number): void;
-    delete(id: number): void;
-    clear(): void;
-    /**
-     * Sort the entries by selection index, so a later selection's markers overdraw an
-     * earlier one's everywhere rather than wherever slot order happens to favour them.
-     *
-     * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
-     * array sized by the selection count. The leading scan makes the cases that need no
-     * work - already ordered, or one selection in play - a single pass with no allocation,
-     * which covers a plain single-selection map entirely.
-     */
-    order(): void;
-    /** Exchange two slots, keeping `slot` pointing at where each id actually lives. */
-    private swap;
-    /** Snapshot of the selected ids. Copies the bit array so later edits can't mutate it. */
-    selectedIds(): SelectedIds;
-    /** Size up front for a rebuild of known size, so `set` never reallocates mid-loop. */
-    reserve(n: number, maxId: number): void;
-    /** Grow the draw arrays to hold `n` entries and the id-keyed arrays to cover `maxId`. */
-    private ensure;
-}
-/**
- * Typed-array backed buffer for one geohash cell's marker data.
- * Grows by doubling. Removals use swap-remove (O(1), order not preserved).
- * Versioned per-attribute so deck.gl can skip unchanged layers.
- */
-declare class CellBuffer {
-    ids: number[];
-    idToIndex: Map<number, number>;
-    positions: Float32Array;
-    /** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
-     *  global marker colour, which the layer supplies as a constant, so the only per-marker
-     *  colour fact is whether a selection or the open-location highlight is covering it. */
-    visible: Uint8Array;
-    angles: Float32Array;
-    count: number;
-    capacity: number;
-    positionVersion: number;
-    colorVersion: number;
-    constructor(capacity?: number);
-    /** A cell holding `rows` as they are, viewing the frame's arrays rather than copying
-     *  them. Every row starts hidden until the caller paints it. */
-    static of(rows: FrameRows): CellBuffer;
-    /** Append a marker, growing the buffer if needed. Visibility is set by the caller once
-     *  the overlay knows about the row. */
-    append(id: number, lng: number, lat: number, angle: number): void;
-    /** O(1) removal by swapping with the last element. */
-    swapRemove(index: number): void;
-    patchPosition(index: number, lng: number, lat: number, angle: number): void;
-    /** Show (255) or hide (0) one marker in the base layer. */
-    patchVisible(index: number, visible: number): void;
-    private ensureCapacity;
-}
-/** One cell's rows in a frame, viewed in place: ids for adds, slots for patches. @unstable */
-export interface FrameRows {
-    key: Uint32Array<ArrayBuffer>;
-    pos: Float32Array<ArrayBuffer>;
-    angle: Float32Array<ArrayBuffer>;
-    sel: Uint32Array<ArrayBuffer>;
-}
-/** What applying one frame did: the map version the scene reached, whether it started the
- *  scene over, and the ids it added and removed, ascending. A row that moved between cells
- *  is in neither; a replace lists nothing. @unstable */
-export interface FrameSummary {
-    version: number;
-    replace: boolean;
-    added: Uint32Array;
-    removed: Uint32Array;
-}
-/**
- * Owns all marker render data as 32 geohash-cell CellBuffers plus a selection overlay,
- * kept in step with the map by applying its render frames in order (`apply`).
- * deck.gl layers read the typed arrays directly - no JSON serialization in the render loop.
- */
-declare class CellManager {
-    cells: Map<string, CellBuffer>;
-    totalCount: number;
-    version: number;
-    /** Largest location id seen - sizes the selection bitset. Monotonic (never shrinks on
-     *  removal; an overestimate just over-allocates a few bytes). */
-    maxId: number;
-    /** The rows the selection overlay draws, and the only record of which rows are selected. */
-    readonly overlay: SelectionOverlay;
-    /** The location the open-location layer draws, hidden in its base cell. */
-    private openId;
-    /** Scratch for `restateSelections`: per-row winning selection index, reused across
-     *  cells so a full restate does not allocate one array per cell. */
-    private selWinner;
-    /**
-     * Apply one render frame. Every cell's removals swap-remove their slots first; then per
-     * cell the adds append and the patches restate rows by their slot. Every added or patched row
-     * states the selection painting it, so the base cells and the overlay are written from
-     * one fact. A selection section, when present, then restates every cell's membership.
-     */
-    apply(buf: ArrayBuffer): FrameSummary;
-    /** Put the row at `cb[i]` in or out of the selection overlay and set its base visibility.
-     *  Idempotent, so restating a row's current state costs nothing but is always safe.
-     *  The caller bumps the cell's colour version once for the whole frame. */
-    private paint;
-    /** Set the open location, whose marker the open-location layer draws instead of the base cell. */
-    setOpen(id: number | null): void;
-    /**
-     * A base row is hidden exactly when something else is drawing it: the selection overlay
-     * or the open-location layer. The only place `visible` is decided for a single row, so
-     * "selected" and "open" never have to negotiate over the byte.
-     */
-    private syncVisible;
-    /** Visit every rendered location's position. The cells hold all alive rows (a `visible`
-     *  0 only means the overlay or open-location layer draws that row instead), so this is the
-     *  maintained full-map position set. */
-    forEachPosition(f: (id: number, lng: number, lat: number) => void): void;
-    /** Map a deck.gl pick (cell + index) back to a location ID. */
-    resolvePickFromCell(cellKey: string, cellIndex: number): number | null;
-    /** Selected-id set, snapshotted from the overlay. */
-    selectedIds(): SelectedIds;
-    /**
-     * Restate the selection overlay from a frame's selection section. Selected rows are
-     * drawn by the overlay in their selection's color and hidden in their base cell.
-     *
-     * Partial updates are supported: only the cells named in `cellEntries` are restated,
-     * and overlay entries for every other cell survive untouched.
-     */
-    private restateSelections;
-    clear(): void;
-}
-
-declare const Location: {
-    /** Add locations to the map and return their new ids, in order. Undoable. */
-    add: (locs: Location[]) => Promise<number[]>;
-    /** Add `location` to another map unless that map already holds it, its interned values
-     *  named by `records`. Resolves to whether it was added. Undoable in that map. @unstable */
-    addTo: (mapId: string, location: Location, records: Parameters<typeof Edit.locations>[2]) => Promise<boolean>;
-    /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
-    duplicate: (id: number) => Promise<number | null>;
-    /** Remove locations by id. Undoable. */
-    remove: (ids: ReadonlyIdSet) => Promise<void>;
-    /** Patch locations by id. Only include the fields you're changing; `extra` merges
-     *  per-key (null deletes a key). Undoable by default. */
-    update: (updates: Patch<Location>[]) => Promise<void>;
-    /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
-    duplicateGroups: (distance: number) => Promise<number[][]>;
-};
-
+/** @unstable */
 export type LocationEdits = Parameters<typeof Edit.locations>[1];
+/** @unstable */
 export type LayerRead = <A extends Ask>(selector: Selector, ask: A) => Promise<ReadResult<AnswerOf<A["kind"]>>>;
-/** A pending layer. Operations run in order; work still writing to a landed layer outlives close. */
+/** A pending layer. Operations run in order; work still writing to a landed layer outlives close. @api @unstable */
 declare class Layer {
     readonly target: Extract<Target, {
         kind: "pending";
@@ -3926,6 +3427,7 @@ export interface Draft {
     /** Land the draft with `patch` applied, resolving its id. */
     save: (patch: DraftPatch) => Promise<number | null>;
 }
+/** Open locations and change the editor pane. @api */
 declare const Editor: {
     /** Imperative snapshot of the editor state. */
     get: () => Readonly<EditorState>;
@@ -4042,6 +3544,7 @@ export interface RunSettings {
     /** Recompute locations that already hold what the procedure writes. */
     force?: boolean;
 }
+/** Procedure modules: ask one a question, or run one over locations. @api */
 declare const Procedure: {
     /** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
     entry: (name: string) => string;
@@ -4071,70 +3574,23 @@ declare const Procedure: {
     drive: (scheduled: Scheduled[], opts: RunOpts) => Promise<ProcedureOutcomes>;
 };
 
-/** A registered provider to run, and what this run changes about it. @unstable */
-export interface ProviderRun<TConfig = unknown> {
-    provider: Provider<unknown, TConfig>;
-    /** Replaces the config the provider registered. */
-    config?: Partial<NoInfer<TConfig>>;
-    /** Recompute locations that already hold this provider's fields. Omitted, it follows
-     *  the run's `force`. */
-    force?: boolean;
-    /** The `fieldDefs` keys to produce; omitted, every key it declares. */
-    fields?: string[];
-    /** The locations to run over; omitted, the run's selector. */
-    select?: Selector;
+/** @api @unstable */
+declare function enrich(selector: Selector, { resolve, ...opts }?: RunOpts & {
+    resolve?: boolean;
+}): Promise<ProcedureOutcomes>;
+
+/** Get a module the app bundles (e.g. "react", "@deck.gl/core") for use inside a plugin.
+ *  Lazy modules must be loaded with `preloadModules` first. @api */
+declare function mmaRequire(id: string): unknown;
+/** Load lazy bundled modules so `mmaRequire` can return them synchronously. @api */
+declare function preloadModules(ids: string[]): Promise<void>;
+/** Names of every module available through `mmaRequire`. @api */
+declare function getAvailableExternals(): string[];
+declare global {
+    var __mma_require: typeof mmaRequire;
 }
-/** A named procedure with dependency-graph placement. Providers that declare
- *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. @unstable */
-export interface Provider<TCollected = unknown, TConfig = unknown> {
-    /** @unstable */
-    id: string;
-    /** Name shown in enrichment progress and results. @unstable */
-    label: string;
-    /** The procedure that computes this provider's fields. @unstable */
-    procedure: ProcedureSpec<TCollected, TConfig>;
-    /** Extra-field keys this provider produces. Each is offered as an enrichment option. @unstable */
-    fieldDefs?: Record<string, FieldDef>;
-    /** Leaves this provider's fields out of the default enrichment set, so users opt in. @unstable */
-    defaultOff?: boolean;
-    /** Core columns this provider writes (e.g. `panoId`). @unstable */
-    provides?: string[];
-    /** Fields this provider reads; it runs after their producers finish. @unstable */
-    requires?: string[];
-}
-declare const Provider: {
-    /** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
-     *  deactivates. Resolves once the provider can run. */
-    register: (provider: Provider) => Promise<void>;
-    /** All registered providers. @unstable */
-    list: () => Provider[];
-    /** The provider that produces a given extra field, if any. @unstable */
-    forField: (field: string) => Provider | undefined;
-    /** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
-     *  become locale month names; otherwise falls back to the keys themselves when the field's
-     *  procedure has no `label` query or returns a non-matching array. @unstable */
-    labels: (field: string, keys: string[], key?: KeySpec) => Promise<string[]>;
-    /** Run registered providers over the locations `selector` matches and write their results
-     *  back. Resolves once every provider finishes, or on abort. @unstable */
-    run: <C extends readonly unknown[]>(runs: { [K in keyof C]: ProviderRun<C[K]>; }, selector: Selector, opts?: RunOpts) => Promise<ProcedureOutcomes>;
-};
 
-declare const History: {
-    /** Whether `timeline` can step back (undo) or forward (redo). @unstable */
-    available: (history: MapState["history"], stack: Stack, timeline: Timeline) => boolean;
-    /** Undo the newest edit on `timeline`, or redo the newest undone one. */
-    step: (stack: Stack, timeline: Timeline) => Promise<void>;
-};
-
-declare const Commit: {
-    /** Commit all pending changes to the map's version history. Clears the undo stack. */
-    create: (message?: string) => Promise<string>;
-    /** Commit `mapId` in the background once pending saves finish. @unstable */
-    background: (mapId: string, message: string) => void;
-    /** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
-    checkout: (commitId: string) => Promise<void>;
-};
-
+/** Rename or remove metadata fields across the map. @api */
 declare const Field$1: {
     /** Rename extra-field `from` to `to` across all locations, its definition, and the listed
      *  selections, in one undoable step. When a location already holds `to`, `winner` decides
@@ -4145,184 +3601,107 @@ declare const Field$1: {
     remove: (key: string) => Promise<void>;
 };
 
-/** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
- *  interleaved `[lng, lat]` Float32Arrays. @unstable */
-export interface CommitDiffPreview {
-    hash: string;
-    counts: Counts;
-    added: Float32Array;
-    removed: Float32Array;
-    updated: Float32Array;
-}
+/** True when `key` is a built-in Location field (stored top-level, not under `extra`). @api */
+declare function isBuiltinField(key: string): boolean;
+/** True when the field can be bulk-edited. @api @unstable */
+declare function isWritableField(key: string): boolean;
+/** True when the field can be bulk-cleared. @api @unstable */
+declare function isClearableField(key: string): boolean;
+/** True when the field should appear in field pickers. @api @unstable */
+declare function isListableField(key: string): boolean;
+/** All built-in field keys (excluding virtual). @api @unstable */
+declare function getBuiltinKeys(): string[];
+/** Register field definitions from an enrichment provider (called at activation). @api */
+declare function registerPluginFieldDefs(defs: Record<string, FieldDef>): void;
+/** Remove plugin field definitions by key (called when a plugin is deactivated). @api */
+declare function unregisterPluginFieldDefs(keys: string[]): void;
+/** Every listable built-in, and every field this map defines. @api @unstable */
+declare function getFieldKeys(): string[];
+/** Keys this map defines a field for. Same reference until the user layer moves. @api */
+declare const getKnownFieldKeys: () => ReadonlySet<string>;
+/** Look up metadata for a field key. Returns `undefined` if no layer declares it. @api */
+declare function getFieldDef(key: string): FieldDef | undefined;
+/** Translated display label for a field key, falling back to a sentence-cased version of the key. @api */
+declare function fieldLabel(key: string): string;
+/** Display label for a field value. Enum values use their translated display name. @api */
+declare function fieldValueLabel(def: FieldDef | undefined, value: unknown): string;
+/** The value space a field declares, as bare strings. Distinct from the store's
+ *  `fieldValues`, which reports the values actually present in the data. @api */
+declare function declaredValues(def: FieldDef | undefined): string[] | null;
+/** Merged view of all field definitions across all layers. @api */
+declare function getAllFieldDefs(): Record<string, FieldDef>;
+
 /** @unstable */
-declare const CommitDiff: {
-    /** Whether there are uncommitted changes (adds, removes, or updates). @unstable */
-    has: () => boolean;
-    /** React hook: the uncommitted add/remove/modify counts. @unstable */
-    use: () => Counts;
-    /** The current commit-diff preview, or null when not previewing. @unstable */
-    preview: () => CommitDiffPreview | null;
-    /** Clear commit-diff preview state. @unstable */
-    reset: () => void;
-    /** Pack `[lng, lat]` pairs into an interleaved Float32Array. @unstable */
-    positions: (locs: LatLng[]) => Float32Array;
-    /** Fetch a commit's change and overlay its added/removed/updated locations on the map,
-     *  temporarily replacing the regular markers. @unstable */
-    begin: (commit: CommitInfo) => Promise<void>;
-    /** Leave commit-diff preview and restore the regular markers. @unstable */
-    end: () => void;
-};
-
-/** Parsed-but-not-committed import shown while `workArea === "import"`. @unstable */
-export interface ImportStaging {
-    preview: EditorImportPreview;
-}
-/** @unstable */
-declare const Import: {
-    /** The preview marker positions for the staged import. @unstable */
-    previewPositions: () => Float32Array<ArrayBufferLike>;
-    /** The current staged import, or null if none. @unstable */
-    staging: () => ImportStaging | null;
-    /** Discard the staged import and its pending layer. @unstable */
-    reset: () => void;
-    /** Import from a file path. @unstable */
-    fromPath: (path: string) => Promise<void>;
-    /** Stage pasted text for preview. Throws if no locations are found. @unstable */
-    paste: (text: string) => Promise<void>;
-    /** Import the staged file, dropping chosen fields and tags and applying bulk tags. @unstable */
-    confirm: (droppedFields: string[], tagNames?: string[], droppedTags?: string[]) => Promise<EditorImportResult | null>;
-    /** Discard the staged import without committing. @unstable */
-    cancel: () => void;
-};
-
-/** Saved selection rules shared across maps. Tag membership is stored by name
- * so rules can be applied on maps with different tag ids. */
-
-/** One part of a saved rule: what its chip reads as, and what it resolves to here. The
- *  label comes from the tree as saved, so a tag this map doesn't have still reads by the
- *  name it was saved under. @unstable */
-export interface SavedPart {
+export interface EnrichFieldOption {
+    key: string;
     label: string;
-    color: RGB;
-    selector: Selector;
+    /** Excluded from the default field set (null enrichFields); user must opt in. */
+    defaultOff?: boolean;
 }
+/** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). @api */
+declare function knownFieldDefs(...keys: string[]): Record<string, FieldDef>;
+/** All enrichment field options: the core fields, then every registered provider's own fields. @api @unstable */
+declare function getEnrichFieldOptions(): EnrichFieldOption[];
+/** All enrichment field keys (core and plugin-registered). @api @unstable */
+declare function getAllEnrichKeys(): string[];
+/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @api @unstable */
+declare function getDefaultEnrichKeys(): string[];
+/** The enrichment fields `key`'s provider reads. @api @unstable */
+declare function enrichInputs(key: string): string[];
+/** The fields enrichment fetches for `enrichFields` (the default set when null): the chosen
+ *  ones and every field they read, so no field runs without its inputs. @api @unstable */
+declare function enabledEnrichKeys(enrichFields?: string[] | null): string[];
+/** True when enrichment fetches `key` for the given enrichment set. @api @unstable */
+declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
+
 /** @unstable */
-declare const SavedSelection: {
-    /** Selection types that cannot be saved as rules because they are bound to the open map. @unstable */
-    MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "Validation", "Reviewed", "Selected"];
-    /** Whether the selector tree contains only portable types (no map-local leaves). @unstable */
-    isSaveable: (selector: Selector) => boolean;
-    /** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
-     *  a single part. @unstable */
-    parts: (saved: SavedSelection) => SavedPart[];
-    /** The rules that exist, as identity only. Empty until the index loads: the first
-     *  call starts the read and `saved-selections:changed` announces it. @unstable */
-    index: () => SavedSelectionInfo[];
-    /** Load the full rule bodies for the given `ids`. @unstable */
-    load: (ids: string[]) => Promise<SavedSelection[]>;
-    /** Every rule with its body. @unstable */
-    loadAll: () => Promise<SavedSelection[]>;
-    /** Persists the saveable selections as one rule. False when none of them are saveable. @unstable */
-    save: (name: string, selections: Selection[]) => Promise<boolean>;
-    /** Permanently delete a saved selection rule. @unstable */
-    remove: (id: string) => Promise<void>;
-    /** Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
-     *  were added. @unstable */
-    apply: (saved: SavedSelection) => number;
+export interface FieldProjection {
+    id: string;
+    label: string;
+    /** True when this projection uses the location's timezone. */
+    needsTz: boolean;
+}
+/** Projections valid for a field type, in display order (first = dialog default). @api @unstable */
+declare function projectionsForType(type: FieldType): FieldProjection[];
+/** The "Range" partition option (numeric binning). @api @unstable */
+declare const RANGE_ID = "range";
+/** Partition-key dropdown options for a field type. @api @unstable */
+declare function partitionKeyOptions(type: FieldType, rangeForDates: boolean): {
+    id: string;
+    label: string;
+}[];
+
+/** The full local mirror of the store's derived state, as of the map version it reflects. */
+export type EngineState = Omit<Derived, "map"> & {
+    version: number;
+};
+/** The open map's own details. Its value records, field definitions, and counts live in their
+ *  own slices. */
+export type MapDetails = Derived["map"];
+export interface UiState {
+    mapId: string | null;
+    /** Persisted identity slice (metadata + settings). Changes rarely. */
+    map: MapDetails | null;
+    /** Why the map in `mapId` could not be opened, or null. */
+    openError: string | null;
+}
+export type MapState = UiState & EngineState;
+/** Read and update the open map state. @api */
+declare const Store: {
+    /** Reactive slice of the map state. Re-renders only when the selected value's
+     *  reference changes (`Object.is`), so selectors must return state fields or
+     *  memoized values, not a new value per call. */
+    use: <T>(selector: (s: MapState) => T) => T;
+    /** Imperative snapshot of the map state. */
+    get: () => Readonly<MapState>;
 };
 
-/** An [r, g, b, a] byte tuple. @unstable */
-export type RGBA = [...RGB, number];
-/** Hue in degrees, saturation and lightness in percent. @unstable */
-export type HSL = {
-    h: number;
-    s: number;
-    l: number;
-};
-/** Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex. @unstable */
-declare function hexToRgb(hex: string): RGB;
-/** Return "#000" or "#fff" for readable text on the given hex background. @unstable */
-declare function textColorFor(bg: string): string;
-/** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
- *  ramp name (legacy stored format). @unstable */
-declare function resolveSvColorHex(color: string): string;
-/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @unstable */
-declare function applyAccentColor(hex: string): void;
-/** Convert "#rrggbb" to HSL. @unstable */
-declare function hexToHsl(hex: string): HSL;
-/** Convert HSL to "#rrggbb". @unstable */
-declare function hslToHex({ h, s, l }: HSL): string;
-/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @unstable */
-declare function hslToRgb(h: number, s: number, l: number): RGB;
-/**
- * Deterministic tag color from a name.
- *  @unstable
- */
-declare function colorForName(name: string): string;
-/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. @unstable */
-declare function rgbCss([r, g, b]: RGB): string;
-/** Convert an RGB byte tuple to "#rrggbb". @unstable */
-declare function rgbToHex(rgb: RGB): string;
-/** A label's color: a user override if set, else a deterministic color from its name. @unstable */
-declare function labelColor(name: string, overrides: Record<string, string>): string;
-
-/** @unstable */
-export type colorUtils_HSL = HSL;
-/** @unstable */
-export type colorUtils_RGBA = RGBA;
-/** @unstable */
-declare const colorUtils_applyAccentColor: typeof applyAccentColor;
-/** @unstable */
-declare const colorUtils_colorForName: typeof colorForName;
-/** @unstable */
-declare const colorUtils_hexToHsl: typeof hexToHsl;
-/** @unstable */
-declare const colorUtils_hexToRgb: typeof hexToRgb;
-/** @unstable */
-declare const colorUtils_hslToHex: typeof hslToHex;
-/** @unstable */
-declare const colorUtils_hslToRgb: typeof hslToRgb;
-/** @unstable */
-declare const colorUtils_labelColor: typeof labelColor;
-/** @unstable */
-declare const colorUtils_resolveSvColorHex: typeof resolveSvColorHex;
-/** @unstable */
-declare const colorUtils_rgbCss: typeof rgbCss;
-/** @unstable */
-declare const colorUtils_rgbToHex: typeof rgbToHex;
-/** @unstable */
-declare const colorUtils_textColorFor: typeof textColorFor;
-declare namespace colorUtils {
-  export { colorUtils_applyAccentColor as applyAccentColor, colorUtils_colorForName as colorForName, colorUtils_hexToHsl as hexToHsl, colorUtils_hexToRgb as hexToRgb, colorUtils_hslToHex as hslToHex, colorUtils_hslToRgb as hslToRgb, colorUtils_labelColor as labelColor, colorUtils_resolveSvColorHex as resolveSvColorHex, colorUtils_rgbCss as rgbCss, colorUtils_rgbToHex as rgbToHex, colorUtils_textColorFor as textColorFor };
-  export type { colorUtils_HSL as HSL, colorUtils_RGBA as RGBA };
-}
-
-/** @unstable */
-declare const Scene: {
-    /** The shared scene that all map surfaces render from. @unstable */
-    get: () => CellManager;
-    /** Set the default marker color (RGB bytes). @unstable */
-    setDefaultColor: (r: number, g: number, b: number) => void;
-    /** Change the default marker color and repaint. @unstable */
-    recolor: (mc: RGB) => void;
-    /** Current default marker color as RGBA. @unstable */
-    defaultColor: () => RGBA;
-    /**
-     * Resolves once the scene has applied the frame for map version `version`, with what that
-     * frame did. Resolves at once, with nothing applied, when the scene follows no map.
-     * @unstable
-     */
-    reached: (version: number) => Promise<FrameSummary>;
-    /** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
-    settled: () => Promise<void>;
-    /** Load the whole scene again and follow every change to it from there. @unstable */
-    load: (markerStyle?: MarkerStyle, mc?: RGB) => Promise<void>;
-    /** Clear all marker data from the scene and stop following the map. @unstable */
-    clear: () => void;
-    /** The ids of the locations the listed selections select. @unstable */
-    selected: () => SelectedIds;
-    /** Reactive {@link Scene.selected}. @unstable */
-    useSelected: () => SelectedIds;
+/** Navigate undo and redo history. @api */
+declare const History: {
+    /** Whether `timeline` can step back (undo) or forward (redo). @unstable */
+    available: (history: MapState["history"], stack: Stack, timeline: Timeline) => boolean;
+    /** Undo the newest edit on `timeline`, or redo the newest undone one. */
+    step: (stack: Stack, timeline: Timeline) => Promise<void>;
 };
 
 /** A value saved in local storage: its key and its defaults. @unstable */
@@ -4727,7 +4106,7 @@ export type CommandId = keyof typeof COMMANDS;
 /** @unstable */
 export type PinnedEntry = CommandId | "---" | (string & {});
 
-/** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. @unstable */
+/** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. @api @unstable */
 declare const LANGUAGES: {
     /** @unstable */
     readonly en: "English";
@@ -4748,7 +4127,7 @@ declare const LANGUAGES: {
     /** @unstable */
     readonly "en-XA": "Pseudolocale";
 };
-/** @unstable */
+/** @api @unstable */
 declare const MOVEMENT_MODES: {
     /** @unstable */
     readonly moving: "Moving";
@@ -4757,7 +4136,7 @@ declare const MOVEMENT_MODES: {
     /** @unstable */
     readonly nmpz: "NMPZ";
 };
-/** @unstable */
+/** @api @unstable */
 declare const SEEN_RESOLUTIONS: {
     /** @unstable */
     readonly low: "Low (160x90)";
@@ -4766,21 +4145,21 @@ declare const SEEN_RESOLUTIONS: {
     /** @unstable */
     readonly high: "High (640x360)";
 };
-/** @unstable */
+/** @api @unstable */
 declare const EXACT_DATE_FORMATS: {
     /** @unstable */
     readonly date: "Date only";
     /** @unstable */
     readonly datetime: "Date + time";
 };
-/** @unstable */
+/** @api @unstable */
 declare const DATE_TIMEZONES: {
     /** @unstable */
     readonly location: "Location timezone";
     /** @unstable */
     readonly utc: "UTC";
 };
-/** @unstable */
+/** @api @unstable */
 declare const MAP_LIST_FIELDS: {
     /** @unstable */
     readonly locationCount: "Location count";
@@ -4789,7 +4168,7 @@ declare const MAP_LIST_FIELDS: {
     /** @unstable */
     readonly created: "Date created";
 };
-/** @unstable */
+/** @api @unstable */
 declare const DISCORD_PRESENCE_MODES: {
     /** @unstable */
     readonly off: "Off";
@@ -4798,7 +4177,7 @@ declare const DISCORD_PRESENCE_MODES: {
     /** @unstable */
     readonly full: "Full (map name + count)";
 };
-/** @unstable */
+/** @api @unstable */
 declare const GEOCODE_PROVIDERS: {
     /** @unstable */
     readonly local: "Local (offline)";
@@ -4807,9 +4186,9 @@ declare const GEOCODE_PROVIDERS: {
     /** @unstable */
     readonly google: "Google (from panorama)";
 };
-/** @unstable */
+/** @api @unstable */
 declare const GEOCODE_PROVIDER_LABELS: Record<keyof typeof GEOCODE_PROVIDERS, string>;
-/** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. @unstable */
+/** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. @api @unstable */
 declare const UNIT_SYSTEMS: {
     /** @unstable */
     readonly auto: "Automatic";
@@ -4818,35 +4197,35 @@ declare const UNIT_SYSTEMS: {
     /** @unstable */
     readonly imperial: "Imperial (ft / mi)";
 };
-/** @unstable */
+/** @api @unstable */
 declare const TAG_VIEW_MODES: {
     /** @unstable */
     readonly flat: "Flat";
     /** @unstable */
     readonly tree: "Tree";
 };
-/** @unstable */
+/** @api @unstable */
 declare const TAG_FOLDER_COLOR_MODES: {
     /** @unstable */
     readonly direct: "Fixed color";
     /** @unstable */
     readonly firstChild: "Inherit first child";
 };
-/** @unstable */
+/** @api @unstable */
 declare const OPACITY_TOGGLE_MODES: {
     /** @unstable */
     readonly previous: "Last used opacity";
     /** @unstable */
     readonly full: "Full opacity";
 };
-/** @unstable */
+/** @api @unstable */
 declare const POLYGON_COLOR_MODES: {
     /** @unstable */
     readonly random: "Random";
     /** @unstable */
     readonly fixed: "Fixed color";
 };
-/** @unstable */
+/** @api @unstable */
 declare const BORDER_DETAILS: {
     /** @unstable */
     readonly light: "Standard (bundled)";
@@ -4855,7 +4234,7 @@ declare const BORDER_DETAILS: {
     /** @unstable */
     readonly heavy: "Ultra ({size})";
 };
-/** Download size of each border detail level, in bytes. @unstable */
+/** Download size of each border detail level, in bytes. @api @unstable */
 declare const BORDER_ARCHIVE_BYTES: {
     /** @unstable */
     readonly medium: 7460312;
@@ -4864,16 +4243,16 @@ declare const BORDER_ARCHIVE_BYTES: {
     /** @unstable */
     readonly adm1: 56891952;
 };
-/** @unstable */
+/** @api @unstable */
 declare const SUBDIVISION_DETAILS: {
     /** @unstable */
     readonly off: "Off";
     /** @unstable */
     readonly adm1: "States / provinces";
 };
-/** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). @unstable */
+/** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). @api @unstable */
 declare const TAG_SUGGESTION_LIMITS: readonly [5, 10, 25, 50, 0];
-/** @unstable */
+/** @api @unstable */
 declare const PREVIEW_ASPECT_RATIOS: {
     /** @unstable */
     readonly "4 / 3": "4:3";
@@ -4892,7 +4271,7 @@ declare const PREVIEW_ASPECT_RATIOS: {
 export type Language = keyof typeof LANGUAGES;
 /** @unstable */
 export type MovementMode = keyof typeof MOVEMENT_MODES;
-/** @unstable */
+/** @api @unstable */
 declare const MOVEMENT_CYCLE: MovementMode[];
 /** @unstable */
 export type ExactDateFormat = keyof typeof EXACT_DATE_FORMATS;
@@ -4922,7 +4301,7 @@ export type BorderDetail = keyof typeof BORDER_DETAILS;
 export type SubdivisionDetail = keyof typeof SUBDIVISION_DETAILS;
 /** @unstable */
 export type PreviewAspectRatio = keyof typeof PREVIEW_ASPECT_RATIOS;
-/** Default values for every app setting. @unstable */
+/** Default values for every app setting. @api @unstable */
 declare const DEFAULTS: {
     /** @unstable */
     showCameraBadges: boolean;
@@ -5093,11 +4472,11 @@ declare const DEFAULTS: {
 };
 /** @unstable */
 export type AppSettings = typeof DEFAULTS;
-/** Settings holding private information that should not be exfiltrated. @unstable */
+/** Settings holding private information that should not be exfiltrated. @api @unstable */
 declare const PRIVATE_SETTINGS: ReadonlySet<keyof AppSettings>;
-/** App settings exposed as CSS custom properties on `:root`. @unstable */
+/** App settings exposed as CSS custom properties on `:root`. @api @unstable */
 declare const CSS_VAR_SETTINGS: ReadonlyArray<readonly [cssVar: string, value: (s: AppSettings) => string]>;
-/** localStorage descriptor for the persisted settings object. @unstable */
+/** localStorage descriptor for the persisted settings object. @api @unstable */
 declare const APP_SETTINGS: PersistedStore<{
     showCameraBadges: boolean;
     showLinksControl: boolean;
@@ -5202,126 +4581,25 @@ declare const APP_SETTINGS: PersistedStore<{
     remoteApiKey: string;
     pinnedCommands: PinnedEntry[];
 }>;
-/** The current app settings snapshot. @unstable */
+/** The current app settings snapshot. @api @unstable */
 declare function getSettings(): AppSettings;
-/** True while the pano-UI toggle covers the navigation visuals too. @unstable */
+/** True while the pano-UI toggle covers the navigation visuals too. @api @unstable */
 declare function navHiddenWithUI(s: AppSettings): boolean;
-/** Effective StreetViewPanorama display options derived from the current settings. @unstable */
+/** Effective StreetViewPanorama display options derived from the current settings. @api @unstable */
 declare function panoDisplayOptions(s: AppSettings): {
     linksControl: boolean;
     clickToGo: boolean;
     showRoadLabels: boolean;
     scrollwheel: boolean;
 };
-/** Update one setting and persist. Emits `settings:changed`. @unstable */
+/** Update one setting and persist. Emits `settings:changed`. @api @unstable */
 declare function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void;
-/** Reset all settings to defaults. @unstable */
+/** Reset all settings to defaults. @api @unstable */
 declare function resetSettings(): void;
-/** React hook: all settings, re-rendering on any change. @unstable */
+/** React hook: all settings, re-rendering on any change. @api @unstable */
 declare function useSettings(): AppSettings;
-/** React hook: one setting value, re-rendering only when that key changes. @unstable */
+/** React hook: one setting value, re-rendering only when that key changes. @api @unstable */
 declare function useSetting<K extends keyof AppSettings>(key: K): AppSettings[K];
-
-/** @unstable */
-declare const settings_APP_SETTINGS: typeof APP_SETTINGS;
-/** @unstable */
-export type settings_AppSettings = AppSettings;
-/** @unstable */
-declare const settings_BORDER_ARCHIVE_BYTES: typeof BORDER_ARCHIVE_BYTES;
-/** @unstable */
-declare const settings_BORDER_DETAILS: typeof BORDER_DETAILS;
-/** @unstable */
-export type settings_BorderDetail = BorderDetail;
-/** @unstable */
-declare const settings_CSS_VAR_SETTINGS: typeof CSS_VAR_SETTINGS;
-/** @unstable */
-declare const settings_DATE_TIMEZONES: typeof DATE_TIMEZONES;
-/** @unstable */
-declare const settings_DEFAULTS: typeof DEFAULTS;
-/** @unstable */
-declare const settings_DISCORD_PRESENCE_MODES: typeof DISCORD_PRESENCE_MODES;
-/** @unstable */
-export type settings_DateTimezone = DateTimezone;
-/** @unstable */
-export type settings_DiscordPresenceMode = DiscordPresenceMode;
-/** @unstable */
-declare const settings_EXACT_DATE_FORMATS: typeof EXACT_DATE_FORMATS;
-/** @unstable */
-export type settings_ExactDateFormat = ExactDateFormat;
-/** @unstable */
-declare const settings_GEOCODE_PROVIDERS: typeof GEOCODE_PROVIDERS;
-/** @unstable */
-declare const settings_GEOCODE_PROVIDER_LABELS: typeof GEOCODE_PROVIDER_LABELS;
-/** @unstable */
-export type settings_GeocodeProvider = GeocodeProvider;
-/** @unstable */
-declare const settings_LANGUAGES: typeof LANGUAGES;
-/** @unstable */
-export type settings_Language = Language;
-/** @unstable */
-declare const settings_MAP_LIST_FIELDS: typeof MAP_LIST_FIELDS;
-/** @unstable */
-declare const settings_MOVEMENT_CYCLE: typeof MOVEMENT_CYCLE;
-/** @unstable */
-declare const settings_MOVEMENT_MODES: typeof MOVEMENT_MODES;
-/** @unstable */
-export type settings_MapListField = MapListField;
-/** @unstable */
-export type settings_MovementMode = MovementMode;
-/** @unstable */
-declare const settings_OPACITY_TOGGLE_MODES: typeof OPACITY_TOGGLE_MODES;
-/** @unstable */
-export type settings_OpacityToggleMode = OpacityToggleMode;
-/** @unstable */
-declare const settings_POLYGON_COLOR_MODES: typeof POLYGON_COLOR_MODES;
-/** @unstable */
-declare const settings_PREVIEW_ASPECT_RATIOS: typeof PREVIEW_ASPECT_RATIOS;
-/** @unstable */
-declare const settings_PRIVATE_SETTINGS: typeof PRIVATE_SETTINGS;
-/** @unstable */
-export type settings_PolygonColorMode = PolygonColorMode;
-/** @unstable */
-export type settings_PreviewAspectRatio = PreviewAspectRatio;
-/** @unstable */
-declare const settings_SEEN_RESOLUTIONS: typeof SEEN_RESOLUTIONS;
-/** @unstable */
-declare const settings_SUBDIVISION_DETAILS: typeof SUBDIVISION_DETAILS;
-/** @unstable */
-export type settings_SeenResolution = SeenResolution;
-/** @unstable */
-export type settings_SubdivisionDetail = SubdivisionDetail;
-/** @unstable */
-declare const settings_TAG_FOLDER_COLOR_MODES: typeof TAG_FOLDER_COLOR_MODES;
-/** @unstable */
-declare const settings_TAG_SUGGESTION_LIMITS: typeof TAG_SUGGESTION_LIMITS;
-/** @unstable */
-declare const settings_TAG_VIEW_MODES: typeof TAG_VIEW_MODES;
-/** @unstable */
-export type settings_TagFolderColorMode = TagFolderColorMode;
-/** @unstable */
-export type settings_TagViewMode = TagViewMode;
-/** @unstable */
-declare const settings_UNIT_SYSTEMS: typeof UNIT_SYSTEMS;
-/** @unstable */
-export type settings_UnitSystem = UnitSystem;
-/** @unstable */
-declare const settings_getSettings: typeof getSettings;
-/** @unstable */
-declare const settings_navHiddenWithUI: typeof navHiddenWithUI;
-/** @unstable */
-declare const settings_panoDisplayOptions: typeof panoDisplayOptions;
-/** @unstable */
-declare const settings_resetSettings: typeof resetSettings;
-/** @unstable */
-declare const settings_setSetting: typeof setSetting;
-/** @unstable */
-declare const settings_useSetting: typeof useSetting;
-/** @unstable */
-declare const settings_useSettings: typeof useSettings;
-declare namespace settings {
-  export { settings_APP_SETTINGS as APP_SETTINGS, settings_BORDER_ARCHIVE_BYTES as BORDER_ARCHIVE_BYTES, settings_BORDER_DETAILS as BORDER_DETAILS, settings_CSS_VAR_SETTINGS as CSS_VAR_SETTINGS, settings_DATE_TIMEZONES as DATE_TIMEZONES, settings_DEFAULTS as DEFAULTS, settings_DISCORD_PRESENCE_MODES as DISCORD_PRESENCE_MODES, settings_EXACT_DATE_FORMATS as EXACT_DATE_FORMATS, settings_GEOCODE_PROVIDERS as GEOCODE_PROVIDERS, settings_GEOCODE_PROVIDER_LABELS as GEOCODE_PROVIDER_LABELS, settings_LANGUAGES as LANGUAGES, settings_MAP_LIST_FIELDS as MAP_LIST_FIELDS, settings_MOVEMENT_CYCLE as MOVEMENT_CYCLE, settings_MOVEMENT_MODES as MOVEMENT_MODES, settings_OPACITY_TOGGLE_MODES as OPACITY_TOGGLE_MODES, settings_POLYGON_COLOR_MODES as POLYGON_COLOR_MODES, settings_PREVIEW_ASPECT_RATIOS as PREVIEW_ASPECT_RATIOS, settings_PRIVATE_SETTINGS as PRIVATE_SETTINGS, settings_SEEN_RESOLUTIONS as SEEN_RESOLUTIONS, settings_SUBDIVISION_DETAILS as SUBDIVISION_DETAILS, settings_TAG_FOLDER_COLOR_MODES as TAG_FOLDER_COLOR_MODES, settings_TAG_SUGGESTION_LIMITS as TAG_SUGGESTION_LIMITS, settings_TAG_VIEW_MODES as TAG_VIEW_MODES, settings_UNIT_SYSTEMS as UNIT_SYSTEMS, settings_getSettings as getSettings, settings_navHiddenWithUI as navHiddenWithUI, settings_panoDisplayOptions as panoDisplayOptions, settings_resetSettings as resetSettings, settings_setSetting as setSetting, settings_useSetting as useSetting, settings_useSettings as useSettings };
-  export type { settings_AppSettings as AppSettings, settings_BorderDetail as BorderDetail, settings_DateTimezone as DateTimezone, settings_DiscordPresenceMode as DiscordPresenceMode, settings_ExactDateFormat as ExactDateFormat, settings_GeocodeProvider as GeocodeProvider, settings_Language as Language, settings_MapListField as MapListField, settings_MovementMode as MovementMode, settings_OpacityToggleMode as OpacityToggleMode, settings_PolygonColorMode as PolygonColorMode, settings_PreviewAspectRatio as PreviewAspectRatio, settings_SeenResolution as SeenResolution, settings_SubdivisionDetail as SubdivisionDetail, settings_TagFolderColorMode as TagFolderColorMode, settings_TagViewMode as TagViewMode, settings_UnitSystem as UnitSystem };
-}
 
 /** @unstable */
 export interface MapEmbedPrefs {
@@ -5451,7 +4729,7 @@ export type DrawInterceptor = (rings: number[][][]) => boolean;
 export type MapHost = {
     [K in MapHostKind]: MapHostContract<K>;
 }[MapHostKind];
-/** @unstable */
+/** The embedded map host, its preferences, and click interceptors. @api @unstable */
 declare const MapHost: {
     /** Set or clear the main editor map host. @unstable */
     set: (host: MapHost | null) => void;
@@ -5478,75 +4756,844 @@ declare const MapHost: {
     create: (kind: MapHostKind, container: HTMLElement, prefs: MapEmbedPrefs, opts: CreateHostOpts) => Promise<MapHost>;
 };
 
+/** Parsed-but-not-committed import shown while `workArea === "import"`. @unstable */
+export interface ImportStaging {
+    preview: EditorImportPreview;
+}
+/** Stage, preview, and confirm an import into the open map. @api @unstable */
+declare const Import: {
+    /** The preview marker positions for the staged import. @unstable */
+    previewPositions: () => Float32Array<ArrayBufferLike>;
+    /** The current staged import, or null if none. @unstable */
+    staging: () => ImportStaging | null;
+    /** Discard the staged import and its pending layer. @unstable */
+    reset: () => void;
+    /** Import from a file path. @unstable */
+    fromPath: (path: string) => Promise<void>;
+    /** Stage pasted text for preview. Throws if no locations are found. @unstable */
+    paste: (text: string) => Promise<void>;
+    /** Import the staged file, dropping chosen fields and tags and applying bulk tags. @unstable */
+    confirm: (droppedFields: string[], tagNames?: string[], droppedTags?: string[]) => Promise<EditorImportResult | null>;
+    /** Discard the staged import without committing. @unstable */
+    cancel: () => void;
+};
+
+/** `map` jobs mutate the open map and are cancelled when it closes; `app` jobs survive. @unstable */
+export type JobScope = "map" | "app";
 /** @unstable */
-export interface PruneResult {
-    session: ReviewSession | null;
-    cursorMoved: boolean;
+export interface JobOpts {
+    scope?: JobScope;
+    /** Abort the underlying work. Omitted = the tray offers no cancel button. */
+    cancel?: () => void;
+    /** Reopen the owning UI. Omitted = the tray entry is not clickable. */
+    reveal?: () => void;
 }
 /** @unstable */
-declare const Review: {
-    /** Position of `id` in the session's worklist, or -1. O(1) per step. @unstable */
-    positionOf: (s: ReviewSession, id: number) => number;
-    /** Remove `removed` ids from a session's worklist and reviewed set. Advances the
-     *  cursor when the cursor id itself was removed. @unstable */
-    prune: (s: ReviewSession, removed: Set<number>) => PruneResult;
-    /** Mark the current cursor reviewed and step forward. `done` is true when the
-     *  session has no remaining items. @unstable */
-    advance: (s: ReviewSession) => {
-        session: ReviewSession;
-        done: boolean;
-    };
-    /** Step backward without marking anything reviewed. Null when already at the start. @unstable */
-    retreat: (s: ReviewSession) => ReviewSession | null;
-    /** Position of the session cursor within its review order. @unstable */
-    index: (s: ReviewSession) => number;
-    /** The session's locations in `mode`: those reviewed, or those still to review. @unstable */
-    ids: (s: ReviewSession, mode: ReviewMode) => number[];
-    /** Union of reviewed ids across sessions, de-duplicated. @unstable */
-    reviewedIds: (sessions: ReviewSession[]) => number[];
-    /** True when the cursor is on the session's first location. @unstable */
-    isAtStart: (s: ReviewSession) => boolean;
-    /** True when the cursor is on the session's last location. @unstable */
-    isAtEnd: (s: ReviewSession) => boolean;
-    /** Current cursor location is in the reviewed set. @unstable */
-    isCurrentReviewed: (s: ReviewSession) => boolean;
-    /** Reactive active review session, or null. @unstable */
-    useSession: () => ReviewSession | null;
-    /** The active review session, or null. @unstable */
-    session: () => ReviewSession | null;
-    /** Start or resume a review over `ids`. When `source` is a selection, re-reviewing
-     *  that selection resumes any in-progress session for it. @unstable */
-    begin: (ids: number[], source?: Selection) => Promise<void>;
-    /** Review the selected locations. With one active selection, the review belongs to it and
-     *  resumes with it. @unstable */
-    beginSelected: () => Promise<void>;
-    /** Make a saved session the active one, dropping locations that no longer exist. Given
-     *  the selection's current matches, any its worklist lacks are offered as new matches. @unstable */
-    resume: (s: ReviewSession, currentMatches?: number[]) => Promise<void>;
-    /** Reactive new matches of the active session's selection, not yet in its worklist. @unstable */
-    useNewMatches: () => number[];
-    /** Append the new matches to the end of the worklist, in the map's review order. @unstable */
-    appendNewMatches: () => Promise<void>;
-    /** Mark the current location reviewed and step to the next one. @unstable */
-    next: () => Promise<void>;
-    /** Step back to the previous location in the session. @unstable */
-    prev: () => Promise<void>;
-    /** Delete the current location and advance to the next one. Exits the pass if it
-     *  was the last item. @unstable */
-    deleteCurrent: () => Promise<void>;
-    /** Exit the review UI but keep the session resumable (persisted as active). @unstable */
-    cancel: () => void;
-    /** Rename a review session. @unstable */
-    rename: (id: string, name: string) => Promise<void>;
-    /** Delete a review session (its progress, not the locations). @unstable */
-    removeSession: (id: string) => Promise<void>;
-    /** Review sessions for the open map, optionally filtered by status. @unstable */
-    sessions: (status?: "active" | "done") => Promise<ReviewSession[]>;
-    /** Select every location marked reviewed across all sessions on this map. @unstable */
-    selectReviewed: () => Promise<void>;
-    /** The locations of review session `s` that are reviewed, or still to review. @unstable */
-    selector: (s: ReviewSession, mode: ReviewMode) => Selector;
+export interface JobEntry {
+    id: number;
+    label: string;
+    scope: JobScope;
+    fraction: number;
+    detail?: string;
+    /** The owning UI is showing its own progress; the tray skips this entry. */
+    hidden: boolean;
+    cancel?: () => void;
+    reveal?: () => void;
+}
+/** Handle for driving a registered job. All methods are no-ops once the job ended. @unstable */
+export interface JobHandle {
+    /** Set the progress bar fraction (0-1) and optional detail text. */
+    update(fraction: number, detail?: string): void;
+    setHidden(hidden: boolean): void;
+    /** Remove the job, optionally leaving a brief toast. */
+    finish(message?: string, duration?: number): void;
+    /** Remove the job and leave an error toast. */
+    fail(message: string): void;
+}
+/** Live jobs, for the tray. Reference changes on every update. @api @unstable */
+declare function getJobs(): JobEntry[];
+/** Register a long-running operation with the global job tray. The caller owns the
+ *  work; the registry owns only its presentation and the cancel/reveal controls. @api @unstable */
+declare function registerJob(label: string, opts?: JobOpts): JobHandle;
+/** @unstable */
+export interface JobRunContext {
+    signal: AbortSignal;
+    report: (fraction: number, detail?: string) => void;
+}
+/** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
+ *  through the handle, ends the job however `fn` settles, and resolves to how it settled.
+ *  A failure also toasts. @api @unstable */
+declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<Settled<R>>;
+/** Cancel every live job of `scope` that can be cancelled. Owners observe their own
+ *  abort and end their jobs; entries without a cancel are removed outright. @api @unstable */
+declare function cancelJobs(scope: JobScope): void;
+/** @unstable */
+export type MapExitKind = "leave" | "quit";
+/** The pending map-exit confirmation, for the dialog. @api @unstable */
+declare function getExitRequest(): {
+    kind: MapExitKind;
+} | null;
+/** Gate a user action that would end every map-scoped job. Resolves true immediately when
+ *  none are live; otherwise raises the confirm dialog, and true means the jobs were
+ *  cancelled and the action should proceed. @api @unstable */
+declare function confirmMapExit(kind: MapExitKind): Promise<boolean>;
+/** Answer the pending map-exit confirmation. @api @unstable */
+declare function resolveMapExit(ok: boolean): void;
+
+export interface PluginStorage {
+    get<T = unknown>(key: string, fallback?: T): T;
+    set(key: string, value: unknown): void;
+    remove(key: string): void;
+    keys(): string[];
+}
+/** A plugin's store in the open map. Writes resolve once they are saved. */
+export interface MapPluginStorage {
+    get<T = unknown>(key: string, fallback?: T): T;
+    set(key: string, value: unknown): Promise<void>;
+    remove(key: string): Promise<void>;
+    keys(): string[];
+}
+/** Persistent key-value storage namespaced to a plugin. Survives restarts. @api */
+declare function storage(id: string): PluginStorage;
+/** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
+ *  Each write changes only one key, patched onto the current map settings. @api */
+declare function mapStorage(id: string): MapPluginStorage;
+/** Re-read a plugin's store after another window wrote it. @api @unstable */
+declare function reloadStorage(id: string): void;
+/** React state hook backed by the plugin's persistent store. Survives sidebar
+ *  unmount and app restart. Values are global, not per-map. @api */
+declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
+
+/** The read-only id-membership surface shared by `Set<number>` and `SelectedIds`, for code
+ *  that only needs `size` / `has` / iteration over either. */
+export interface ReadonlyIdSet extends Iterable<number> {
+    readonly size: number;
+    has(id: number): boolean;
+}
+/**
+ * Membership set of selected location ids, backed by a bit array indexed by id rather than a
+ * hash `Set`. Location ids are dense u32s, so a bitset makes the build ~10x cheaper than 1M
+ * `Set.add`s (a typed-array OR vs hashing), with O(1) `has`/`size`. Iteration yields the
+ * selected ids from the overlay's id array. Exposes the Set-like surface its consumers use.
+ */
+declare class SelectedIds {
+    /** Shared empty selection (no map open / cleared). */
+    static readonly EMPTY: SelectedIds;
+    private readonly bits;
+    /** Count of distinct selected ids (not overlay entries - an id selected by N
+     *  overlapping selections still counts once). */
+    readonly size: number;
+    constructor(bits: Uint8Array, size: number);
+    has(id: number): boolean;
+    /** Yields each selected id once, ascending. Scans the bit array, so it's O(maxId/8);
+     *  used by deliberate bulk consumers (export, bulk-tag, delete), not the per-frame path. */
+    [Symbol.iterator](): Iterator<number>;
+}
+/**
+ * The markers drawn by the selection overlay, keyed by location id.
+ *
+ * Sole authority on "is this row drawn by the overlay rather than the base layer" - the
+ * base cells hold no selection state, they derive their visibility byte from `has`.
+ * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
+ * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
+ * alone, and every by-id operation is O(1).
+ *
+ * Writes swap-remove, so slots land unordered - but the overlay is one deck.gl layer and
+ * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
+ * puts the slots back in selection order, and the batch entry points call it once they
+ * settle. Nothing else may hand these arrays to a layer.
+ */
+declare class SelectionOverlay {
+    positions: Float32Array<ArrayBuffer>;
+    colors: Uint8Array<ArrayBuffer>;
+    angles: Float32Array<ArrayBuffer>;
+    ids: Uint32Array<ArrayBuffer>;
+    /** Per-entry index of the selection drawing it, and the sort key `order()` uses.
+     *  CPU-side bookkeeping like `ids` - never an attribute, never uploaded. */
+    sel: Uint32Array<ArrayBuffer>;
+    count: number;
+    version: number;
+    private capacity;
+    private bits;
+    /** id -> slot. Only meaningful where `bits` is set, so it needs no empty sentinel. */
+    private slot;
+    /** Scratch for `order()`: entry -> destination slot. Reused across calls. */
+    private dest;
+    has(id: number): boolean;
+    /** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
+     *  selection's index - the sort key `order()` needs, which no caller can recover from
+     *  the colour alone once two selections share one. */
+    set(id: number, lng: number, lat: number, heading: number, color: Readonly<RGB>, selIdx: number): void;
+    /** Follow a row that moved. No-op when the row isn't in the overlay. */
+    move(id: number, lng?: number, lat?: number, heading?: number): void;
+    delete(id: number): void;
+    clear(): void;
+    /**
+     * Sort the entries by selection index, so a later selection's markers overdraw an
+     * earlier one's everywhere rather than wherever slot order happens to favour them.
+     *
+     * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
+     * array sized by the selection count. The leading scan makes the cases that need no
+     * work - already ordered, or one selection in play - a single pass with no allocation,
+     * which covers a plain single-selection map entirely.
+     */
+    order(): void;
+    /** Exchange two slots, keeping `slot` pointing at where each id actually lives. */
+    private swap;
+    /** Snapshot of the selected ids. Copies the bit array so later edits can't mutate it. */
+    selectedIds(): SelectedIds;
+    /** Size up front for a rebuild of known size, so `set` never reallocates mid-loop. */
+    reserve(n: number, maxId: number): void;
+    /** Grow the draw arrays to hold `n` entries and the id-keyed arrays to cover `maxId`. */
+    private ensure;
+}
+/**
+ * Typed-array backed buffer for one geohash cell's marker data.
+ * Grows by doubling. Removals use swap-remove (O(1), order not preserved).
+ * Versioned per-attribute so deck.gl can skip unchanged layers.
+ */
+declare class CellBuffer {
+    ids: number[];
+    idToIndex: Map<number, number>;
+    positions: Float32Array;
+    /** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
+     *  global marker colour, which the layer supplies as a constant, so the only per-marker
+     *  colour fact is whether a selection or the open-location highlight is covering it. */
+    visible: Uint8Array;
+    angles: Float32Array;
+    count: number;
+    capacity: number;
+    positionVersion: number;
+    colorVersion: number;
+    constructor(capacity?: number);
+    /** A cell holding `rows` as they are, viewing the frame's arrays rather than copying
+     *  them. Every row starts hidden until the caller paints it. */
+    static of(rows: FrameRows): CellBuffer;
+    /** Append a marker, growing the buffer if needed. Visibility is set by the caller once
+     *  the overlay knows about the row. */
+    append(id: number, lng: number, lat: number, angle: number): void;
+    /** O(1) removal by swapping with the last element. */
+    swapRemove(index: number): void;
+    patchPosition(index: number, lng: number, lat: number, angle: number): void;
+    /** Show (255) or hide (0) one marker in the base layer. */
+    patchVisible(index: number, visible: number): void;
+    private ensureCapacity;
+}
+/** One cell's rows in a frame, viewed in place: ids for adds, slots for patches. @unstable */
+export interface FrameRows {
+    key: Uint32Array<ArrayBuffer>;
+    pos: Float32Array<ArrayBuffer>;
+    angle: Float32Array<ArrayBuffer>;
+    sel: Uint32Array<ArrayBuffer>;
+}
+/** What applying one frame did: the map version the scene reached, whether it started the
+ *  scene over, and the ids it added and removed, ascending. A row that moved between cells
+ *  is in neither; a replace lists nothing. @unstable */
+export interface FrameSummary {
+    version: number;
+    replace: boolean;
+    added: Uint32Array;
+    removed: Uint32Array;
+}
+/**
+ * Owns all marker render data as 32 geohash-cell CellBuffers plus a selection overlay,
+ * kept in step with the map by applying its render frames in order (`apply`).
+ * deck.gl layers read the typed arrays directly - no JSON serialization in the render loop.
+ */
+declare class CellManager {
+    cells: Map<string, CellBuffer>;
+    totalCount: number;
+    version: number;
+    /** Largest location id seen - sizes the selection bitset. Monotonic (never shrinks on
+     *  removal; an overestimate just over-allocates a few bytes). */
+    maxId: number;
+    /** The rows the selection overlay draws, and the only record of which rows are selected. */
+    readonly overlay: SelectionOverlay;
+    /** The location the open-location layer draws, hidden in its base cell. */
+    private openId;
+    /** Scratch for `restateSelections`: per-row winning selection index, reused across
+     *  cells so a full restate does not allocate one array per cell. */
+    private selWinner;
+    /**
+     * Apply one render frame. Every cell's removals swap-remove their slots first; then per
+     * cell the adds append and the patches restate rows by their slot. Every added or patched row
+     * states the selection painting it, so the base cells and the overlay are written from
+     * one fact. A selection section, when present, then restates every cell's membership.
+     */
+    apply(buf: ArrayBuffer): FrameSummary;
+    /** Put the row at `cb[i]` in or out of the selection overlay and set its base visibility.
+     *  Idempotent, so restating a row's current state costs nothing but is always safe.
+     *  The caller bumps the cell's colour version once for the whole frame. */
+    private paint;
+    /** Set the open location, whose marker the open-location layer draws instead of the base cell. */
+    setOpen(id: number | null): void;
+    /**
+     * A base row is hidden exactly when something else is drawing it: the selection overlay
+     * or the open-location layer. The only place `visible` is decided for a single row, so
+     * "selected" and "open" never have to negotiate over the byte.
+     */
+    private syncVisible;
+    /** Visit every rendered location's position. The cells hold all alive rows (a `visible`
+     *  0 only means the overlay or open-location layer draws that row instead), so this is the
+     *  maintained full-map position set. */
+    forEachPosition(f: (id: number, lng: number, lat: number) => void): void;
+    /** Map a deck.gl pick (cell + index) back to a location ID. */
+    resolvePickFromCell(cellKey: string, cellIndex: number): number | null;
+    /** Selected-id set, snapshotted from the overlay. */
+    selectedIds(): SelectedIds;
+    /**
+     * Restate the selection overlay from a frame's selection section. Selected rows are
+     * drawn by the overlay in their selection's color and hidden in their base cell.
+     *
+     * Partial updates are supported: only the cells named in `cellEntries` are restated,
+     * and overlay entries for every other cell survive untouched.
+     */
+    private restateSelections;
+    clear(): void;
+}
+
+/** Every app event and what it hands its listeners. A `<noun>:change` event carries the change
+ *  itself; a `<noun>:changed` event carries nothing and means the state its noun names moved,
+ *  so listeners re-read it. A noun takes one of the two forms, never both. */
+declare const EVENT_DEFS: {
+    /** A change to the open map: the version it reached, the locations it added, removed and
+     *  updated, and the derived state that moved. */
+    "store:change": ChangeEvent;
+    "selection:change": Selection[];
+    "open:change": number | null;
+    /** @deprecated v0.12.0. Listen for `open:change`. @unstable */
+    "active:change": number | null;
+    "map:open": Omit<MapMeta, "extra" | "locationCount" | "pending">;
+    "map:close": void;
+    /** @unstable */
+    "map:saved": void;
+    /** The open map's state, as `Store.get` and `Store.use` read it, moved. @unstable */
+    "snapshot:changed": void;
+    /** @unstable */
+    "editor:changed": void;
+    "map-list:changed": void;
+    /** @unstable */
+    "saved-selections:changed": void;
+    "settings:changed": void;
+    /** @unstable */
+    "fullscreen:changed": void;
+    "plugins:changed": void;
+    /** @unstable */
+    "sync-links:changed": void;
+    /** @unstable */
+    "map-badges:changed": void;
+    /** @unstable */
+    "hotkeys:changed": void;
+    /** @unstable */
+    "toasts:changed": void;
+    /** @unstable */
+    "jobs:changed": void;
+    /** @unstable */
+    "bulkruns:changed": void;
+    /** @unstable */
+    "scene:changed": void;
+    /** @unstable */
+    "measure:changed": void;
+    /** @unstable */
+    "anchor:changed": void;
+    /** @unstable */
+    "viewport-lock:changed": void;
+    /** @unstable */
+    "trail:changed": void;
+    "seen:changed": void;
+    /** @unstable */
+    "update:changed": void;
+    /** @unstable */
+    "review:changed": void;
+    "fields:changed": void;
+    /** @unstable */
+    "route:changed": void;
+    /** @unstable */
+    "import-markers:changed": void;
+    /** @unstable */
+    "diff-markers:changed": void;
 };
+export type EditorEventMap = typeof EVENT_DEFS;
+export type EditorEvent = keyof EditorEventMap;
+declare const pluginEventPayload: unique symbol;
+/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
+ *  hears it. `definePluginEvent` makes one. @unstable */
+export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
+    readonly [pluginEventPayload]: T;
+};
+/** What an event hands its handlers. */
+export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
+export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
+
+/** A mark drawn after a map's name in the map list: an icon, or a count of changes. @unstable */
+export type MapBadge = {
+    key: string;
+    title: string;
+} & ({
+    icon: string;
+} | {
+    diff: Counts;
+});
+/** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
+export interface BadgeSource {
+    /** Stable id, remembered by the setting that hides it. */
+    id: string;
+    /** Name shown next to its checkbox in settings. */
+    label: string;
+    /** Events after which the badges are collected again. */
+    events: readonly EditorEvent[];
+    /** Yields the badges to show, each paired with its map id. */
+    collect(): Iterable<[mapId: string, badge: MapBadge]>;
+}
+/** Create, list, open, close, and organize maps. @api */
+declare const Maps: {
+    /** One-time store startup. The app calls this; plugins never need to. @unstable */
+    init: () => Promise<void>;
+    /** Open a map in this window, closing any currently open map first. */
+    open: (id: string) => Promise<void>;
+    /** Close the open map, saving unsaved changes first. */
+    close: () => Promise<void>;
+    /** Drop the open map without persisting anything @unstable */
+    discard: () => void;
+    /** Reactive list of all maps (metadata only). */
+    useList: () => MapMeta[];
+    /** The list of all maps (metadata only). */
+    list: () => MapMeta[];
+    /** Refresh the map list from disk. @unstable */
+    reload: () => Promise<void>;
+    /** Refresh the map list and notify other windows of the change. @unstable */
+    invalidate: () => Promise<void>;
+    /** Create a new empty map and return its metadata. */
+    create: (name: string, folder?: string | null) => Promise<MapMeta>;
+    /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
+    duplicate: (id: string, name: string) => Promise<MapMeta>;
+    /** Permanently delete a map and all its data. Not undoable. */
+    remove: (id: string) => Promise<void>;
+    /** Open the scratch map, creating it on first use. */
+    openScratch: () => Promise<void>;
+    /** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
+    isReserved: (id: string | null) => boolean;
+    /** The name a copy of the map named `name` starts with. @unstable */
+    copyName: (name: string) => string;
+    /** Rename a folder, moving all its maps to the new name. */
+    renameFolder: (from: string, to: string) => Promise<void>;
+    /** Move a map into a folder, or to the root when `folder` is null. */
+    moveToFolder: (mapId: string, folder: string | null) => Promise<void>;
+    /** Delete a folder. Maps in it become unfoldered. */
+    removeFolder: (name: string) => Promise<void>;
+    /** Add a source of map-row badges. @unstable */
+    registerBadges: (source: BadgeSource) => void;
+    /** Every registered badge source, in registration order. @unstable */
+    badgeSources: () => readonly BadgeSource[];
+    /** Badges per map id, from every registered source. @unstable */
+    badges: () => Map<string, MapBadge[]>;
+    /** Reactive {@link Maps.badges}. @unstable */
+    useBadges: () => Map<string, MapBadge[]>;
+};
+
+export type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "visible">>;
+/** Manage tag records and their assignment to locations. @api */
+declare const Tag: {
+    /** Per-tag location counts, keyed by numeric id. */
+    counts: () => Record<number, number>;
+    /** Tag records, including unreferenced records. */
+    all: () => Record<number, Tag>;
+    /** Tag records referenced by at least one location. */
+    visible: () => Tag[];
+    /** Look up a tag record, including unreferenced tags. */
+    get: (id: number) => Tag | undefined;
+    /** Tag names for the given ids, skipping any that no longer resolve. */
+    names: (ids: number[]) => string[];
+    /** Remove tags from every location in one undoable step.
+     * Unreferenced tags are hidden; undo restores them. */
+    remove: (tagIds: number[]) => Promise<WorkResult>;
+    /** Update tag display records in one undoable edit. */
+    update: (updates: Patch<Tag>[]) => Promise<Mutation<ValueRecord>>;
+    /** Get or create tag records by name and return their ids. */
+    create: (records: TagCreate[]) => Promise<number[]>;
+    /** Set tag display order from an ordered list of ids. */
+    reorder: (ids: number[]) => Promise<Mutation<ValueRecord>>;
+    /** Move matching locations to a tag with the given name, optionally within a selector. */
+    rename: (ids: number[], name: string, scope?: Selector | null) => Promise<void>;
+    /** Get or create tag records and assign them to matching locations. */
+    assign: (selector: Selector, records: TagCreate[]) => Promise<WorkResult>;
+};
+
+/** Run mutations and wait for their state and display updates. @api */
+declare const Mutation: {
+    /** The result of a mutation that reached no map. */
+    none: () => Mutation;
+    /** Resolves once the open map's state and its markers both show `m`. A mutation that reached
+     *  no map (version 0) settles at once. */
+    settle: (m: Mutation) => Promise<void>;
+    run: <R extends Mutation | {
+        mutation: Mutation;
+    } = Mutation>(fn: () => Promise<R>, ...fallback: Mutation extends R ? [empty?: R] : [empty: R]) => Promise<R>;
+};
+
+/** Add, update, remove, and inspect map locations. @api */
+declare const Location: {
+    /** Add locations to the map and return their new ids, in order. Undoable. */
+    add: (locs: Location[]) => Promise<number[]>;
+    /** Add `location` to another map unless that map already holds it, its interned values
+     *  named by `records`. Resolves to whether it was added. Undoable in that map. @unstable */
+    addTo: (mapId: string, location: Location, records: Parameters<typeof Edit.locations>[2]) => Promise<boolean>;
+    /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
+    duplicate: (id: number) => Promise<number | null>;
+    /** Remove locations by id. Undoable. */
+    remove: (ids: ReadonlyIdSet) => Promise<void>;
+    /** Patch locations by id. Only include the fields you're changing; `extra` merges
+     *  per-key (null deletes a key). Undoable by default. */
+    update: (updates: Patch<Location>[]) => Promise<void>;
+    /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
+    duplicateGroups: (distance: number) => Promise<number[][]>;
+};
+
+/** Change the listed selections and inspect their active members. @api @unstable */
+declare const SelectionList: {
+    /** The listed selections, in list order. @unstable */
+    listed: () => ListedSelection[];
+    /** Tag ids with a top-level listed tag selection, including ghosted selections. @unstable */
+    tagIds: () => ReadonlySet<number>;
+    /** Tag ids from active selection leaves, including repeated ids and composite children. @unstable */
+    tagIdsDeep: () => readonly number[];
+    /** Listed selections that are not ghosted. @unstable */
+    active: () => Selection[];
+    /** Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections. @unstable */
+    update: (op: SelectionOp) => Promise<void>;
+    /** Run a mutation that may change the listed selections, and announce the change when it
+     *  does. @unstable */
+    run: (write: () => Promise<Mutation>) => Promise<void>;
+    /** @unstable */
+    select: <R extends number[] | {
+        ids: number[];
+    }>(pick: (selector: Selector) => Promise<R>, perSelection?: boolean) => Promise<{
+        picked: number;
+        results: R[];
+    }>;
+};
+
+/** A registered provider to run, and what this run changes about it. @unstable */
+export interface ProviderRun<TConfig = unknown> {
+    provider: Provider<unknown, TConfig>;
+    /** Replaces the config the provider registered. */
+    config?: Partial<NoInfer<TConfig>>;
+    /** Recompute locations that already hold this provider's fields. Omitted, it follows
+     *  the run's `force`. */
+    force?: boolean;
+    /** The `fieldDefs` keys to produce; omitted, every key it declares. */
+    fields?: string[];
+    /** The locations to run over; omitted, the run's selector. */
+    select?: Selector;
+}
+/** A named procedure with dependency-graph placement. Providers that declare
+ *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. @unstable */
+export interface Provider<TCollected = unknown, TConfig = unknown> {
+    /** @unstable */
+    id: string;
+    /** Name shown in enrichment progress and results. @unstable */
+    label: string;
+    /** The procedure that computes this provider's fields. @unstable */
+    procedure: ProcedureSpec<TCollected, TConfig>;
+    /** Extra-field keys this provider produces. Each is offered as an enrichment option. @unstable */
+    fieldDefs?: Record<string, FieldDef>;
+    /** Leaves this provider's fields out of the default enrichment set, so users opt in. @unstable */
+    defaultOff?: boolean;
+    /** Core columns this provider writes (e.g. `panoId`). @unstable */
+    provides?: string[];
+    /** Fields this provider reads; it runs after their producers finish. @unstable */
+    requires?: string[];
+}
+/** Registered field producers: register one, list them, or run them over locations. @api */
+declare const Provider: {
+    /** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
+     *  deactivates. Resolves once the provider can run. */
+    register: (provider: Provider) => Promise<void>;
+    /** All registered providers. @unstable */
+    list: () => Provider[];
+    /** The provider that produces a given extra field, if any. @unstable */
+    forField: (field: string) => Provider | undefined;
+    /** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
+     *  become locale month names; otherwise falls back to the keys themselves when the field's
+     *  procedure has no `label` query or returns a non-matching array. @unstable */
+    labels: (field: string, keys: string[], key?: KeySpec) => Promise<string[]>;
+    /** Run registered providers over the locations `selector` matches and write their results
+     *  back. Resolves once every provider finishes, or on abort. @unstable */
+    run: <C extends readonly unknown[]>(runs: { [K in keyof C]: ProviderRun<C[K]>; }, selector: Selector, opts?: RunOpts) => Promise<ProcedureOutcomes>;
+};
+
+export interface SidecarOptions<T> {
+    /** Fires once per JSON object the sidecar emits, in order. */
+    onLine?(item: T): void;
+    /** Sidecar diagnostic output, one-shot runs only. */
+    onLog?(line: string): void;
+    signal?: AbortSignal;
+}
+/** Send a command to a plugin's sidecar and resolve with its last emitted JSON
+ *  object (null if it emitted none). `payload` is sent as JSON. */
+declare function request$1<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
+/** The sidecar version installed for a plugin, or null when it has none yet. */
+declare function installedVersion$1(pluginId: string): Promise<string | null>;
+/** The nested `sidecar` namespace on the plugin surface. @api */
+declare const sidecar: {
+    request: typeof request$1;
+    installedVersion: typeof installedVersion$1;
+};
+
+/** @deprecated v0.8.1. Use `MMA.MapHost.get()` and narrow via `MMA.MapHost.instance`. @api @unstable */
+declare function getGoogleMap(): google.maps.Map | null;
+/** @deprecated v0.8.1. Use `MMA.MapHost.wait()`. @api @unstable */
+declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
+/** @deprecated v0.8.2. Read `MMA.Store.get().map`. @api @unstable */
+declare function getCurrentMap(): Omit<MapMeta, "extra" | "locationCount" | "pending"> | null;
+/** @deprecated v0.8.2. Read `MMA.Store.get().mapId`. @api @unstable */
+declare function getCurrentMapId(): string | null;
+/** @deprecated v0.8.2. Read `MMA.Editor.get().open?.location`. @api @unstable */
+declare function getActiveLocation(): Location | null;
+/** @deprecated v0.8.2. Read `MMA.Scene.selected()`. @api @unstable */
+declare function getSelectedLocationIds(): SelectedIds;
+/** @deprecated v0.8.2. Read `MMA.Editor.get().workArea`. @api @unstable */
+declare function getWorkArea(): WorkArea;
+/** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @api @unstable */
+declare function getAllSelections(): Selection[];
+/** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @api @unstable */
+declare function getGhostedSelections(): Set<string>;
+/** @deprecated v0.8.2. Use `MMA.SelectionList.active()`. @api @unstable */
+declare function getSelections(): Selection[];
+/** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`. @api @unstable */
+declare function fetchLocation(id: number): Promise<Location>;
+/** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`. @api @unstable */
+declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
+/** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Everything" }, { kind: "locations" })`. @api @unstable */
+declare function fetchAllLocations(): Promise<Location[]>;
+/** @deprecated v0.10.2. Use `MMA.Query.read(selector, { kind: "coverage" })`. @api @unstable */
+declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
+/** @deprecated v0.10.2. Use `MMA.Provider.register()`. @api @unstable */
+declare function registerEnrichmentProvider(provider: Provider): void;
+/** @deprecated v0.10.5. The user layer is store-owned state (`MMA.Store.get().fieldDefs`);
+ *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
+ *  for plugin-owned defs. @api @unstable */
+declare function setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>;
+/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. @api @unstable */
+declare function addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>;
+/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @api @unstable */
+declare function removeTagFromLocations(tagId: number, locationIds: number[]): Promise<WorkResult>;
+/** @deprecated v0.10.5. Use `MMA.Edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @api @unstable */
+declare function removeTagFromAllLocations(tagId: number): Promise<WorkResult>;
+/** @deprecated v0.11.0. Use `MMA.storage()`. @api @unstable */
+declare function createPluginStorage(id: string): PluginStorage;
+/** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @api @unstable */
+declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
+/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @api @unstable */
+declare function installedVersion(pluginId: string): Promise<string | null>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "ids" })`. @api @unstable */
+declare function resolveIds(selector: Selector): Promise<number[]>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "count" })`. @api @unstable */
+declare function countIn(selector: Selector): Promise<number>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "bounds" })`. @api @unstable */
+declare function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null>;
+/** @deprecated v0.11.3. Use `MMA.Query.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" })`. @api @unstable */
+declare function sampleFrom(selector: Selector, n: number): Promise<number[]>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "values", field })`. @api @unstable */
+declare function fieldValues(selector: Selector, field: string): Promise<string[]>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "countBy", fields: [field], key })`. @api @unstable */
+declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "coverage" })`. @api @unstable */
+declare function coverage(selector: Selector): Promise<[string, number][]>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "columns", fields })`. @api @unstable */
+declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "groupBy", field, key })`. @api @unstable */
+declare function partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
+/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "locations" })`. @api @unstable */
+declare function fetchLocations(selector: Selector): Promise<Location[]>;
+/** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
+ *  own; set `defaultOff` on the provider to make them opt-in. @api @unstable */
+declare function registerEnrichFields(_fields: EnrichFieldOption[]): void;
+/** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`. @api @unstable */
+declare function addSelections(selectors: Selector[]): Promise<void>;
+/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "remove", keys })`. @api @unstable */
+declare function removeSelections(keys: string[]): Promise<void>;
+/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "set", selections: [] })`. @api @unstable */
+declare function resetSelections(): Promise<void>;
+/** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @api @unstable */
+declare function currentSelection(): Selector;
+/** @deprecated v0.12.0. Use MMA.Query.read(selector, ask) instead. @api @unstable */
+declare function query(selector: Selector, target?: Target): {
+    /** Resolved ids in ascending order, or in ranked-selector order. */
+    ids: () => Promise<number[]>;
+    /** Number of locations the selector resolves to. */
+    count: () => Promise<number>;
+    /** Bounding box [west, south, east, north], or null when nothing resolves. */
+    bounds: () => Promise<[number, number, number, number] | null>;
+    /** n ids drawn uniformly at random, without replacement. */
+    sample: (n: number) => Promise<number[]>;
+    /** Distinct values of field, sorted. */
+    values: (field: string) => Promise<string[]>;
+    /** Group each field by a derived key and count, one result per field. */
+    countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
+    /** How many locations hold a value for each field, key-sorted. */
+    coverage: () => Promise<[string, number][]>;
+    /** One column per field: null for missing values and value-id lists for interned fields. */
+    columns: (fields: string[]) => Promise<unknown[][]>;
+    /** Group by a derived key; bins use bound order and other keys sort naturally. */
+    partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
+    /** Full matching locations, loading any large result from its temporary file. */
+    locations: () => Promise<Location[]>;
+};
+/** @deprecated v0.12.0. Use `MMA.Editor.open(target)`, or `MMA.Editor.close()` in place of null. @api @unstable */
+declare function setActiveLocation(target: MaybeLocation | null, checkDuplicates?: boolean): Promise<void>;
+/** @deprecated v0.12.0. Use `MMA.Store.get`. @api */
+declare const getMapState: typeof Store.get;
+/** @deprecated v0.12.0. Use `MMA.Store.use`. @api */
+declare const useMapState: typeof Store.use;
+/** @deprecated v0.12.0. Use `MMA.Tag.counts`. @api */
+declare const getTagCounts: typeof Tag.counts;
+/** @deprecated v0.12.0. Use `MMA.Tag.all`. @api */
+declare const getTags: typeof Tag.all;
+/** @deprecated v0.12.0. Use `MMA.Tag.visible`. @api */
+declare const getVisibleTags: typeof Tag.visible;
+/** @deprecated v0.12.0. Use `MMA.Tag.get`. @api */
+declare const getTag: typeof Tag.get;
+/** @deprecated v0.12.0. Use `MMA.Tag.names`. @api */
+declare const tagIdsToNames: typeof Tag.names;
+/** @deprecated v0.12.0. Use `MMA.Tag.remove`. @api */
+declare const deleteTags: typeof Tag.remove;
+/** @deprecated v0.12.0. Use `MMA.Mutation.run`. @api */
+declare const mutate: typeof Mutation.run;
+/** @deprecated v0.12.0. Use `MMA.Mutation.settle`. @api */
+declare const settled: typeof Mutation.settle;
+/** @deprecated v0.12.0. Use `MMA.Query.read`. @api */
+declare const read: typeof Query.read;
+/** @deprecated v0.12.0. Use `MMA.Query.locationsOf`. @api */
+declare const locationsOf: typeof Query.locationsOf;
+/** @deprecated v0.12.0. Use `MMA.Location.add`. @api */
+declare const addLocations: typeof Location.add;
+/** @deprecated v0.12.0. Use `MMA.Location.duplicate`. @api */
+declare const duplicateLocation: typeof Location.duplicate;
+/** @deprecated v0.12.0. Use `MMA.Location.remove`. @api */
+declare const removeLocations: typeof Location.remove;
+/** @deprecated v0.12.0. Use `MMA.Location.update`. @api */
+declare const updateLocations: typeof Location.update;
+/** @deprecated v0.12.0. Use `MMA.Location.duplicateGroups`. @api @unstable */
+declare const previewDuplicateGroups: typeof Location.duplicateGroups;
+/** @deprecated v0.12.0. Use `MMA.Editor.openImport`. @api @unstable */
+declare const openStagedLocation: typeof Editor.openImport;
+/** @deprecated v0.12.0. Use `MMA.Editor.preview`. @api @unstable */
+declare const previewLocation: typeof Editor.preview;
+/** @deprecated v0.12.0. Use `MMA.Editor.resolve`. @api */
+declare const resolveLocation: typeof Editor.resolve;
+/** @deprecated v0.12.0. Use `MMA.Editor.open`. @api */
+declare const openLocation: typeof Editor.open;
+/** @deprecated v0.12.0. Use `MMA.Editor.close`. @api */
+declare const closeLocation: typeof Editor.close;
+/** @deprecated v0.12.0. Use `MMA.Editor.openDuplicate`. @api @unstable */
+declare const openDuplicateLocation: typeof Editor.openDuplicate;
+/** @deprecated v0.12.0. Use `MMA.Editor.removeDuplicate`. @api @unstable */
+declare const removeDuplicate: typeof Editor.removeDuplicate;
+/** @deprecated v0.12.0. Use `MMA.Editor.closeDuplicates`. @api @unstable */
+declare const closeDuplicates: typeof Editor.closeDuplicates;
+/** @deprecated v0.12.0. Use `MMA.Editor.setArea`. @api @unstable */
+declare const setWorkArea: typeof Editor.setArea;
+/** @deprecated v0.12.0. Use `MMA.Editor.openPlugin`. @api */
+declare const setPluginMode: typeof Editor.openPlugin;
+/** @deprecated v0.12.0. Use `MMA.Editor.closePlugin`. @api */
+declare const exitPluginMode: typeof Editor.closePlugin;
+/** @deprecated v0.12.0. Use `MMA.Field.rename`. @api */
+declare const renameField: typeof Field$1.rename;
+/** @deprecated v0.12.0. Use `MMA.Field.remove`. @api */
+declare const deleteField: typeof Field$1.remove;
+/** @deprecated v0.12.0. Use `MMA.SelectionList.active`. @api */
+declare const getActiveSelections: typeof SelectionList.active;
+/** @deprecated v0.12.0. Use `MMA.SelectionList.update`. @api @unstable */
+declare const applySelectionUpdate: typeof SelectionList.update;
+/** @deprecated v0.12.0. Use `MMA.SelectionList.select`. @api */
+declare const select: typeof SelectionList.select;
+/** @deprecated v0.12.0. Use `MMA.History.available`. @api @unstable */
+declare const historyAvailable: typeof History.available;
+/** @deprecated v0.12.0. Use `MMA.Commit.create`. @api */
+declare const commitMap: typeof Commit.create;
+/** @deprecated v0.12.0. Use `MMA.Commit.checkout`. @api @unstable */
+declare const checkoutCommit: typeof Commit.checkout;
+/** @deprecated v0.12.0. Use `MMA.Maps.init`. @api @unstable */
+declare const initStore: typeof Maps.init;
+/** @deprecated v0.12.0. Use `MMA.Maps.open`. @api */
+declare const openMap$1: typeof Maps.open;
+/** @deprecated v0.12.0. Use `MMA.Maps.close`. @api */
+declare const closeMap$1: typeof Maps.close;
+/** @deprecated v0.12.0. Use `MMA.Maps.discard`. @api @unstable */
+declare const discardOpenMap: typeof Maps.discard;
+/** @deprecated v0.12.0. Use `MMA.SelectionList.tagIds`. @api @unstable */
+declare const getSelectedTagIds: typeof SelectionList.tagIds;
+/** @deprecated v0.12.0. Use `MMA.SelectionList.tagIdsDeep`. @api @unstable */
+declare const getSelectedTagIdsDeep: typeof SelectionList.tagIdsDeep;
+/** @deprecated v0.12.0. Use `MMA.Maps.useList`. @api */
+declare const useMapList: typeof Maps.useList;
+/** @deprecated v0.12.0. Use `MMA.Maps.list`. @api */
+declare const getMapList: typeof Maps.list;
+/** @deprecated v0.12.0. Use `MMA.Maps.reload`. @api @unstable */
+declare const reloadMapList: typeof Maps.reload;
+/** @deprecated v0.12.0. Use `MMA.Maps.invalidate`. @api @unstable */
+declare const invalidateMapList: typeof Maps.invalidate;
+/** @deprecated v0.12.0. Use `MMA.Maps.create`. @api */
+declare const createMap: typeof Maps.create;
+/** @deprecated v0.12.0. Use `MMA.Maps.duplicate`. @api */
+declare const duplicateMap: typeof Maps.duplicate;
+/** @deprecated v0.12.0. Use `MMA.Maps.remove`. @api */
+declare const deleteMap$1: typeof Maps.remove;
+/** @deprecated v0.12.0. Use `MMA.Maps.openScratch`. @api */
+declare const openScratchMap: typeof Maps.openScratch;
+/** @deprecated v0.12.0. Use `MMA.Maps.isReserved`. @api @unstable */
+declare const isReservedMap: typeof Maps.isReserved;
+/** @deprecated v0.12.0. Use `MMA.Maps.copyName`. @api @unstable */
+declare const copyName: typeof Maps.copyName;
+/** @deprecated v0.12.0. Use `MMA.Maps.renameFolder`. @api */
+declare const renameFolder: typeof Maps.renameFolder;
+/** @deprecated v0.12.0. Use `MMA.Maps.moveToFolder`. @api */
+declare const moveMapToFolder: typeof Maps.moveToFolder;
+/** @deprecated v0.12.0. Use `MMA.Maps.removeFolder`. @api */
+declare const deleteFolder: typeof Maps.removeFolder;
+/** @deprecated v0.12.0. Use `MMA.Maps.registerBadges`. @api @unstable */
+declare const registerMapBadges: typeof Maps.registerBadges;
+/** @deprecated v0.12.0. Use `MMA.Maps.badgeSources`. @api @unstable */
+declare const getMapBadgeSources: typeof Maps.badgeSources;
+/** @deprecated v0.12.0. Use `MMA.Maps.badges`. @api @unstable */
+declare const getMapBadges: typeof Maps.badges;
+/** @deprecated v0.12.0. Use `MMA.Maps.useBadges`. @api @unstable */
+declare const useMapBadges: typeof Maps.useBadges;
+/** @deprecated v0.12.0. Use `MMA.Edit`. @api */
+declare const edit: typeof Edit;
+/** @deprecated v0.12.0. Use `MMA.Autosave`. @api */
+declare const autosave: typeof Autosave;
+/** @deprecated v0.12.0. Use `MMA.MapHost.get`. @api */
+declare const getMapHost: typeof MapHost.get;
+/** @deprecated v0.12.0. Use `MMA.MapHost.wait`. @api */
+declare const waitForMapHost: typeof MapHost.wait;
+/** @deprecated v0.12.0. Use `MMA.Provider.register`. @api */
+declare const registerProvider: typeof Provider.register;
+
+/** True when `appVersion` meets the plugin's minimum version requirement. @api @unstable */
+declare function isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean;
+/** True when a newer version is published and the installed version is known. @api @unstable */
+declare function isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean;
+/** True when either the plugin or its sidecar has a newer published version. @api @unstable */
+declare function needsUpdate(installedVersion: string | undefined, latestVersion: string | undefined, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
+/** The build of a plugin to install. `ref` is the commit, null for the latest. @unstable */
+export interface ResolvedBuild {
+    version: string;
+    ref: string | null;
+    minAppVersion: string | null;
+    sidecarVersion: string | null;
+}
+/** The newest build of a plugin this app version can run. Falls back through older
+ *  pinned builds when the latest is incompatible. Null when none fit. @api @unstable */
+declare function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null;
+/** True when the installed plugin or its sidecar should be refreshed to `target`. @api @unstable */
+declare function needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined): boolean;
+/** Fetch the marketplace plugin registry. Later calls return the first result until restart. @api @unstable */
+declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
+/** Auto-update a plugin to the newest compatible build before loading it. Falls back
+ *  to what is on disk on failure. @api @unstable */
+declare function autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>;
 
 /** @unstable */
 export type PanoDestination = string | google.maps.LatLngLiteral;
@@ -5635,7 +5682,7 @@ declare function createPano(): {
     /** Release the viewer, its container and every listener; the instance is unusable afterwards. */
     dispose: () => void;
 };
-/** The app's default pano viewer. @unstable */
+/** The app's default pano viewer. @api @unstable */
 declare const Pano: {
     /** Resolve and show a location's pano, optionally hidden until it loads; cancelled when overtaken. The value is the pano put on screen, null when sent to coordinates. @unstable */
     show: (loc: Location, { concealUntilReady }?: {
@@ -5713,6 +5760,277 @@ declare const Pano: {
     dispose: () => void;
 };
 
+/** How a bulk pin settles each location's pano before pinning it. @unstable */
+export interface PinOpts extends BulkOpts {
+    /** Resolve pano ids first; off, only locations that already carry one are pinned. */
+    resolve?: boolean;
+    /** Move each resolved pano to this capture of its timeline. */
+    capture?: CapturePick | null;
+    /** Re-resolve already pinned locations too. */
+    force?: boolean;
+}
+/** What a bulk pin did: the locations newly pinned, the ones whose pano could not be
+ *  resolved, and how many pano ids the resolve wrote. @unstable */
+export interface PinOutcome extends BatchOutcome {
+    resolved: number;
+}
+/** Pin every location in the selector to its pano id, resolving pano ids first when asked. @api @unstable */
+declare function bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>;
+
+/** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
+ *  deactivation. @api */
+declare function on<E extends EditorEvent | PluginEvent<unknown>>(event: E, handler: EventHandler<E>): () => void;
+/** Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
+ *  whoever raises it and whoever hears it agree on the payload. @api @unstable */
+declare function definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>;
+/** Raise one of a plugin's own events, with its payload when it carries one. @api @unstable */
+declare function emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends void ? [] : [payload: T]): void;
+/** React hook: what `read` returns, read again each time `event` is raised. `read` must return
+ *  the same reference while nothing it reads has changed. @api @unstable */
+declare function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;
+
+/** The fields a plugin shows as itself, declared once by its manifest. */
+export type PluginIdentity = Pick<PluginManifest, "id" | "name" | "description" | "icon" | "comingSoon" | "experimental">;
+export interface Plugin extends PluginIdentity {
+    core?: boolean;
+    /** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
+     *  Only for plugins whose state can't be serialized (e.g. an iframe). */
+    keepAlive?: boolean;
+    activate(): void | (() => void);
+    modal?: ComponentType<{
+        onClose: () => void;
+    }>;
+    sidebar?: ComponentType<{
+        onClose: () => void;
+    }>;
+    locationPanel?: ComponentType;
+}
+export type PluginBehavior = Partial<Plugin> & {
+    activate(): void | (() => void);
+};
+/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @api @unstable */
+declare function setPendingManifest(manifest: PluginManifest | null): void;
+/** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. @api */
+declare function registerPlugin(plugin: Plugin | PluginBehavior): void;
+/** All registered plugins, sorted by name. @api */
+declare function getPlugins(): Plugin[];
+/** Look up a registered plugin by id. @api */
+declare function getPlugin(id: string): Plugin | undefined;
+/** True when the plugin contributes data only and has no UI surfaces. @api */
+declare function isBackgroundPlugin(id: string): boolean;
+/** Remove a plugin from the registry. @api @unstable */
+declare function unregisterPlugin(id: string): void;
+
+/** True when the plugin is enabled by the user. @api @unstable */
+declare function isPluginEnabled(id: string): boolean;
+/** Enable or disable a plugin. @api @unstable */
+declare function setPluginEnabled(id: string, enabled: boolean): void;
+/** All registered plugins the user has enabled. @api @unstable */
+declare function getEnabledPlugins(): Plugin[];
+/** Activate all enabled plugins. Called when a map opens. @api @unstable */
+declare function activatePlugins(): void;
+/** Deactivate all plugins and stop their sidecars. Called when a map closes. @api @unstable */
+declare function deactivatePlugins(): void;
+/** Activate a single plugin by id. @api @unstable */
+declare function activatePlugin(id: string): void;
+/** Deactivate a single plugin and stop its sidecar. @api @unstable */
+declare function deactivatePlugin(id: string): void;
+/** True once the MMA surface is installed and plugins are safe to call it. @api @unstable */
+declare function isReady(): boolean;
+/** Mark the plugin surface as ready. @api @unstable */
+declare function markReady(): void;
+
+/** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
+ *  read. Fields not offered in the enrichment settings are always included. @api @unstable */
+declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
+/** Where to search when resolving a pano from coordinates, and which capture of its
+ *  timeline to settle on. @unstable */
+export interface PanoResolveConfig {
+    radius: number;
+    sources?: PanoType[];
+    capture?: CapturePick;
+}
+/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
+ *  provider that depends on it. Rows that already have a pano id are skipped unless the
+ *  run is forced. @api @unstable */
+declare const panoResolveProvider: Provider<{
+    panoId: string;
+}, PanoResolveConfig>;
+/** Exact capture timestamp, narrowed from the `imageDate` month via binary search. @api @unstable */
+declare const exactDateProvider: Provider;
+/** Timezone at the location's coordinates. Requires `datetime` to be present. @api @unstable */
+declare const timezoneProvider: Provider;
+/** Subdivision (adm1) via offline point-in-polygon against the local border dataset.
+ *  No Google dependency; downloads the adm1 archive on first use. @api @unstable */
+declare const subdivisionProvider: Provider;
+/** Core panorama metadata via Google's GetMetadata RPC. @api @unstable */
+declare const svMetaProvider: Provider;
+/** @unstable */
+export type RoadDirection = "forwards" | "backwards";
+/** @unstable */
+export interface HeadingRoadConfig {
+    direction: RoadDirection;
+}
+/** Pan a location's heading along the road. The driving direction is the pano's
+ *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. @api @unstable */
+declare const headingRoadProvider: Provider<unknown, HeadingRoadConfig>;
+/** The providers the app registers at startup. @api @unstable */
+declare const BUILTIN_PROVIDERS: readonly Provider[];
+
+/** @unstable */
+export interface PruneResult {
+    session: ReviewSession | null;
+    cursorMoved: boolean;
+}
+/** Review sessions and their history. @api @unstable */
+declare const Review: {
+    /** Position of `id` in the session's worklist, or -1. O(1) per step. @unstable */
+    positionOf: (s: ReviewSession, id: number) => number;
+    /** Remove `removed` ids from a session's worklist and reviewed set. Advances the
+     *  cursor when the cursor id itself was removed. @unstable */
+    prune: (s: ReviewSession, removed: Set<number>) => PruneResult;
+    /** Mark the current cursor reviewed and step forward. `done` is true when the
+     *  session has no remaining items. @unstable */
+    advance: (s: ReviewSession) => {
+        session: ReviewSession;
+        done: boolean;
+    };
+    /** Step backward without marking anything reviewed. Null when already at the start. @unstable */
+    retreat: (s: ReviewSession) => ReviewSession | null;
+    /** Position of the session cursor within its review order. @unstable */
+    index: (s: ReviewSession) => number;
+    /** The session's locations in `mode`: those reviewed, or those still to review. @unstable */
+    ids: (s: ReviewSession, mode: ReviewMode) => number[];
+    /** Union of reviewed ids across sessions, de-duplicated. @unstable */
+    reviewedIds: (sessions: ReviewSession[]) => number[];
+    /** True when the cursor is on the session's first location. @unstable */
+    isAtStart: (s: ReviewSession) => boolean;
+    /** True when the cursor is on the session's last location. @unstable */
+    isAtEnd: (s: ReviewSession) => boolean;
+    /** Current cursor location is in the reviewed set. @unstable */
+    isCurrentReviewed: (s: ReviewSession) => boolean;
+    /** Reactive active review session, or null. @unstable */
+    useSession: () => ReviewSession | null;
+    /** The active review session, or null. @unstable */
+    session: () => ReviewSession | null;
+    /** Start or resume a review over `ids`. When `source` is a selection, re-reviewing
+     *  that selection resumes any in-progress session for it. @unstable */
+    begin: (ids: number[], source?: Selection) => Promise<void>;
+    /** Review the selected locations. With one active selection, the review belongs to it and
+     *  resumes with it. @unstable */
+    beginSelected: () => Promise<void>;
+    /** Make a saved session the active one, dropping locations that no longer exist. Given
+     *  the selection's current matches, any its worklist lacks are offered as new matches. @unstable */
+    resume: (s: ReviewSession, currentMatches?: number[]) => Promise<void>;
+    /** Reactive new matches of the active session's selection, not yet in its worklist. @unstable */
+    useNewMatches: () => number[];
+    /** Append the new matches to the end of the worklist, in the map's review order. @unstable */
+    appendNewMatches: () => Promise<void>;
+    /** Mark the current location reviewed and step to the next one. @unstable */
+    next: () => Promise<void>;
+    /** Step back to the previous location in the session. @unstable */
+    prev: () => Promise<void>;
+    /** Delete the current location and advance to the next one. Exits the pass if it
+     *  was the last item. @unstable */
+    deleteCurrent: () => Promise<void>;
+    /** Exit the review UI but keep the session resumable (persisted as active). @unstable */
+    cancel: () => void;
+    /** Rename a review session. @unstable */
+    rename: (id: string, name: string) => Promise<void>;
+    /** Delete a review session (its progress, not the locations). @unstable */
+    removeSession: (id: string) => Promise<void>;
+    /** Review sessions for the open map, optionally filtered by status. @unstable */
+    sessions: (status?: "active" | "done") => Promise<ReviewSession[]>;
+    /** Select every location marked reviewed across all sessions on this map. @unstable */
+    selectReviewed: () => Promise<void>;
+    /** The locations of review session `s` that are reviewed, or still to review. @unstable */
+    selector: (s: ReviewSession, mode: ReviewMode) => Selector;
+};
+
+/** Saved selection rules shared across maps. Tag membership is stored by name
+ * so rules can be applied on maps with different tag ids. */
+
+/** One part of a saved rule: what its chip reads as, and what it resolves to here. The
+ *  label comes from the tree as saved, so a tag this map doesn't have still reads by the
+ *  name it was saved under. @unstable */
+export interface SavedPart {
+    label: string;
+    color: RGB;
+    selector: Selector;
+}
+/** Saved selection rules. @api @unstable */
+declare const SavedSelection: {
+    /** Selection types that cannot be saved as rules because they are bound to the open map. @unstable */
+    MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "Validation", "Reviewed", "Selected"];
+    /** Whether the selector tree contains only portable types (no map-local leaves). @unstable */
+    isSaveable: (selector: Selector) => boolean;
+    /** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
+     *  a single part. @unstable */
+    parts: (saved: SavedSelection) => SavedPart[];
+    /** The rules that exist, as identity only. Empty until the index loads: the first
+     *  call starts the read and `saved-selections:changed` announces it. @unstable */
+    index: () => SavedSelectionInfo[];
+    /** Load the full rule bodies for the given `ids`. @unstable */
+    load: (ids: string[]) => Promise<SavedSelection[]>;
+    /** Every rule with its body. @unstable */
+    loadAll: () => Promise<SavedSelection[]>;
+    /** Persists the saveable selections as one rule. False when none of them are saveable. @unstable */
+    save: (name: string, selections: Selection[]) => Promise<boolean>;
+    /** Permanently delete a saved selection rule. @unstable */
+    remove: (id: string) => Promise<void>;
+    /** Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
+     *  were added. @unstable */
+    apply: (saved: SavedSelection) => number;
+};
+
+/** The marker scene the map surfaces render from, and its load lifecycle. @api @unstable */
+declare const Scene: {
+    /** The shared scene that all map surfaces render from. @unstable */
+    get: () => CellManager;
+    /** Set the default marker color (RGB bytes). @unstable */
+    setDefaultColor: (r: number, g: number, b: number) => void;
+    /** Change the default marker color and repaint. @unstable */
+    recolor: (mc: RGB) => void;
+    /** Current default marker color as RGBA. @unstable */
+    defaultColor: () => RGBA;
+    /**
+     * Resolves once the scene has applied the frame for map version `version`, with what that
+     * frame did. Resolves at once, with nothing applied, when the scene follows no map.
+     * @unstable
+     */
+    reached: (version: number) => Promise<FrameSummary>;
+    /** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
+    settled: () => Promise<void>;
+    /** Load the whole scene again and follow every change to it from there. @unstable */
+    load: (markerStyle?: MarkerStyle, mc?: RGB) => Promise<void>;
+    /** Clear all marker data from the scene and stop following the map. @unstable */
+    clear: () => void;
+    /** The ids of the locations the listed selections select. @unstable */
+    selected: () => SelectedIds;
+    /** Reactive {@link Scene.selected}. @unstable */
+    useSelected: () => SelectedIds;
+};
+
+/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). @api @unstable */
+declare function getScenePositions(): {
+    ids: Uint32Array;
+    positions: Float32Array;
+};
+
+/** @unstable */
+export type Disposable = () => void;
+/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. @api @unstable */
+declare function runAsPlugin<T>(id: string, fn: () => T): T;
+/** Enroll a teardown callback under the current plugin. No-op outside activation. @api @unstable */
+declare function trackDisposable(dispose: Disposable): void;
+/** Set the base directory for a plugin's assets on disk. @api @unstable */
+declare function setPluginBaseDir(id: string, dir: string): void;
+/** Resolve a relative path against the current plugin's base directory. Absolute
+ *  paths and `res://` URLs pass through unchanged. @api @unstable */
+declare function resolvePluginPath(path: string): string;
+/** Run all teardowns a plugin registered (in reverse order) and clear them. @api @unstable */
+declare function disposePlugin(id: string): void;
+
 /** @unstable */
 export interface GeoDisplay {
     address: string;
@@ -5725,7 +6043,7 @@ export type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" |
 }>>;
 /** @unstable */
 export type SeenPano = Pick<SeenEntry, "locationId" | "lat" | "lng" | "heading" | "pitch" | "zoom" | "countryCode"> & Pick<Location, "panoId">;
-/** @unstable */
+/** The seen-location history and how panorama visits are recorded into it. @api @unstable */
 declare const Seen: {
     /** The map location each entry was seen at, while it still shows the entry's pano; null otherwise. @unstable */
     onMap: (list: readonly Pick<SeenPano, "locationId" | "panoId">[]) => Promise<(Location | null)[]>;
@@ -5753,143 +6071,72 @@ declare const Seen: {
 
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
-/** Selector variants with child selections. @unstable */
-export type CompositeType = Extract<Selector, {
-    selections: SelectionInput[];
-}>["type"];
-/** Composite variants that wrap exactly one child (e.g. Invert). @unstable */
-export type UnaryType = "Invert";
-/** Composite variants that are flat n-ary groups. @unstable */
-export type GroupType = Exclude<CompositeType, UnaryType>;
-/** @unstable */
+/** @api @unstable */
 declare const UNARY_TYPES: readonly ["Invert"];
 /** @unstable */
 export type FilterOpKind = FilterOp["op"];
-/** Whether a predicate reads the location's clock in its own timezone. Only a range can. @unstable */
+/** Whether a predicate reads the location's clock in its own timezone. Only a range can. @api @unstable */
 declare const filterIsLocalTime: (test: FilterOp) => boolean;
 /** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
- *  operators are marked for translation. @unstable */
+ *  operators are marked for translation. @api @unstable */
 declare const OP_LABELS: Record<FilterOpKind, string>;
 /** Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
- *  else, so there is no tag selector to build. @unstable */
+ *  else, so there is no tag selector to build. @api @unstable */
 declare const tagSelector: (tagId: number) => Selector;
-/** Locations with no tags: `tags` resolves to nothing on an untagged location. @unstable */
+/** Locations with no tags: `tags` resolves to nothing on an untagged location. @api @unstable */
 declare const untaggedSelector: () => Selector;
-/** Locations whose heading was never set. @unstable */
+/** Locations whose heading was never set. @api @unstable */
 declare const unpannedSelector: () => Selector;
 /** Locations pinned to one exact pano (the flag plus a pano id), or the locations not
- *  pinned. @unstable */
+ *  pinned. @api @unstable */
 declare function panoIdSelector(on: boolean): Selector;
-/** Locations holding a value for `field`. @unstable */
+/** Locations holding a value for `field`. @api @unstable */
 declare const has: (field: string) => Selector;
-/** Locations holding no value for `field`. @unstable */
+/** Locations holding no value for `field`. @api @unstable */
 declare const lacks: (field: string) => Selector;
-/** Locations matching every one of `selectors`; with none, every location. @unstable */
+/** Locations matching every one of `selectors`; with none, every location. @api @unstable */
 declare const all: (...selectors: Selector[]) => Selector;
-/** Locations matching any of `selectors`; with none, no location. @unstable */
+/** Locations matching any of `selectors`; with none, no location. @api @unstable */
 declare const any: (...selectors: Selector[]) => Selector;
-/** Locations not matching `selector`. @unstable */
+/** Locations not matching `selector`. @api @unstable */
 declare const not: (selector: Selector) => Selector;
 /** The interned value a selector tests membership of, or null when it tests something else.
- *  The single place that recognises value membership, so nothing else has to know its shape. @unstable */
+ *  The single place that recognises value membership, so nothing else has to know its shape. @api @unstable */
 declare function memberOf(selector: Selector): {
     field: string;
     id: number;
 } | null;
-/** The tag a selector names, or null when it names something else. @unstable */
+/** The tag a selector names, or null when it names something else. @api @unstable */
 declare function tagIdOf(selector: Selector): number | null;
 /** What one selection type answers about itself; optional answers default at the lookup. @unstable */
 export interface SelectionDescriptor<K extends Selector["type"]> {
     label(selector: Variant<Selector, K>, valueNames?: ValueNames): string;
 }
-/** The display label of each selector variant. @unstable */
+/** The display label of each selector variant. @api @unstable */
 declare const SELECTIONS: {
     [K in Selector["type"]]: SelectionDescriptor<K>;
 };
-/** Every child selection a selector wraps, whatever shape it wraps them in. @unstable */
+/** Every child selection a selector wraps, whatever shape it wraps them in. @api @unstable */
 declare function childSelections<S>(selector: Selector$1<S>): S[];
-/** `selector` with its children replaced, keeping the shape it wraps them in. @unstable */
+/** `selector` with its children replaced, keeping the shape it wraps them in. @api @unstable */
 declare function withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>;
-/** An unaddressed selection input; the store supplies its key and default color. @unstable */
+/** An unaddressed selection input; the store supplies its key and default color. @api @unstable */
 declare function selection(selector: Selector, color?: RGB): SelectionInput;
-/** @unstable */
+/** @api @unstable */
 declare function buildSelection(selector: Selector): Promise<Selection>;
 /** @unstable */
 export type SelectionPath = number[];
-/** @unstable */
+/** @api @unstable */
 declare function selectionAt(rows: ListedSelection[], path: SelectionPath): Selection | undefined;
-/** @unstable */
+/** @api @unstable */
 declare const addSelection: (...selectors: Selector[]) => SelectionOp;
-/** @unstable */
+/** @api @unstable */
 declare const toggleSelection: (...selectors: Selector[]) => SelectionOp;
-/** @unstable */
+/** @api @unstable */
 declare const replaceSelection: (path: SelectionPath, selector: Selector) => SelectionOp;
 /** Human-readable label for a selection. Pass `valueNames` to resolve interned values by
- *  saved name rather than the open map's records. @unstable */
+ *  saved name rather than the open map's records. @api @unstable */
 declare function selectionDisplayName(sel: SelectionInput, valueNames?: ValueNames): string;
-
-/** @unstable */
-export type selectionOps_CompositeType = CompositeType;
-/** @unstable */
-export type selectionOps_FilterOpKind = FilterOpKind;
-/** @unstable */
-export type selectionOps_GroupType = GroupType;
-/** @unstable */
-declare const selectionOps_OP_LABELS: typeof OP_LABELS;
-/** @unstable */
-declare const selectionOps_SELECTIONS: typeof SELECTIONS;
-/** @unstable */
-export type selectionOps_SelectionPath = SelectionPath;
-/** @unstable */
-declare const selectionOps_UNARY_TYPES: typeof UNARY_TYPES;
-/** @unstable */
-export type selectionOps_UnaryType = UnaryType;
-/** @unstable */
-declare const selectionOps_addSelection: typeof addSelection;
-/** @unstable */
-declare const selectionOps_all: typeof all;
-/** @unstable */
-declare const selectionOps_any: typeof any;
-/** @unstable */
-declare const selectionOps_buildSelection: typeof buildSelection;
-/** @unstable */
-declare const selectionOps_childSelections: typeof childSelections;
-/** @unstable */
-declare const selectionOps_filterIsLocalTime: typeof filterIsLocalTime;
-/** @unstable */
-declare const selectionOps_has: typeof has;
-/** @unstable */
-declare const selectionOps_lacks: typeof lacks;
-/** @unstable */
-declare const selectionOps_memberOf: typeof memberOf;
-/** @unstable */
-declare const selectionOps_not: typeof not;
-/** @unstable */
-declare const selectionOps_panoIdSelector: typeof panoIdSelector;
-/** @unstable */
-declare const selectionOps_replaceSelection: typeof replaceSelection;
-/** @unstable */
-declare const selectionOps_selection: typeof selection;
-/** @unstable */
-declare const selectionOps_selectionAt: typeof selectionAt;
-/** @unstable */
-declare const selectionOps_selectionDisplayName: typeof selectionDisplayName;
-/** @unstable */
-declare const selectionOps_tagIdOf: typeof tagIdOf;
-/** @unstable */
-declare const selectionOps_tagSelector: typeof tagSelector;
-/** @unstable */
-declare const selectionOps_toggleSelection: typeof toggleSelection;
-/** @unstable */
-declare const selectionOps_unpannedSelector: typeof unpannedSelector;
-/** @unstable */
-declare const selectionOps_untaggedSelector: typeof untaggedSelector;
-/** @unstable */
-declare const selectionOps_withChildren: typeof withChildren;
-declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_lacks as lacks, selectionOps_memberOf as memberOf, selectionOps_not as not, selectionOps_panoIdSelector as panoIdSelector, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleSelection as toggleSelection, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
-  export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPath as SelectionPath, selectionOps_UnaryType as UnaryType };
-}
 
 /** What the selector picker offers. Not a location set -- `selectorForPick` turns it
  *  into a `Selector`. */
@@ -5907,32 +6154,56 @@ export interface SelectorPickController {
     allCount: number;
     selectionCount: number;
 }
-/** Convert a picker choice into the corresponding `Selector`. @unstable */
+/** Convert a picker choice into the corresponding `Selector`. @api @unstable */
 declare function selectorForPick(choice: SelectorPick): Selector;
 /** React hook: selector state with live counts. Defaults to the current selection when one
- *  exists, else all locations. @unstable */
+ *  exists, else all locations. @api @unstable */
 declare function useSelectorPick(initial?: SelectorPick): SelectorPickController;
 
-/** @unstable */
-export type picker_SelectorPick = SelectorPick;
-/** @unstable */
-export type picker_SelectorPickController = SelectorPickController;
-/** @unstable */
-declare const picker_selectorForPick: typeof selectorForPick;
-/** @unstable */
-declare const picker_useSelectorPick: typeof useSelectorPick;
-declare namespace picker {
-  export { picker_selectorForPick as selectorForPick, picker_useSelectorPick as useSelectorPick };
-  export type { picker_SelectorPick as SelectorPick, picker_SelectorPickController as SelectorPickController };
+export interface SearchOpts {
+    sources?: PanoType[];
+    preference?: RankingStrategy;
 }
+/** Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
+ *  not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
+ *  Duplicates are deduped and large batches are split automatically. @api */
+declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(Pano | null)[]>;
+/** The nearest pano to each point, aligned to `points`, null where there is no coverage.
+ *  `opts.sources` narrows which collections are searched and `opts.preference` picks
+ *  nearest or best. `onPano` sees each point's answer the moment its search resolves,
+ *  ahead of the full array. @api */
+declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal, onPano?: (index: number, pano: Pano | null) => void): Promise<(Pano | null)[]>;
 
-/** Low-level command, shell, and file dialog access. @unstable */
+/** Sort tags by the chosen mode: name, location count, or manual order. @api */
+declare function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[];
+/** Color for a tag named `name`. An existing tag uses its stored color. @api */
+declare function tagColorFor(name: string, tags: Tag[]): string;
+/** Tags staged on a location until it saves: existing tags by id, and typed names that Save creates. */
+export interface PendingTags {
+    ids: number[];
+    names: string[];
+}
+/** Stage typed text as the existing tag it names, ignoring case, or as a name to create.
+ *  Returns `pending` unchanged if already staged. @api */
+declare function addPendingTag(pending: PendingTags, name: string, tags: Tag[]): PendingTags;
+/** Stage the tag, or unstage it if it is already staged. @api */
+declare function togglePendingTag(pending: PendingTags, id: number): PendingTags;
+/** The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out. @api */
+declare function pendingTagIds({ ids, names }: PendingTags): Promise<number[]>;
+/** Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
+ *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. @api */
+declare function displayTagName(name: string): string;
 
+/** Low-level command, shell, and file dialog access. */
+
+/** @api @unstable */
+declare const invoke: typeof invoke$1;
+/** @api @unstable */
 declare const shell: {
     /** @unstable */
     Command: typeof Command;
 };
-/** @unstable */
+/** @api @unstable */
 declare const dialog: {
     /** @unstable */
     open: typeof open;
@@ -5940,314 +6211,67 @@ declare const dialog: {
     save: typeof save;
 };
 
-/** @unstable */
-declare const tauri_dialog: typeof dialog;
-/** @unstable */
-declare const tauri_invoke: typeof invoke;
-/** @unstable */
-declare const tauri_shell: typeof shell;
-declare namespace tauri {
-  export {
-    tauri_dialog as dialog,
-    tauri_invoke as invoke,
-    tauri_shell as shell,
-  };
-}
-
-/** The fields a plugin shows as itself, declared once by its manifest. */
-export type PluginIdentity = Pick<PluginManifest, "id" | "name" | "description" | "icon" | "comingSoon" | "experimental">;
-export interface Plugin extends PluginIdentity {
-    core?: boolean;
-    /** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
-     *  Only for plugins whose state can't be serialized (e.g. an iframe). */
-    keepAlive?: boolean;
-    activate(): void | (() => void);
-    modal?: ComponentType<{
-        onClose: () => void;
-    }>;
-    sidebar?: ComponentType<{
-        onClose: () => void;
-    }>;
-    locationPanel?: ComponentType;
-}
-export type PluginBehavior = Partial<Plugin> & {
-    activate(): void | (() => void);
-};
-/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @unstable */
-declare function setPendingManifest(manifest: PluginManifest | null): void;
-/** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. */
-declare function registerPlugin(plugin: Plugin | PluginBehavior): void;
-/** All registered plugins, sorted by name. */
-declare function getPlugins(): Plugin[];
-/** Look up a registered plugin by id. */
-declare function getPlugin(id: string): Plugin | undefined;
-/** True when the plugin contributes data only and has no UI surfaces. */
-declare function isBackgroundPlugin(id: string): boolean;
-/** Remove a plugin from the registry. @unstable */
-declare function unregisterPlugin(id: string): void;
-
-/** @unstable */
-export type registry_Plugin = Plugin;
-/** @unstable */
-export type registry_PluginBehavior = PluginBehavior;
-/** @unstable */
-export type registry_PluginIdentity = PluginIdentity;
-declare const registry_getPlugin: typeof getPlugin;
-declare const registry_getPlugins: typeof getPlugins;
-declare const registry_isBackgroundPlugin: typeof isBackgroundPlugin;
-declare const registry_registerPlugin: typeof registerPlugin;
-/** @unstable */
-declare const registry_setPendingManifest: typeof setPendingManifest;
-/** @unstable */
-declare const registry_unregisterPlugin: typeof unregisterPlugin;
-declare namespace registry {
-  export { registry_getPlugin as getPlugin, registry_getPlugins as getPlugins, registry_isBackgroundPlugin as isBackgroundPlugin, registry_registerPlugin as registerPlugin, registry_setPendingManifest as setPendingManifest, registry_unregisterPlugin as unregisterPlugin };
-  export type { registry_Plugin as Plugin, registry_PluginBehavior as PluginBehavior, registry_PluginIdentity as PluginIdentity };
-}
-
-/** True when the plugin is enabled by the user. @unstable */
-declare function isPluginEnabled(id: string): boolean;
-/** Enable or disable a plugin. @unstable */
-declare function setPluginEnabled(id: string, enabled: boolean): void;
-/** All registered plugins the user has enabled. @unstable */
-declare function getEnabledPlugins(): Plugin[];
-/** Activate all enabled plugins. Called when a map opens. @unstable */
-declare function activatePlugins(): void;
-/** Deactivate all plugins and stop their sidecars. Called when a map closes. @unstable */
-declare function deactivatePlugins(): void;
-/** Activate a single plugin by id. @unstable */
-declare function activatePlugin(id: string): void;
-/** Deactivate a single plugin and stop its sidecar. @unstable */
-declare function deactivatePlugin(id: string): void;
-/** True once the MMA surface is installed and plugins are safe to call it. @unstable */
-declare function isReady(): boolean;
-/** Mark the plugin surface as ready. @unstable */
-declare function markReady(): void;
-
-/** @unstable */
-declare const pluginHost_activatePlugin: typeof activatePlugin;
-/** @unstable */
-declare const pluginHost_activatePlugins: typeof activatePlugins;
-/** @unstable */
-declare const pluginHost_deactivatePlugin: typeof deactivatePlugin;
-/** @unstable */
-declare const pluginHost_deactivatePlugins: typeof deactivatePlugins;
-/** @unstable */
-declare const pluginHost_getEnabledPlugins: typeof getEnabledPlugins;
-/** @unstable */
-declare const pluginHost_isPluginEnabled: typeof isPluginEnabled;
-/** @unstable */
-declare const pluginHost_isReady: typeof isReady;
-/** @unstable */
-declare const pluginHost_markReady: typeof markReady;
-/** @unstable */
-declare const pluginHost_setPluginEnabled: typeof setPluginEnabled;
-declare namespace pluginHost {
-  export {
-    pluginHost_activatePlugin as activatePlugin,
-    pluginHost_activatePlugins as activatePlugins,
-    pluginHost_deactivatePlugin as deactivatePlugin,
-    pluginHost_deactivatePlugins as deactivatePlugins,
-    pluginHost_getEnabledPlugins as getEnabledPlugins,
-    pluginHost_isPluginEnabled as isPluginEnabled,
-    pluginHost_isReady as isReady,
-    pluginHost_markReady as markReady,
-    pluginHost_setPluginEnabled as setPluginEnabled,
-  };
-}
-
-/** True when `appVersion` meets the plugin's minimum version requirement. @unstable */
-declare function isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean;
-/** True when a newer version is published and the installed version is known. @unstable */
-declare function isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean;
-/** True when either the plugin or its sidecar has a newer published version. @unstable */
-declare function needsUpdate(installedVersion: string | undefined, latestVersion: string | undefined, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
-/** The build of a plugin to install. `ref` is the commit, null for the latest. @unstable */
-export interface ResolvedBuild {
-    version: string;
-    ref: string | null;
-    minAppVersion: string | null;
-    sidecarVersion: string | null;
-}
-/** The newest build of a plugin this app version can run. Falls back through older
- *  pinned builds when the latest is incompatible. Null when none fit. @unstable */
-declare function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null;
-/** True when the installed plugin or its sidecar should be refreshed to `target`. @unstable */
-declare function needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined): boolean;
-/** Fetch the marketplace plugin registry. Later calls return the first result until restart. @unstable */
-declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
-/** Auto-update a plugin to the newest compatible build before loading it. Falls back
- *  to what is on disk on failure. @unstable */
-declare function autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>;
-
-/** @unstable */
-export type marketplace_ResolvedBuild = ResolvedBuild;
-/** @unstable */
-declare const marketplace_autoUpdatePlugin: typeof autoUpdatePlugin;
-/** @unstable */
-declare const marketplace_fetchPluginRegistry: typeof fetchPluginRegistry;
-/** @unstable */
-declare const marketplace_isPluginCompatible: typeof isPluginCompatible;
-/** @unstable */
-declare const marketplace_isPluginUpdatable: typeof isPluginUpdatable;
-/** @unstable */
-declare const marketplace_needsBuildUpdate: typeof needsBuildUpdate;
-/** @unstable */
-declare const marketplace_needsUpdate: typeof needsUpdate;
-/** @unstable */
-declare const marketplace_resolveBuild: typeof resolveBuild;
-declare namespace marketplace {
-  export { marketplace_autoUpdatePlugin as autoUpdatePlugin, marketplace_fetchPluginRegistry as fetchPluginRegistry, marketplace_isPluginCompatible as isPluginCompatible, marketplace_isPluginUpdatable as isPluginUpdatable, marketplace_needsBuildUpdate as needsBuildUpdate, marketplace_needsUpdate as needsUpdate, marketplace_resolveBuild as resolveBuild };
-  export type { marketplace_ResolvedBuild as ResolvedBuild };
-}
-
-export interface PluginStorage {
-    get<T = unknown>(key: string, fallback?: T): T;
-    set(key: string, value: unknown): void;
-    remove(key: string): void;
-    keys(): string[];
-}
-/** A plugin's store in the open map. Writes resolve once they are saved. */
-export interface MapPluginStorage {
-    get<T = unknown>(key: string, fallback?: T): T;
-    set(key: string, value: unknown): Promise<void>;
-    remove(key: string): Promise<void>;
-    keys(): string[];
-}
-/** Persistent key-value storage namespaced to a plugin. Survives restarts. */
-declare function storage(id: string): PluginStorage;
-/** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
- *  Each write changes only one key, patched onto the current map settings. */
-declare function mapStorage(id: string): MapPluginStorage;
-/** Re-read a plugin's store after another window wrote it. @unstable */
-declare function reloadStorage(id: string): void;
-/** React state hook backed by the plugin's persistent store. Survives sidebar
- *  unmount and app restart. Values are global, not per-map. */
-declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
-
-/** @unstable */
-export type pluginStorage_MapPluginStorage = MapPluginStorage;
-/** @unstable */
-export type pluginStorage_PluginStorage = PluginStorage;
-declare const pluginStorage_mapStorage: typeof mapStorage;
-/** @unstable */
-declare const pluginStorage_reloadStorage: typeof reloadStorage;
-declare const pluginStorage_storage: typeof storage;
-declare const pluginStorage_usePluginState: typeof usePluginState;
-declare namespace pluginStorage {
-  export { pluginStorage_mapStorage as mapStorage, pluginStorage_reloadStorage as reloadStorage, pluginStorage_storage as storage, pluginStorage_usePluginState as usePluginState };
-  export type { pluginStorage_MapPluginStorage as MapPluginStorage, pluginStorage_PluginStorage as PluginStorage };
-}
-
-/** @unstable */
-export type Disposable = () => void;
-/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. @unstable */
-declare function runAsPlugin<T>(id: string, fn: () => T): T;
-/** Enroll a teardown callback under the current plugin. No-op outside activation. @unstable */
-declare function trackDisposable(dispose: Disposable): void;
-/** Set the base directory for a plugin's assets on disk. @unstable */
-declare function setPluginBaseDir(id: string, dir: string): void;
-/** Resolve a relative path against the current plugin's base directory. Absolute
- *  paths and `res://` URLs pass through unchanged. @unstable */
-declare function resolvePluginPath(path: string): string;
-/** Run all teardowns a plugin registered (in reverse order) and clear them. @unstable */
-declare function disposePlugin(id: string): void;
-
-/** @unstable */
-declare const scope_disposePlugin: typeof disposePlugin;
-/** @unstable */
-declare const scope_resolvePluginPath: typeof resolvePluginPath;
-/** @unstable */
-declare const scope_runAsPlugin: typeof runAsPlugin;
-/** @unstable */
-declare const scope_setPluginBaseDir: typeof setPluginBaseDir;
-/** @unstable */
-declare const scope_trackDisposable: typeof trackDisposable;
-declare namespace scope {
-  export {
-    scope_disposePlugin as disposePlugin,
-    scope_resolvePluginPath as resolvePluginPath,
-    scope_runAsPlugin as runAsPlugin,
-    scope_setPluginBaseDir as setPluginBaseDir,
-    scope_trackDisposable as trackDisposable,
-  };
-}
-
-/** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
- *  deactivation. */
-declare function on<E extends EditorEvent | PluginEvent<unknown>>(event: E, handler: EventHandler<E>): () => void;
-/** Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
- *  whoever raises it and whoever hears it agree on the payload. @unstable */
-declare function definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>;
-/** Raise one of a plugin's own events, with its payload when it carries one. @unstable */
-declare function emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends void ? [] : [payload: T]): void;
-/** React hook: what `read` returns, read again each time `event` is raised. `read` must return
- *  the same reference while nothing it reads has changed. @unstable */
-declare function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;
-
-/** @unstable */
-declare const pluginEvents_definePluginEvent: typeof definePluginEvent;
-/** @unstable */
-declare const pluginEvents_emitPluginEvent: typeof emitPluginEvent;
-declare const pluginEvents_on: typeof on;
-/** @unstable */
-declare const pluginEvents_usePluginEvent: typeof usePluginEvent;
-declare namespace pluginEvents {
-  export {
-    pluginEvents_definePluginEvent as definePluginEvent,
-    pluginEvents_emitPluginEvent as emitPluginEvent,
-    pluginEvents_on as on,
-    pluginEvents_usePluginEvent as usePluginEvent,
-  };
-}
-
-/** Get a module the app bundles (e.g. "react", "@deck.gl/core") for use inside a plugin.
- *  Lazy modules must be loaded with `preloadModules` first. */
-declare function mmaRequire(id: string): unknown;
-/** Load lazy bundled modules so `mmaRequire` can return them synchronously. */
-declare function preloadModules(ids: string[]): Promise<void>;
-/** Names of every module available through `mmaRequire`. */
-declare function getAvailableExternals(): string[];
-declare global {
-    var __mma_require: typeof mmaRequire;
-}
-
-declare const externals_getAvailableExternals: typeof getAvailableExternals;
-declare const externals_mmaRequire: typeof mmaRequire;
-declare const externals_preloadModules: typeof preloadModules;
-declare namespace externals {
-  export {
-    externals_getAvailableExternals as getAvailableExternals,
-    externals_mmaRequire as mmaRequire,
-    externals_preloadModules as preloadModules,
-  };
-}
-
-export interface SidecarOptions<T> {
-    /** Fires once per JSON object the sidecar emits, in order. */
-    onLine?(item: T): void;
-    /** Sidecar diagnostic output, one-shot runs only. */
-    onLog?(line: string): void;
-    signal?: AbortSignal;
-}
-/** Send a command to a plugin's sidecar and resolve with its last emitted JSON
- *  object (null if it emitted none). `payload` is sent as JSON. */
-declare function request$1<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
-/** The sidecar version installed for a plugin, or null when it has none yet. */
-declare function installedVersion$1(pluginId: string): Promise<string | null>;
-/** The nested `sidecar` namespace on the plugin surface. */
-declare const sidecar: {
-    request: typeof request$1;
-    installedVersion: typeof installedVersion$1;
+/** Cross-module stopwatch for map-open latency. @unstable */
+declare const mapOpen: {
+    start: number;
+    seen: Set<string>;
+    begin(): void;
+    mark(phase: string): void;
 };
 
+/** Force a full selection re-resolve and return the selected IDs. @unstable */
+declare function syncSelections(): Promise<{
+    ids: number[];
+}>;
+/** Open a map by id and navigate to it. @unstable */
+declare function openMap(id: string): Promise<void>;
+/** Close the current map and return to the map list. @unstable */
+declare function closeMap(): Promise<void>;
+/** Delete a map by id. @unstable */
+declare function deleteMap(id: string): Promise<void>;
+/** Import locations from pasted text and commit them to the map. @unstable */
+declare function importPaste(text: string): Promise<EditorImportResult[]>;
+/** Import a previewed file, optionally assigning tags. @unstable */
+declare function importFile(droppedFields: string[], tagNames?: string[]): Promise<EditorImportResult>;
+
 /** @unstable */
-export type sidecar$1_SidecarOptions<T> = SidecarOptions<T>;
-declare const sidecar$1_sidecar: typeof sidecar;
-declare namespace sidecar$1 {
-  export { sidecar$1_sidecar as sidecar };
-  export type { sidecar$1_SidecarOptions as SidecarOptions };
+declare const testApi_closeMap: typeof closeMap;
+/** @unstable */
+declare const testApi_deleteMap: typeof deleteMap;
+/** @unstable */
+declare const testApi_importFile: typeof importFile;
+/** @unstable */
+declare const testApi_importPaste: typeof importPaste;
+/** @unstable */
+declare const testApi_mapOpen: typeof mapOpen;
+/** @unstable */
+declare const testApi_openMap: typeof openMap;
+/** @unstable */
+declare const testApi_syncSelections: typeof syncSelections;
+declare namespace testApi {
+  export {
+    testApi_closeMap as closeMap,
+    testApi_deleteMap as deleteMap,
+    testApi_importFile as importFile,
+    testApi_importPaste as importPaste,
+    testApi_mapOpen as mapOpen,
+    testApi_openMap as openMap,
+    testApi_syncSelections as syncSelections,
+  };
 }
+
+/** The nested `_test` namespace on the plugin surface. @api @unstable */
+declare const _test: typeof testApi;
+
+/** @unstable */
+export interface ToastEntry {
+    id: number;
+    message: string;
+}
+/** Show a brief toast notification. Optionally scoped to a `container` element. @api */
+declare function toast(message: string, duration?: number, container?: HTMLElement): void;
+/** Current list of visible toasts. @api @unstable */
+declare function getToasts(): ToastEntry[];
 
 export type BarSize = "sm" | "md" | "lg";
 export type BarTone = "accent" | "complete" | "incomplete";
@@ -6329,7 +6353,7 @@ export interface DatePickerProps {
 /** @unstable */
 declare function DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): react.JSX.Element;
 
-/** Controlled open/close pair every dialog component takes. */
+/** Controlled open/close pair every dialog component takes. @unstable */
 export interface DialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -6340,9 +6364,7 @@ declare function useCloseDialog(): () => void;
 declare function Dialog({ open, onOpenChange, children, ...props }: Omit<ComponentProps<typeof Dialog$1.Root>, "onOpenChange"> & {
     onOpenChange?: (open: boolean) => void;
 }): react.JSX.Element;
-/** @unstable */
-declare const DialogTrigger: Dialog$1.Trigger;
-/** A dialog's fixed width: small, medium, large or extra large. */
+/** A dialog's fixed width: small, medium, large or extra large. @unstable */
 export type DialogSize = "sm" | "md" | "lg" | "xl";
 /** @unstable */
 declare function DialogContent({ className, title, size, aside, initialFocus, children, ...props }: ComponentProps<typeof Dialog$1.Popup> & {
@@ -6351,7 +6373,7 @@ declare function DialogContent({ className, title, size, aside, initialFocus, ch
     /** Shown in the header between the title and the close button, such as a status. */
     aside?: ReactNode;
 }): react.JSX.Element;
-/** One button in a dialog footer. */
+/** One button in a dialog footer. @unstable */
 export interface DialogAction {
     label: ReactNode;
     /** Runs on click. Without it the button submits the form it sits in. */
@@ -6676,335 +6698,135 @@ declare function Tooltip({ content, side, align, children, }: {
     children: ReactElement;
 }): ReactElement<Record<string, unknown>, string | react.JSXElementConstructor<any>>;
 
-/**
- * The public widget set, re-exported as one surface so `MMA.ui` is this list and
- * nothing else. Membership is deliberate: whatever a plugin can reach here has to
- * keep working (see legacy.ts), so a primitive is added when a plugin needs it,
- * not because it happens to live in this folder.
- *
- * Deliberately absent: ToastContainer (singleton mount -- use `MMA.toast`),
- * MeasurementBar (reads map state), SettingsSearchContext/useSettingsSearch
- * (Settings-dialog plumbing), Trans (i18n infra).
- */
+/** Shared UI primitives for plugin sidebars and dialogs. @api */
+declare const ui: {
+    Bar: typeof Bar;
+    Button: typeof Button;
+    Checkbox: typeof Checkbox;
+    ColorPicker: typeof ColorPicker;
+    /** @unstable */
+    RgbPicker: typeof RgbPicker;
+    /** @unstable */
+    ConfirmButton: typeof ConfirmButton;
+    CoverageBar: typeof CoverageBar;
+    /** @unstable */
+    DatePicker: typeof DatePicker;
+    /** @unstable */
+    ConfirmDialog: typeof ConfirmDialog;
+    /** @unstable */
+    Dialog: typeof Dialog;
+    /** @unstable */
+    DialogActions: typeof DialogActions;
+    /** @unstable */
+    DialogContent: typeof DialogContent;
+    /** @unstable */
+    DialogForm: typeof DialogForm;
+    /** @unstable */
+    DialogTrigger: _base_ui_components_react_dialog.DialogTrigger;
+    /** @unstable */
+    PromptDialog: typeof PromptDialog;
+    /** @unstable */
+    useCloseDialog: typeof useCloseDialog;
+    Flag: typeof Flag;
+    Hint: typeof Hint;
+    Notice: typeof Notice;
+    /** @unstable */
+    HotkeyInput: typeof HotkeyInput;
+    Icon: typeof Icon;
+    /** @unstable */
+    IconButton: typeof IconButton;
+    /** @unstable */
+    NSelect: typeof NSelect;
+    ProgressRow: typeof ProgressRow;
+    Radio: typeof Radio;
+    SelectorPicker: typeof SelectorPicker;
+    /** @unstable */
+    SettingRow: typeof SettingRow;
+    EmptyState: typeof EmptyState;
+    Field: typeof Field;
+    SegmentedControl: typeof SegmentedControl;
+    Section: typeof Section;
+    Sidebar: typeof Sidebar;
+    Slider: typeof Slider;
+    Spinner: typeof Spinner;
+    /** @unstable */
+    SuggestInput: typeof SuggestInput;
+    Switch: typeof Switch;
+    SwitchRow: typeof SwitchRow;
+    /** @unstable */
+    TagPill: typeof TagPill;
+    /** @unstable */
+    TagPillButton: typeof TagPillButton;
+    TextInput: typeof TextInput;
+    /** @unstable */
+    ToolBlock: typeof ToolBlock;
+    Tooltip: typeof Tooltip;
+};
 
-declare const primitives_Bar: typeof Bar;
-declare const primitives_Button: typeof Button;
-declare const primitives_Checkbox: typeof Checkbox;
-declare const primitives_ColorPicker: typeof ColorPicker;
-/** @unstable */
-declare const primitives_ConfirmButton: typeof ConfirmButton;
-/** @unstable */
-declare const primitives_ConfirmDialog: typeof ConfirmDialog;
-declare const primitives_CoverageBar: typeof CoverageBar;
-/** @unstable */
-declare const primitives_DatePicker: typeof DatePicker;
-/** @unstable */
-declare const primitives_Dialog: typeof Dialog;
-/** @unstable */
-export type primitives_DialogAction = DialogAction;
-/** @unstable */
-declare const primitives_DialogActions: typeof DialogActions;
-/** @unstable */
-declare const primitives_DialogContent: typeof DialogContent;
-/** @unstable */
-declare const primitives_DialogForm: typeof DialogForm;
-/** @unstable */
-export type primitives_DialogProps = DialogProps;
-/** @unstable */
-export type primitives_DialogSize = DialogSize;
-declare const primitives_DialogTrigger: typeof DialogTrigger;
-declare const primitives_EmptyState: typeof EmptyState;
-declare const primitives_Field: typeof Field;
-declare const primitives_Flag: typeof Flag;
-declare const primitives_Hint: typeof Hint;
-/** @unstable */
-declare const primitives_HotkeyInput: typeof HotkeyInput;
-declare const primitives_Icon: typeof Icon;
-/** @unstable */
-declare const primitives_IconButton: typeof IconButton;
-/** @unstable */
-declare const primitives_NSelect: typeof NSelect;
-declare const primitives_Notice: typeof Notice;
-declare const primitives_ProgressRow: typeof ProgressRow;
-/** @unstable */
-declare const primitives_PromptDialog: typeof PromptDialog;
-declare const primitives_Radio: typeof Radio;
-/** @unstable */
-declare const primitives_RgbPicker: typeof RgbPicker;
-declare const primitives_Section: typeof Section;
-declare const primitives_SegmentedControl: typeof SegmentedControl;
-/** @unstable */
-export type primitives_SegmentedOption<T extends string | number> = SegmentedOption<T>;
-declare const primitives_SelectorPicker: typeof SelectorPicker;
-/** @unstable */
-declare const primitives_SettingRow: typeof SettingRow;
-declare const primitives_Sidebar: typeof Sidebar;
-declare const primitives_Slider: typeof Slider;
-declare const primitives_Spinner: typeof Spinner;
-/** @unstable */
-declare const primitives_SuggestInput: typeof SuggestInput;
-declare const primitives_Switch: typeof Switch;
-declare const primitives_SwitchRow: typeof SwitchRow;
-/** @unstable */
-declare const primitives_TagPill: typeof TagPill;
-/** @unstable */
-declare const primitives_TagPillButton: typeof TagPillButton;
-declare const primitives_TextInput: typeof TextInput;
-/** @unstable */
-declare const primitives_ToolBlock: typeof ToolBlock;
-declare const primitives_Tooltip: typeof Tooltip;
-/** @unstable */
-declare const primitives_useCloseDialog: typeof useCloseDialog;
-declare namespace primitives {
-  export { primitives_Bar as Bar, primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_ConfirmButton as ConfirmButton, primitives_ConfirmDialog as ConfirmDialog, primitives_CoverageBar as CoverageBar, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogActions as DialogActions, primitives_DialogContent as DialogContent, primitives_DialogForm as DialogForm, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_Hint as Hint, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_IconButton as IconButton, primitives_NSelect as NSelect, primitives_Notice as Notice, primitives_ProgressRow as ProgressRow, primitives_PromptDialog as PromptDialog, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_Spinner as Spinner, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
-  export type { primitives_DialogAction as DialogAction, primitives_DialogProps as DialogProps, primitives_DialogSize as DialogSize, primitives_SegmentedOption as SegmentedOption };
+/** What a job's work is handed. */
+export interface JobContext<P> {
+    signal: AbortSignal;
+    /** Push a progress value to the UI. Ignored once the job is cancelled. */
+    report: (progress: P) => void;
 }
+/** A job's state, with the controls that start and stop it. */
+export type Job<R, P = never> = JobState<R, P> & {
+    /** Start `work`, resolving to how it settled. While a run is under way this does nothing
+     *  and resolves cancelled, so a double-clicked button cannot start two. */
+    run: <T extends R>(work: (ctx: JobContext<P>) => Promise<T>) => Promise<Settled<T>>;
+    /** Stop the run under way; nothing it does afterwards can write back. */
+    cancel: () => void;
+};
+/** User-triggered async work that reports progress and can be cancelled. Unmounting cancels. @api */
+declare function useJob<R = unknown, P = never>(): Job<R, P>;
 
-/** @unstable */
-export interface EnrichFieldOption {
-    key: string;
-    label: string;
-    /** Excluded from the default field set (null enrichFields); user must opt in. */
-    defaultOff?: boolean;
+/** Base URL for a custom URI scheme, platform-adjusted. @api @unstable */
+declare function schemeBase(scheme: string): string;
+/** URL that serves a local file over the `mma-buf://` protocol. @api @unstable */
+declare function mmaBufUrl(path: string): string;
+/** Copy of `set` with `value` toggled, or forced on/off by `on`. @api @unstable */
+declare function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>;
+/** The item `isBetter` prefers over every other, or null when there are none. @api @unstable */
+declare function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null;
+/** Shuffle `items` in place (Fisher-Yates) and return them. @api @unstable */
+declare function shuffle<T>(items: T[]): T[];
+/** Split `arr` into sub-arrays of at most `n` elements. @api @unstable */
+declare function chunk<T>(arr: readonly T[], n: number): T[][];
+/** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
+ *  Build metadata is ignored; a pre-release sorts below the release it precedes. @api @unstable */
+declare function cmpVersion(a: string, b: string): number;
+/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. @api @unstable */
+declare function splitVersion(v: string): [core: string, pre: string];
+/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @api @unstable */
+declare function isPrereleaseVersion(v: string): boolean;
+/** True when the app runs in a browser instead of the desktop app. @api @unstable */
+declare function isWeb(): boolean;
+/** Prompt for files; resolves empty when the picker is dismissed. @api @unstable */
+declare function pickFiles(accept: string, opts?: {
+    multiple?: boolean;
+}): Promise<File[]>;
+/** Trigger a browser download from an in-memory Blob. @api @unstable */
+declare function downloadBlob(blob: Blob, fileName: string): void;
+/** Copy an image Blob to the clipboard. False when the platform refuses it. @api @unstable */
+declare function copyImageToClipboard(blob: Blob): Promise<boolean>;
+/** Compare strings with natural (numeric-aware) ordering. @api @unstable */
+declare function compareNatural(a: string, b: string): number;
+/** Current time as Unix seconds, the form Location timestamps use. @api @unstable */
+declare function nowUnix(): number;
+/** Rolling anchor for a phase-relative locations/second average. @unstable */
+export interface PhaseRate {
+    t0: number;
+    done0: number;
+    done: number;
+    total: number;
 }
-/** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). */
-declare function knownFieldDefs(...keys: string[]): Record<string, FieldDef>;
-/** All enrichment field options: the core fields, then every registered provider's own fields. @unstable */
-declare function getEnrichFieldOptions(): EnrichFieldOption[];
-/** All enrichment field keys (core and plugin-registered). @unstable */
-declare function getAllEnrichKeys(): string[];
-/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
-declare function getDefaultEnrichKeys(): string[];
-/** The enrichment fields `key`'s provider reads. @unstable */
-declare function enrichInputs(key: string): string[];
-/** The fields enrichment fetches for `enrichFields` (the default set when null): the chosen
- *  ones and every field they read, so no field runs without its inputs. @unstable */
-declare function enabledEnrichKeys(enrichFields?: string[] | null): string[];
-/** True when enrichment fetches `key` for the given enrichment set. @unstable */
-declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
-
-/** @unstable */
-export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
-/** @unstable */
-declare const fieldDefs_enabledEnrichKeys: typeof enabledEnrichKeys;
-/** @unstable */
-declare const fieldDefs_enrichInputs: typeof enrichInputs;
-/** @unstable */
-declare const fieldDefs_getAllEnrichKeys: typeof getAllEnrichKeys;
-/** @unstable */
-declare const fieldDefs_getDefaultEnrichKeys: typeof getDefaultEnrichKeys;
-/** @unstable */
-declare const fieldDefs_getEnrichFieldOptions: typeof getEnrichFieldOptions;
-/** @unstable */
-declare const fieldDefs_isFieldEnabled: typeof isFieldEnabled;
-declare const fieldDefs_knownFieldDefs: typeof knownFieldDefs;
-declare namespace fieldDefs {
-  export { fieldDefs_enabledEnrichKeys as enabledEnrichKeys, fieldDefs_enrichInputs as enrichInputs, fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs };
-  export type { fieldDefs_EnrichFieldOption as EnrichFieldOption };
-}
-
-/** True when `key` is a built-in Location field (stored top-level, not under `extra`). */
-declare function isBuiltinField(key: string): boolean;
-/** True when the field can be bulk-edited. @unstable */
-declare function isWritableField(key: string): boolean;
-/** True when the field can be bulk-cleared. @unstable */
-declare function isClearableField(key: string): boolean;
-/** True when the field should appear in field pickers. @unstable */
-declare function isListableField(key: string): boolean;
-/** All built-in field keys (excluding virtual). @unstable */
-declare function getBuiltinKeys(): string[];
-/** Register field definitions from an enrichment provider (called at activation). */
-declare function registerPluginFieldDefs(defs: Record<string, FieldDef>): void;
-/** Remove plugin field definitions by key (called when a plugin is deactivated). */
-declare function unregisterPluginFieldDefs(keys: string[]): void;
-/** Every listable built-in, and every field this map defines. @unstable */
-declare function getFieldKeys(): string[];
-/** Keys this map defines a field for. Same reference until the user layer moves. */
-declare const getKnownFieldKeys: () => ReadonlySet<string>;
-/** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
-declare function getFieldDef(key: string): FieldDef | undefined;
-/** Translated display label for a field key, falling back to a sentence-cased version of the key. */
-declare function fieldLabel(key: string): string;
-/** Display label for a field value. Enum values use their translated display name. */
-declare function fieldValueLabel(def: FieldDef | undefined, value: unknown): string;
-/** The value space a field declares, as bare strings. Distinct from the store's
- *  `fieldValues`, which reports the values actually present in the data. */
-declare function declaredValues(def: FieldDef | undefined): string[] | null;
-/** Merged view of all field definitions across all layers. */
-declare function getAllFieldDefs(): Record<string, FieldDef>;
-
-declare const fieldDefRegistry_declaredValues: typeof declaredValues;
-declare const fieldDefRegistry_fieldLabel: typeof fieldLabel;
-declare const fieldDefRegistry_fieldValueLabel: typeof fieldValueLabel;
-declare const fieldDefRegistry_getAllFieldDefs: typeof getAllFieldDefs;
-/** @unstable */
-declare const fieldDefRegistry_getBuiltinKeys: typeof getBuiltinKeys;
-declare const fieldDefRegistry_getFieldDef: typeof getFieldDef;
-/** @unstable */
-declare const fieldDefRegistry_getFieldKeys: typeof getFieldKeys;
-declare const fieldDefRegistry_getKnownFieldKeys: typeof getKnownFieldKeys;
-declare const fieldDefRegistry_isBuiltinField: typeof isBuiltinField;
-/** @unstable */
-declare const fieldDefRegistry_isClearableField: typeof isClearableField;
-/** @unstable */
-declare const fieldDefRegistry_isListableField: typeof isListableField;
-/** @unstable */
-declare const fieldDefRegistry_isWritableField: typeof isWritableField;
-declare const fieldDefRegistry_registerPluginFieldDefs: typeof registerPluginFieldDefs;
-declare const fieldDefRegistry_unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
-declare namespace fieldDefRegistry {
-  export {
-    fieldDefRegistry_declaredValues as declaredValues,
-    fieldDefRegistry_fieldLabel as fieldLabel,
-    fieldDefRegistry_fieldValueLabel as fieldValueLabel,
-    fieldDefRegistry_getAllFieldDefs as getAllFieldDefs,
-    fieldDefRegistry_getBuiltinKeys as getBuiltinKeys,
-    fieldDefRegistry_getFieldDef as getFieldDef,
-    fieldDefRegistry_getFieldKeys as getFieldKeys,
-    fieldDefRegistry_getKnownFieldKeys as getKnownFieldKeys,
-    fieldDefRegistry_isBuiltinField as isBuiltinField,
-    fieldDefRegistry_isClearableField as isClearableField,
-    fieldDefRegistry_isListableField as isListableField,
-    fieldDefRegistry_isWritableField as isWritableField,
-    fieldDefRegistry_registerPluginFieldDefs as registerPluginFieldDefs,
-    fieldDefRegistry_unregisterPluginFieldDefs as unregisterPluginFieldDefs,
-  };
-}
-
-/** @unstable */
-export interface FieldProjection {
-    id: string;
-    label: string;
-    /** True when this projection uses the location's timezone. */
-    needsTz: boolean;
-}
-/** Projections valid for a field type, in display order (first = dialog default). @unstable */
-declare function projectionsForType(type: FieldType): FieldProjection[];
-/** The "Range" partition option (numeric binning). @unstable */
-declare const RANGE_ID = "range";
-/** Partition-key dropdown options for a field type. @unstable */
-declare function partitionKeyOptions(type: FieldType, rangeForDates: boolean): {
-    id: string;
-    label: string;
-}[];
-
-/** @unstable */
-export type fieldProjections_FieldProjection = FieldProjection;
-/** @unstable */
-declare const fieldProjections_RANGE_ID: typeof RANGE_ID;
-/** @unstable */
-declare const fieldProjections_partitionKeyOptions: typeof partitionKeyOptions;
-/** @unstable */
-declare const fieldProjections_projectionsForType: typeof projectionsForType;
-declare namespace fieldProjections {
-  export { fieldProjections_RANGE_ID as RANGE_ID, fieldProjections_partitionKeyOptions as partitionKeyOptions, fieldProjections_projectionsForType as projectionsForType };
-  export type { fieldProjections_FieldProjection as FieldProjection };
-}
-
-/** @unstable */
-declare function enrich(selector: Selector, { resolve, ...opts }?: RunOpts & {
-    resolve?: boolean;
-}): Promise<ProcedureOutcomes>;
-
-/** @unstable */
-declare const enrich$1_enrich: typeof enrich;
-declare namespace enrich$1 {
-  export {
-    enrich$1_enrich as enrich,
-  };
-}
-
-/** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
- *  read. Fields not offered in the enrichment settings are always included. @unstable */
-declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
-/** Where to search when resolving a pano from coordinates, and which capture of its
- *  timeline to settle on. @unstable */
-export interface PanoResolveConfig {
-    radius: number;
-    sources?: PanoType[];
-    capture?: CapturePick;
-}
-/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
- *  provider that depends on it. Rows that already have a pano id are skipped unless the
- *  run is forced. @unstable */
-declare const panoResolveProvider: Provider<{
-    panoId: string;
-}, PanoResolveConfig>;
-/** Exact capture timestamp, narrowed from the `imageDate` month via binary search. @unstable */
-declare const exactDateProvider: Provider;
-/** Timezone at the location's coordinates. Requires `datetime` to be present. @unstable */
-declare const timezoneProvider: Provider;
-/** Subdivision (adm1) via offline point-in-polygon against the local border dataset.
- *  No Google dependency; downloads the adm1 archive on first use. @unstable */
-declare const subdivisionProvider: Provider;
-/** Core panorama metadata via Google's GetMetadata RPC. @unstable */
-declare const svMetaProvider: Provider;
-/** @unstable */
-export type RoadDirection = "forwards" | "backwards";
-/** @unstable */
-export interface HeadingRoadConfig {
-    direction: RoadDirection;
-}
-/** Pan a location's heading along the road. The driving direction is the pano's
- *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. @unstable */
-declare const headingRoadProvider: Provider<unknown, HeadingRoadConfig>;
-/** The providers the app registers at startup. @unstable */
-declare const BUILTIN_PROVIDERS: readonly Provider[];
-
-/** @unstable */
-declare const providers_BUILTIN_PROVIDERS: typeof BUILTIN_PROVIDERS;
-/** @unstable */
-export type providers_HeadingRoadConfig = HeadingRoadConfig;
-/** @unstable */
-export type providers_PanoResolveConfig = PanoResolveConfig;
-/** @unstable */
-export type providers_RoadDirection = RoadDirection;
-/** @unstable */
-declare const providers_enrichRuns: typeof enrichRuns;
-/** @unstable */
-declare const providers_exactDateProvider: typeof exactDateProvider;
-/** @unstable */
-declare const providers_headingRoadProvider: typeof headingRoadProvider;
-/** @unstable */
-declare const providers_panoResolveProvider: typeof panoResolveProvider;
-/** @unstable */
-declare const providers_subdivisionProvider: typeof subdivisionProvider;
-/** @unstable */
-declare const providers_svMetaProvider: typeof svMetaProvider;
-/** @unstable */
-declare const providers_timezoneProvider: typeof timezoneProvider;
-declare namespace providers {
-  export { providers_BUILTIN_PROVIDERS as BUILTIN_PROVIDERS, providers_enrichRuns as enrichRuns, providers_exactDateProvider as exactDateProvider, providers_headingRoadProvider as headingRoadProvider, providers_panoResolveProvider as panoResolveProvider, providers_subdivisionProvider as subdivisionProvider, providers_svMetaProvider as svMetaProvider, providers_timezoneProvider as timezoneProvider };
-  export type { providers_HeadingRoadConfig as HeadingRoadConfig, providers_PanoResolveConfig as PanoResolveConfig, providers_RoadDirection as RoadDirection };
-}
-
-/** How a bulk pin settles each location's pano before pinning it. @unstable */
-export interface PinOpts extends BulkOpts {
-    /** Resolve pano ids first; off, only locations that already carry one are pinned. */
-    resolve?: boolean;
-    /** Move each resolved pano to this capture of its timeline. */
-    capture?: CapturePick | null;
-    /** Re-resolve already pinned locations too. */
-    force?: boolean;
-}
-/** What a bulk pin did: the locations newly pinned, the ones whose pano could not be
- *  resolved, and how many pano ids the resolve wrote. @unstable */
-export interface PinOutcome extends BatchOutcome {
-    resolved: number;
-}
-/** Pin every location in the selector to its pano id, resolving pano ids first when asked. @unstable */
-declare function bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>;
-
-/** @unstable */
-export type pinPano_PinOpts = PinOpts;
-/** @unstable */
-export type pinPano_PinOutcome = PinOutcome;
-/** @unstable */
-declare const pinPano_bulkPinToPano: typeof bulkPinToPano;
-declare namespace pinPano {
-  export { pinPano_bulkPinToPano as bulkPinToPano };
-  export type { pinPano_PinOpts as PinOpts, pinPano_PinOutcome as PinOutcome };
-}
+/** Compute a locations/second rate for the current progress phase. Re-anchors when a
+ *  new phase is detected (done went backward or total grew). Null until a quarter second
+ *  of work has elapsed. @api @unstable */
+declare function phaseRate(prev: PhaseRate | null, done: number, total: number, now: number): {
+    state: PhaseRate;
+    rate: number | null;
+};
 
 /** Configuration for Street View validation: the radius of the coordinate lookup. @unstable */
 export interface ValidateConfig {
@@ -7016,22 +6838,11 @@ export interface ValidationOutcome extends BatchOutcome {
     categories: Map<string, number[]>;
 }
 /** Check that each location's Street View coverage still exists, grouping the locations
- *  into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted). @unstable */
+ *  into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted). @api @unstable */
 declare function validateLocations(selector: Selector, opts?: BulkOpts & {
     config?: Partial<ValidateConfig>;
     categories?: readonly string[];
 }): Promise<ValidationOutcome>;
-
-/** @unstable */
-export type validate_ValidateConfig = ValidateConfig;
-/** @unstable */
-export type validate_ValidationOutcome = ValidationOutcome;
-/** @unstable */
-declare const validate_validateLocations: typeof validateLocations;
-declare namespace validate {
-  export { validate_validateLocations as validateLocations };
-  export type { validate_ValidateConfig as ValidateConfig, validate_ValidationOutcome as ValidationOutcome };
-}
 
 /** What validation answers for one location: its `ValidationFlag`s, and whether it was
  *  pinned when checked. @unstable */
@@ -7048,968 +6859,733 @@ export interface ValidationCategory {
     standard: boolean;
     test: (answer: ValidationAnswer) => boolean;
 }
-/** @unstable */
+/** @api @unstable */
 declare const VALIDATION_CATEGORIES: readonly ValidationCategory[];
-/** @unstable */
+/** @api @unstable */
 declare const STANDARD_VALIDATION_CATEGORIES: string[];
-/** The category a key names, or null for one this version does not know. @unstable */
+/** The category a key names, or null for one this version does not know. @api @unstable */
 declare function validationCategory(key: string): ValidationCategory | null;
 
-/** @unstable */
-declare const validationCategories_STANDARD_VALIDATION_CATEGORIES: typeof STANDARD_VALIDATION_CATEGORIES;
-/** @unstable */
-declare const validationCategories_VALIDATION_CATEGORIES: typeof VALIDATION_CATEGORIES;
-/** @unstable */
-export type validationCategories_ValidationAnswer = ValidationAnswer;
-/** @unstable */
-export type validationCategories_ValidationCategory = ValidationCategory;
-/** @unstable */
-declare const validationCategories_validationCategory: typeof validationCategory;
-declare namespace validationCategories {
-  export { validationCategories_STANDARD_VALIDATION_CATEGORIES as STANDARD_VALIDATION_CATEGORIES, validationCategories_VALIDATION_CATEGORIES as VALIDATION_CATEGORIES, validationCategories_validationCategory as validationCategory };
-  export type { validationCategories_ValidationAnswer as ValidationAnswer, validationCategories_ValidationCategory as ValidationCategory };
-}
-
-export interface SearchOpts {
-    sources?: PanoType[];
-    preference?: RankingStrategy;
-}
-/** Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
- *  not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
- *  Duplicates are deduped and large batches are split automatically. */
-declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(Pano | null)[]>;
-/** The nearest pano to each point, aligned to `points`, null where there is no coverage.
- *  `opts.sources` narrows which collections are searched and `opts.preference` picks
- *  nearest or best. `onPano` sees each point's answer the moment its search resolves,
- *  ahead of the full array. */
-declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal, onPano?: (index: number, pano: Pano | null) => void): Promise<(Pano | null)[]>;
-
-/** @unstable */
-export type query$1_SearchOpts = SearchOpts;
-declare const query$1_panosAt: typeof panosAt;
-declare const query$1_svMetadata: typeof svMetadata;
-declare namespace query$1 {
-  export { query$1_panosAt as panosAt, query$1_svMetadata as svMetadata };
-  export type { query$1_SearchOpts as SearchOpts };
-}
-
-/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). @unstable */
-declare function getScenePositions(): {
-    ids: Uint32Array;
-    positions: Float32Array;
-};
-
-/** @unstable */
-declare const scenePositions_getScenePositions: typeof getScenePositions;
-declare namespace scenePositions {
-  export {
-    scenePositions_getScenePositions as getScenePositions,
-  };
-}
-
-/** @unstable */
-export interface ToastEntry {
-    id: number;
-    message: string;
-}
-/** Show a brief toast notification. Optionally scoped to a `container` element. */
-declare function toast(message: string, duration?: number, container?: HTMLElement): void;
-/** Current list of visible toasts. @unstable */
-declare function getToasts(): ToastEntry[];
-
-/** @unstable */
-declare const toast$1_getToasts: typeof getToasts;
-declare const toast$1_toast: typeof toast;
-declare namespace toast$1 {
-  export {
-    toast$1_getToasts as getToasts,
-    toast$1_toast as toast,
-  };
-}
-
-/** `map` jobs mutate the open map and are cancelled when it closes; `app` jobs survive. @unstable */
-export type JobScope = "map" | "app";
-/** @unstable */
-export interface JobOpts {
-    scope?: JobScope;
-    /** Abort the underlying work. Omitted = the tray offers no cancel button. */
-    cancel?: () => void;
-    /** Reopen the owning UI. Omitted = the tray entry is not clickable. */
-    reveal?: () => void;
-}
-/** @unstable */
-export interface JobEntry {
-    id: number;
-    label: string;
-    scope: JobScope;
-    fraction: number;
-    detail?: string;
-    /** The owning UI is showing its own progress; the tray skips this entry. */
-    hidden: boolean;
-    cancel?: () => void;
-    reveal?: () => void;
-}
-/** Handle for driving a registered job. All methods are no-ops once the job ended. @unstable */
-export interface JobHandle {
-    /** Set the progress bar fraction (0-1) and optional detail text. */
-    update(fraction: number, detail?: string): void;
-    setHidden(hidden: boolean): void;
-    /** Remove the job, optionally leaving a brief toast. */
-    finish(message?: string, duration?: number): void;
-    /** Remove the job and leave an error toast. */
-    fail(message: string): void;
-}
-/** Live jobs, for the tray. Reference changes on every update. @unstable */
-declare function getJobs(): JobEntry[];
-/** Register a long-running operation with the global job tray. The caller owns the
- *  work; the registry owns only its presentation and the cancel/reveal controls. @unstable */
-declare function registerJob(label: string, opts?: JobOpts): JobHandle;
-/** @unstable */
-export interface JobRunContext {
-    signal: AbortSignal;
-    report: (fraction: number, detail?: string) => void;
-}
-/** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
- *  through the handle, ends the job however `fn` settles, and resolves to how it settled.
- *  A failure also toasts. @unstable */
-declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<Settled<R>>;
-/** Cancel every live job of `scope` that can be cancelled. Owners observe their own
- *  abort and end their jobs; entries without a cancel are removed outright. @unstable */
-declare function cancelJobs(scope: JobScope): void;
-/** @unstable */
-export type MapExitKind = "leave" | "quit";
-/** The pending map-exit confirmation, for the dialog. @unstable */
-declare function getExitRequest(): {
-    kind: MapExitKind;
-} | null;
-/** Gate a user action that would end every map-scoped job. Resolves true immediately when
- *  none are live; otherwise raises the confirm dialog, and true means the jobs were
- *  cancelled and the action should proceed. @unstable */
-declare function confirmMapExit(kind: MapExitKind): Promise<boolean>;
-/** Answer the pending map-exit confirmation. @unstable */
-declare function resolveMapExit(ok: boolean): void;
-
-/** @unstable */
-export type jobs_JobEntry = JobEntry;
-/** @unstable */
-export type jobs_JobHandle = JobHandle;
-/** @unstable */
-export type jobs_JobOpts = JobOpts;
-/** @unstable */
-export type jobs_JobRunContext = JobRunContext;
-/** @unstable */
-export type jobs_JobScope = JobScope;
-/** @unstable */
-export type jobs_MapExitKind = MapExitKind;
-/** @unstable */
-declare const jobs_cancelJobs: typeof cancelJobs;
-/** @unstable */
-declare const jobs_confirmMapExit: typeof confirmMapExit;
-/** @unstable */
-declare const jobs_getExitRequest: typeof getExitRequest;
-/** @unstable */
-declare const jobs_getJobs: typeof getJobs;
-/** @unstable */
-declare const jobs_registerJob: typeof registerJob;
-/** @unstable */
-declare const jobs_resolveMapExit: typeof resolveMapExit;
-/** @unstable */
-declare const jobs_runJob: typeof runJob;
-declare namespace jobs {
-  export { jobs_cancelJobs as cancelJobs, jobs_confirmMapExit as confirmMapExit, jobs_getExitRequest as getExitRequest, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_resolveMapExit as resolveMapExit, jobs_runJob as runJob };
-  export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobRunContext as JobRunContext, jobs_JobScope as JobScope, jobs_MapExitKind as MapExitKind };
-}
-
-/** What a job's work is handed. */
-export interface JobContext<P> {
-    signal: AbortSignal;
-    /** Push a progress value to the UI. Ignored once the job is cancelled. */
-    report: (progress: P) => void;
-}
-/** A job's state, with the controls that start and stop it. */
-export type Job<R, P = never> = JobState<R, P> & {
-    /** Start `work`, resolving to how it settled. While a run is under way this does nothing
-     *  and resolves cancelled, so a double-clicked button cannot start two. */
-    run: <T extends R>(work: (ctx: JobContext<P>) => Promise<T>) => Promise<Settled<T>>;
-    /** Stop the run under way; nothing it does afterwards can write back. */
-    cancel: () => void;
-};
-/** User-triggered async work that reports progress and can be cancelled. Unmounting cancels. */
-declare function useJob<R = unknown, P = never>(): Job<R, P>;
-
-/** @unstable */
-export type useJob$1_Job<R, P = never> = Job<R, P>;
-/** @unstable */
-export type useJob$1_JobContext<P> = JobContext<P>;
-declare const useJob$1_useJob: typeof useJob;
-declare namespace useJob$1 {
-  export { useJob$1_useJob as useJob };
-  export type { useJob$1_Job as Job, useJob$1_JobContext as JobContext };
-}
-
-/** @deprecated v0.8.1. Use `MMA.MapHost.get()` and narrow via `MMA.MapHost.instance`. @unstable */
-declare function getGoogleMap(): google.maps.Map | null;
-/** @deprecated v0.8.1. Use `MMA.MapHost.wait()`. @unstable */
-declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
-/** @deprecated v0.8.2. Read `MMA.Store.get().map`. @unstable */
-declare function getCurrentMap(): Omit<MapMeta, "extra" | "locationCount" | "pending"> | null;
-/** @deprecated v0.8.2. Read `MMA.Store.get().mapId`. @unstable */
-declare function getCurrentMapId(): string | null;
-/** @deprecated v0.8.2. Read `MMA.Editor.get().open?.location`. @unstable */
-declare function getActiveLocation(): Location | null;
-/** @deprecated v0.8.2. Read `MMA.Scene.selected()`. @unstable */
-declare function getSelectedLocationIds(): SelectedIds;
-/** @deprecated v0.8.2. Read `MMA.Editor.get().workArea`. @unstable */
-declare function getWorkArea(): WorkArea;
-/** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @unstable */
-declare function getAllSelections(): Selection[];
-/** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @unstable */
-declare function getGhostedSelections(): Set<string>;
-/** @deprecated v0.8.2. Use `MMA.SelectionList.active()`. @unstable */
-declare function getSelections(): Selection[];
-/** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`. @unstable */
-declare function fetchLocation(id: number): Promise<Location>;
-/** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`. @unstable */
-declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
-/** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Everything" }, { kind: "locations" })`. @unstable */
-declare function fetchAllLocations(): Promise<Location[]>;
-/** @deprecated v0.10.2. Use `MMA.Query.read(selector, { kind: "coverage" })`. @unstable */
-declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
-/** @deprecated v0.10.2. Use `MMA.Provider.register()`. @unstable */
-declare function registerEnrichmentProvider(provider: Provider): void;
-/** @deprecated v0.10.5. The user layer is store-owned state (`MMA.Store.get().fieldDefs`);
- *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
- *  for plugin-owned defs. @unstable */
-declare function setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>;
-/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. @unstable */
-declare function addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>;
-/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
-declare function removeTagFromLocations(tagId: number, locationIds: number[]): Promise<WorkResult>;
-/** @deprecated v0.10.5. Use `MMA.Edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
-declare function removeTagFromAllLocations(tagId: number): Promise<WorkResult>;
-/** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
-declare function createPluginStorage(id: string): PluginStorage;
-/** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @unstable */
-declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
-/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
-declare function installedVersion(pluginId: string): Promise<string | null>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "ids" })`. @unstable */
-declare function resolveIds(selector: Selector): Promise<number[]>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "count" })`. @unstable */
-declare function countIn(selector: Selector): Promise<number>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "bounds" })`. @unstable */
-declare function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null>;
-/** @deprecated v0.11.3. Use `MMA.Query.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" })`. @unstable */
-declare function sampleFrom(selector: Selector, n: number): Promise<number[]>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "values", field })`. @unstable */
-declare function fieldValues(selector: Selector, field: string): Promise<string[]>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "countBy", fields: [field], key })`. @unstable */
-declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "coverage" })`. @unstable */
-declare function coverage(selector: Selector): Promise<[string, number][]>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "columns", fields })`. @unstable */
-declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "groupBy", field, key })`. @unstable */
-declare function partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
-/** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "locations" })`. @unstable */
-declare function fetchLocations(selector: Selector): Promise<Location[]>;
-/** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
- *  own; set `defaultOff` on the provider to make them opt-in. @unstable */
-declare function registerEnrichFields(_fields: EnrichFieldOption[]): void;
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`. @unstable */
-declare function addSelections(selectors: Selector[]): Promise<void>;
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "remove", keys })`. @unstable */
-declare function removeSelections(keys: string[]): Promise<void>;
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "set", selections: [] })`. @unstable */
-declare function resetSelections(): Promise<void>;
-/** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
-declare function currentSelection(): Selector;
-/** @deprecated v0.12.0. Use MMA.Query.read(selector, ask) instead. @unstable */
-declare function query(selector: Selector, target?: Target): {
-    /** Resolved ids in ascending order, or in ranked-selector order. */
-    ids: () => Promise<number[]>;
-    /** Number of locations the selector resolves to. */
-    count: () => Promise<number>;
-    /** Bounding box [west, south, east, north], or null when nothing resolves. */
-    bounds: () => Promise<[number, number, number, number] | null>;
-    /** n ids drawn uniformly at random, without replacement. */
-    sample: (n: number) => Promise<number[]>;
-    /** Distinct values of field, sorted. */
-    values: (field: string) => Promise<string[]>;
-    /** Group each field by a derived key and count, one result per field. */
-    countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
-    /** How many locations hold a value for each field, key-sorted. */
-    coverage: () => Promise<[string, number][]>;
-    /** One column per field: null for missing values and value-id lists for interned fields. */
-    columns: (fields: string[]) => Promise<unknown[][]>;
-    /** Group by a derived key; bins use bound order and other keys sort naturally. */
-    partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-    /** Full matching locations, loading any large result from its temporary file. */
-    locations: () => Promise<Location[]>;
-};
-/** @deprecated v0.12.0. Use `MMA.Editor.open(target)`, or `MMA.Editor.close()` in place of null. @unstable */
-declare function setActiveLocation(target: MaybeLocation | null, checkDuplicates?: boolean): Promise<void>;
-/** @deprecated v0.12.0. Use `MMA.Store.get`. */
-declare const getMapState: typeof Store.get;
-/** @deprecated v0.12.0. Use `MMA.Store.use`. */
-declare const useMapState: typeof Store.use;
-/** @deprecated v0.12.0. Use `MMA.Tag.counts`. */
-declare const getTagCounts: typeof Tag.counts;
-/** @deprecated v0.12.0. Use `MMA.Tag.all`. */
-declare const getTags: typeof Tag.all;
-/** @deprecated v0.12.0. Use `MMA.Tag.visible`. */
-declare const getVisibleTags: typeof Tag.visible;
-/** @deprecated v0.12.0. Use `MMA.Tag.get`. */
-declare const getTag: typeof Tag.get;
-/** @deprecated v0.12.0. Use `MMA.Tag.names`. */
-declare const tagIdsToNames: typeof Tag.names;
-/** @deprecated v0.12.0. Use `MMA.Tag.remove`. */
-declare const deleteTags: typeof Tag.remove;
-/** @deprecated v0.12.0. Use `MMA.Mutation.run`. */
-declare const mutate: typeof Mutation.run;
-/** @deprecated v0.12.0. Use `MMA.Mutation.settle`. */
-declare const settled: typeof Mutation.settle;
-/** @deprecated v0.12.0. Use `MMA.Query.read`. */
-declare const read: typeof Query.read;
-/** @deprecated v0.12.0. Use `MMA.Query.locationsOf`. */
-declare const locationsOf: typeof Query.locationsOf;
-/** @deprecated v0.12.0. Use `MMA.Location.add`. */
-declare const addLocations: typeof Location.add;
-/** @deprecated v0.12.0. Use `MMA.Location.duplicate`. */
-declare const duplicateLocation: typeof Location.duplicate;
-/** @deprecated v0.12.0. Use `MMA.Location.remove`. */
-declare const removeLocations: typeof Location.remove;
-/** @deprecated v0.12.0. Use `MMA.Location.update`. */
-declare const updateLocations: typeof Location.update;
-/** @deprecated v0.12.0. Use `MMA.Location.duplicateGroups`. @unstable */
-declare const previewDuplicateGroups: typeof Location.duplicateGroups;
-/** @deprecated v0.12.0. Use `MMA.Editor.openImport`. @unstable */
-declare const openStagedLocation: typeof Editor.openImport;
-/** @deprecated v0.12.0. Use `MMA.Editor.preview`. @unstable */
-declare const previewLocation: typeof Editor.preview;
-/** @deprecated v0.12.0. Use `MMA.Editor.resolve`. */
-declare const resolveLocation: typeof Editor.resolve;
-/** @deprecated v0.12.0. Use `MMA.Editor.open`. */
-declare const openLocation: typeof Editor.open;
-/** @deprecated v0.12.0. Use `MMA.Editor.close`. */
-declare const closeLocation: typeof Editor.close;
-/** @deprecated v0.12.0. Use `MMA.Editor.openDuplicate`. @unstable */
-declare const openDuplicateLocation: typeof Editor.openDuplicate;
-/** @deprecated v0.12.0. Use `MMA.Editor.removeDuplicate`. @unstable */
-declare const removeDuplicate: typeof Editor.removeDuplicate;
-/** @deprecated v0.12.0. Use `MMA.Editor.closeDuplicates`. @unstable */
-declare const closeDuplicates: typeof Editor.closeDuplicates;
-/** @deprecated v0.12.0. Use `MMA.Editor.setArea`. @unstable */
-declare const setWorkArea: typeof Editor.setArea;
-/** @deprecated v0.12.0. Use `MMA.Editor.openPlugin`. */
-declare const setPluginMode: typeof Editor.openPlugin;
-/** @deprecated v0.12.0. Use `MMA.Editor.closePlugin`. */
-declare const exitPluginMode: typeof Editor.closePlugin;
-/** @deprecated v0.12.0. Use `MMA.Field.rename`. */
-declare const renameField: typeof Field$1.rename;
-/** @deprecated v0.12.0. Use `MMA.Field.remove`. */
-declare const deleteField: typeof Field$1.remove;
-/** @deprecated v0.12.0. Use `MMA.SelectionList.active`. */
-declare const getActiveSelections: typeof SelectionList.active;
-/** @deprecated v0.12.0. Use `MMA.SelectionList.update`. @unstable */
-declare const applySelectionUpdate: typeof SelectionList.update;
-/** @deprecated v0.12.0. Use `MMA.SelectionList.select`. */
-declare const select: typeof SelectionList.select;
-/** @deprecated v0.12.0. Use `MMA.History.available`. @unstable */
-declare const historyAvailable: typeof History.available;
-/** @deprecated v0.12.0. Use `MMA.Commit.create`. */
-declare const commitMap: typeof Commit.create;
-/** @deprecated v0.12.0. Use `MMA.Commit.checkout`. @unstable */
-declare const checkoutCommit: typeof Commit.checkout;
-/** @deprecated v0.12.0. Use `MMA.Maps.init`. @unstable */
-declare const initStore: typeof Maps.init;
-/** @deprecated v0.12.0. Use `MMA.Maps.open`. */
-declare const openMap$1: typeof Maps.open;
-/** @deprecated v0.12.0. Use `MMA.Maps.close`. */
-declare const closeMap$1: typeof Maps.close;
-/** @deprecated v0.12.0. Use `MMA.Maps.discard`. @unstable */
-declare const discardOpenMap: typeof Maps.discard;
-/** @deprecated v0.12.0. Use `MMA.SelectionList.tagIds`. @unstable */
-declare const getSelectedTagIds: typeof SelectionList.tagIds;
-/** @deprecated v0.12.0. Use `MMA.SelectionList.tagIdsDeep`. @unstable */
-declare const getSelectedTagIdsDeep: typeof SelectionList.tagIdsDeep;
-/** @deprecated v0.12.0. Use `MMA.Maps.useList`. */
-declare const useMapList: typeof Maps.useList;
-/** @deprecated v0.12.0. Use `MMA.Maps.list`. */
-declare const getMapList: typeof Maps.list;
-/** @deprecated v0.12.0. Use `MMA.Maps.reload`. @unstable */
-declare const reloadMapList: typeof Maps.reload;
-/** @deprecated v0.12.0. Use `MMA.Maps.invalidate`. @unstable */
-declare const invalidateMapList: typeof Maps.invalidate;
-/** @deprecated v0.12.0. Use `MMA.Maps.create`. */
-declare const createMap: typeof Maps.create;
-/** @deprecated v0.12.0. Use `MMA.Maps.duplicate`. */
-declare const duplicateMap: typeof Maps.duplicate;
-/** @deprecated v0.12.0. Use `MMA.Maps.remove`. */
-declare const deleteMap$1: typeof Maps.remove;
-/** @deprecated v0.12.0. Use `MMA.Maps.openScratch`. */
-declare const openScratchMap: typeof Maps.openScratch;
-/** @deprecated v0.12.0. Use `MMA.Maps.isReserved`. @unstable */
-declare const isReservedMap: typeof Maps.isReserved;
-/** @deprecated v0.12.0. Use `MMA.Maps.copyName`. @unstable */
-declare const copyName: typeof Maps.copyName;
-/** @deprecated v0.12.0. Use `MMA.Maps.renameFolder`. */
-declare const renameFolder: typeof Maps.renameFolder;
-/** @deprecated v0.12.0. Use `MMA.Maps.moveToFolder`. */
-declare const moveMapToFolder: typeof Maps.moveToFolder;
-/** @deprecated v0.12.0. Use `MMA.Maps.removeFolder`. */
-declare const deleteFolder: typeof Maps.removeFolder;
-/** @deprecated v0.12.0. Use `MMA.Maps.registerBadges`. @unstable */
-declare const registerMapBadges: typeof Maps.registerBadges;
-/** @deprecated v0.12.0. Use `MMA.Maps.badgeSources`. @unstable */
-declare const getMapBadgeSources: typeof Maps.badgeSources;
-/** @deprecated v0.12.0. Use `MMA.Maps.badges`. @unstable */
-declare const getMapBadges: typeof Maps.badges;
-/** @deprecated v0.12.0. Use `MMA.Maps.useBadges`. @unstable */
-declare const useMapBadges: typeof Maps.useBadges;
-/** @deprecated v0.12.0. Use `MMA.Edit`. */
-declare const edit: typeof Edit;
-/** @deprecated v0.12.0. Use `MMA.Autosave`. */
-declare const autosave: typeof Autosave;
-/** @deprecated v0.12.0. Use `MMA.MapHost.get`. */
-declare const getMapHost: typeof MapHost.get;
-/** @deprecated v0.12.0. Use `MMA.MapHost.wait`. */
-declare const waitForMapHost: typeof MapHost.wait;
-/** @deprecated v0.12.0. Use `MMA.Provider.register`. */
-declare const registerProvider: typeof Provider.register;
-
-declare const legacy_addLocations: typeof addLocations;
-/** @unstable */
-declare const legacy_addSelections: typeof addSelections;
-/** @unstable */
-declare const legacy_addTagToLocations: typeof addTagToLocations;
-declare const legacy_applySelectionUpdate: typeof applySelectionUpdate;
-declare const legacy_autosave: typeof autosave;
-declare const legacy_checkoutCommit: typeof checkoutCommit;
-declare const legacy_closeDuplicates: typeof closeDuplicates;
-declare const legacy_closeLocation: typeof closeLocation;
-declare const legacy_commitMap: typeof commitMap;
-declare const legacy_copyName: typeof copyName;
-/** @unstable */
-declare const legacy_countBy: typeof countBy;
-/** @unstable */
-declare const legacy_countIn: typeof countIn;
-/** @unstable */
-declare const legacy_coverage: typeof coverage;
-declare const legacy_createMap: typeof createMap;
-/** @unstable */
-declare const legacy_createPluginStorage: typeof createPluginStorage;
-/** @unstable */
-declare const legacy_currentSelection: typeof currentSelection;
-declare const legacy_deleteField: typeof deleteField;
-declare const legacy_deleteFolder: typeof deleteFolder;
-declare const legacy_deleteTags: typeof deleteTags;
-declare const legacy_discardOpenMap: typeof discardOpenMap;
-declare const legacy_duplicateLocation: typeof duplicateLocation;
-declare const legacy_duplicateMap: typeof duplicateMap;
-declare const legacy_edit: typeof edit;
-declare const legacy_exitPluginMode: typeof exitPluginMode;
-/** @unstable */
-declare const legacy_fetchAllLocations: typeof fetchAllLocations;
-/** @unstable */
-declare const legacy_fetchBounds: typeof fetchBounds;
-/** @unstable */
-declare const legacy_fetchColumns: typeof fetchColumns;
-/** @unstable */
-declare const legacy_fetchLocation: typeof fetchLocation;
-/** @unstable */
-declare const legacy_fetchLocations: typeof fetchLocations;
-/** @unstable */
-declare const legacy_fetchLocationsByIds: typeof fetchLocationsByIds;
-/** @unstable */
-declare const legacy_fieldCoverage: typeof fieldCoverage;
-/** @unstable */
-declare const legacy_fieldValues: typeof fieldValues;
-/** @unstable */
-declare const legacy_getActiveLocation: typeof getActiveLocation;
-declare const legacy_getActiveSelections: typeof getActiveSelections;
-/** @unstable */
-declare const legacy_getAllSelections: typeof getAllSelections;
-/** @unstable */
-declare const legacy_getCurrentMap: typeof getCurrentMap;
-/** @unstable */
-declare const legacy_getCurrentMapId: typeof getCurrentMapId;
-/** @unstable */
-declare const legacy_getGhostedSelections: typeof getGhostedSelections;
-/** @unstable */
-declare const legacy_getGoogleMap: typeof getGoogleMap;
-declare const legacy_getMapBadgeSources: typeof getMapBadgeSources;
-declare const legacy_getMapBadges: typeof getMapBadges;
-declare const legacy_getMapHost: typeof getMapHost;
-declare const legacy_getMapList: typeof getMapList;
-declare const legacy_getMapState: typeof getMapState;
-/** @unstable */
-declare const legacy_getSelectedLocationIds: typeof getSelectedLocationIds;
-declare const legacy_getSelectedTagIds: typeof getSelectedTagIds;
-declare const legacy_getSelectedTagIdsDeep: typeof getSelectedTagIdsDeep;
-/** @unstable */
-declare const legacy_getSelections: typeof getSelections;
-declare const legacy_getTag: typeof getTag;
-declare const legacy_getTagCounts: typeof getTagCounts;
-declare const legacy_getTags: typeof getTags;
-declare const legacy_getVisibleTags: typeof getVisibleTags;
-/** @unstable */
-declare const legacy_getWorkArea: typeof getWorkArea;
-declare const legacy_historyAvailable: typeof historyAvailable;
-declare const legacy_initStore: typeof initStore;
-/** @unstable */
-declare const legacy_installedVersion: typeof installedVersion;
-declare const legacy_invalidateMapList: typeof invalidateMapList;
-declare const legacy_isReservedMap: typeof isReservedMap;
-declare const legacy_locationsOf: typeof locationsOf;
-declare const legacy_moveMapToFolder: typeof moveMapToFolder;
-declare const legacy_mutate: typeof mutate;
-declare const legacy_openDuplicateLocation: typeof openDuplicateLocation;
-declare const legacy_openLocation: typeof openLocation;
-declare const legacy_openScratchMap: typeof openScratchMap;
-declare const legacy_openStagedLocation: typeof openStagedLocation;
-/** @unstable */
-declare const legacy_partition: typeof partition;
-declare const legacy_previewDuplicateGroups: typeof previewDuplicateGroups;
-declare const legacy_previewLocation: typeof previewLocation;
-/** @unstable */
-declare const legacy_query: typeof query;
-declare const legacy_read: typeof read;
-/** @unstable */
-declare const legacy_registerEnrichFields: typeof registerEnrichFields;
-/** @unstable */
-declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
-declare const legacy_registerMapBadges: typeof registerMapBadges;
-declare const legacy_registerProvider: typeof registerProvider;
-declare const legacy_reloadMapList: typeof reloadMapList;
-declare const legacy_removeDuplicate: typeof removeDuplicate;
-declare const legacy_removeLocations: typeof removeLocations;
-/** @unstable */
-declare const legacy_removeSelections: typeof removeSelections;
-/** @unstable */
-declare const legacy_removeTagFromAllLocations: typeof removeTagFromAllLocations;
-/** @unstable */
-declare const legacy_removeTagFromLocations: typeof removeTagFromLocations;
-declare const legacy_renameField: typeof renameField;
-declare const legacy_renameFolder: typeof renameFolder;
-/** @unstable */
-declare const legacy_request: typeof request;
-/** @unstable */
-declare const legacy_resetSelections: typeof resetSelections;
-/** @unstable */
-declare const legacy_resolveIds: typeof resolveIds;
-declare const legacy_resolveLocation: typeof resolveLocation;
-/** @unstable */
-declare const legacy_sampleFrom: typeof sampleFrom;
-declare const legacy_select: typeof select;
-/** @unstable */
-declare const legacy_setActiveLocation: typeof setActiveLocation;
-declare const legacy_setPluginMode: typeof setPluginMode;
-/** @unstable */
-declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
-declare const legacy_setWorkArea: typeof setWorkArea;
-declare const legacy_settled: typeof settled;
-declare const legacy_tagIdsToNames: typeof tagIdsToNames;
-declare const legacy_updateLocations: typeof updateLocations;
-declare const legacy_useMapBadges: typeof useMapBadges;
-declare const legacy_useMapList: typeof useMapList;
-declare const legacy_useMapState: typeof useMapState;
-/** @unstable */
-declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
-declare const legacy_waitForMapHost: typeof waitForMapHost;
-declare namespace legacy {
-  export {
-    legacy_addLocations as addLocations,
-    legacy_addSelections as addSelections,
-    legacy_addTagToLocations as addTagToLocations,
-    legacy_applySelectionUpdate as applySelectionUpdate,
-    legacy_autosave as autosave,
-    legacy_checkoutCommit as checkoutCommit,
-    legacy_closeDuplicates as closeDuplicates,
-    legacy_closeLocation as closeLocation,
-    closeMap$1 as closeMap,
-    legacy_commitMap as commitMap,
-    legacy_copyName as copyName,
-    legacy_countBy as countBy,
-    legacy_countIn as countIn,
-    legacy_coverage as coverage,
-    legacy_createMap as createMap,
-    legacy_createPluginStorage as createPluginStorage,
-    legacy_currentSelection as currentSelection,
-    legacy_deleteField as deleteField,
-    legacy_deleteFolder as deleteFolder,
-    deleteMap$1 as deleteMap,
-    legacy_deleteTags as deleteTags,
-    legacy_discardOpenMap as discardOpenMap,
-    legacy_duplicateLocation as duplicateLocation,
-    legacy_duplicateMap as duplicateMap,
-    legacy_edit as edit,
-    legacy_exitPluginMode as exitPluginMode,
-    legacy_fetchAllLocations as fetchAllLocations,
-    legacy_fetchBounds as fetchBounds,
-    legacy_fetchColumns as fetchColumns,
-    legacy_fetchLocation as fetchLocation,
-    legacy_fetchLocations as fetchLocations,
-    legacy_fetchLocationsByIds as fetchLocationsByIds,
-    legacy_fieldCoverage as fieldCoverage,
-    legacy_fieldValues as fieldValues,
-    legacy_getActiveLocation as getActiveLocation,
-    legacy_getActiveSelections as getActiveSelections,
-    legacy_getAllSelections as getAllSelections,
-    legacy_getCurrentMap as getCurrentMap,
-    legacy_getCurrentMapId as getCurrentMapId,
-    legacy_getGhostedSelections as getGhostedSelections,
-    legacy_getGoogleMap as getGoogleMap,
-    legacy_getMapBadgeSources as getMapBadgeSources,
-    legacy_getMapBadges as getMapBadges,
-    legacy_getMapHost as getMapHost,
-    legacy_getMapList as getMapList,
-    legacy_getMapState as getMapState,
-    legacy_getSelectedLocationIds as getSelectedLocationIds,
-    legacy_getSelectedTagIds as getSelectedTagIds,
-    legacy_getSelectedTagIdsDeep as getSelectedTagIdsDeep,
-    legacy_getSelections as getSelections,
-    legacy_getTag as getTag,
-    legacy_getTagCounts as getTagCounts,
-    legacy_getTags as getTags,
-    legacy_getVisibleTags as getVisibleTags,
-    legacy_getWorkArea as getWorkArea,
-    legacy_historyAvailable as historyAvailable,
-    legacy_initStore as initStore,
-    legacy_installedVersion as installedVersion,
-    legacy_invalidateMapList as invalidateMapList,
-    legacy_isReservedMap as isReservedMap,
-    legacy_locationsOf as locationsOf,
-    legacy_moveMapToFolder as moveMapToFolder,
-    legacy_mutate as mutate,
-    legacy_openDuplicateLocation as openDuplicateLocation,
-    legacy_openLocation as openLocation,
-    openMap$1 as openMap,
-    legacy_openScratchMap as openScratchMap,
-    legacy_openStagedLocation as openStagedLocation,
-    legacy_partition as partition,
-    legacy_previewDuplicateGroups as previewDuplicateGroups,
-    legacy_previewLocation as previewLocation,
-    legacy_query as query,
-    legacy_read as read,
-    legacy_registerEnrichFields as registerEnrichFields,
-    legacy_registerEnrichmentProvider as registerEnrichmentProvider,
-    legacy_registerMapBadges as registerMapBadges,
-    legacy_registerProvider as registerProvider,
-    legacy_reloadMapList as reloadMapList,
-    legacy_removeDuplicate as removeDuplicate,
-    legacy_removeLocations as removeLocations,
-    legacy_removeSelections as removeSelections,
-    legacy_removeTagFromAllLocations as removeTagFromAllLocations,
-    legacy_removeTagFromLocations as removeTagFromLocations,
-    legacy_renameField as renameField,
-    legacy_renameFolder as renameFolder,
-    legacy_request as request,
-    legacy_resetSelections as resetSelections,
-    legacy_resolveIds as resolveIds,
-    legacy_resolveLocation as resolveLocation,
-    legacy_sampleFrom as sampleFrom,
-    legacy_select as select,
-    legacy_setActiveLocation as setActiveLocation,
-    legacy_setPluginMode as setPluginMode,
-    legacy_setUserFieldDefs as setUserFieldDefs,
-    legacy_setWorkArea as setWorkArea,
-    legacy_settled as settled,
-    legacy_tagIdsToNames as tagIdsToNames,
-    legacy_updateLocations as updateLocations,
-    legacy_useMapBadges as useMapBadges,
-    legacy_useMapList as useMapList,
-    legacy_useMapState as useMapState,
-    legacy_waitForGoogleMap as waitForGoogleMap,
-    legacy_waitForMapHost as waitForMapHost,
-  };
-}
-
-/** Cross-module stopwatch for map-open latency. @unstable */
-declare const mapOpen: {
-    start: number;
-    seen: Set<string>;
-    begin(): void;
-    mark(phase: string): void;
-};
-
-/** Force a full selection re-resolve and return the selected IDs. @unstable */
-declare function syncSelections(): Promise<{
-    ids: number[];
-}>;
-/** Open a map by id and navigate to it. @unstable */
-declare function openMap(id: string): Promise<void>;
-/** Close the current map and return to the map list. @unstable */
-declare function closeMap(): Promise<void>;
-/** Delete a map by id. @unstable */
-declare function deleteMap(id: string): Promise<void>;
-/** Import locations from pasted text and commit them to the map. @unstable */
-declare function importPaste(text: string): Promise<EditorImportResult[]>;
-/** Import a previewed file, optionally assigning tags. @unstable */
-declare function importFile(droppedFields: string[], tagNames?: string[]): Promise<EditorImportResult>;
-
-/** @unstable */
-declare const testApi_closeMap: typeof closeMap;
-/** @unstable */
-declare const testApi_deleteMap: typeof deleteMap;
-/** @unstable */
-declare const testApi_importFile: typeof importFile;
-/** @unstable */
-declare const testApi_importPaste: typeof importPaste;
-/** @unstable */
-declare const testApi_mapOpen: typeof mapOpen;
-/** @unstable */
-declare const testApi_openMap: typeof openMap;
-/** @unstable */
-declare const testApi_syncSelections: typeof syncSelections;
-declare namespace testApi {
-  export {
-    testApi_closeMap as closeMap,
-    testApi_deleteMap as deleteMap,
-    testApi_importFile as importFile,
-    testApi_importPaste as importPaste,
-    testApi_mapOpen as mapOpen,
-    testApi_openMap as openMap,
-    testApi_syncSelections as syncSelections,
-  };
-}
-
-/** The nested `_test` namespace on the plugin surface. @unstable */
-declare const _test: typeof testApi;
-
-/** @unstable */
-declare const testSurface__test: typeof _test;
-declare namespace testSurface {
-  export {
-    testSurface__test as _test,
-  };
-}
-
-/** Base URL for a custom URI scheme, platform-adjusted. @unstable */
-declare function schemeBase(scheme: string): string;
-/** URL that serves a local file over the `mma-buf://` protocol. @unstable */
-declare function mmaBufUrl(path: string): string;
-/** Copy of `set` with `value` toggled, or forced on/off by `on`. @unstable */
-declare function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>;
-/** The item `isBetter` prefers over every other, or null when there are none. @unstable */
-declare function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null;
-/** Shuffle `items` in place (Fisher-Yates) and return them. @unstable */
-declare function shuffle<T>(items: T[]): T[];
-/** Split `arr` into sub-arrays of at most `n` elements. @unstable */
-declare function chunk<T>(arr: readonly T[], n: number): T[][];
-/** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
- *  Build metadata is ignored; a pre-release sorts below the release it precedes. @unstable */
-declare function cmpVersion(a: string, b: string): number;
-/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. @unstable */
-declare function splitVersion(v: string): [core: string, pre: string];
-/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @unstable */
-declare function isPrereleaseVersion(v: string): boolean;
-/** True when the app runs in a browser instead of the desktop app. @unstable */
-declare function isWeb(): boolean;
-/** Prompt for files; resolves empty when the picker is dismissed. @unstable */
-declare function pickFiles(accept: string, opts?: {
-    multiple?: boolean;
-}): Promise<File[]>;
-/** Trigger a browser download from an in-memory Blob. @unstable */
-declare function downloadBlob(blob: Blob, fileName: string): void;
-/** Copy an image Blob to the clipboard. False when the platform refuses it. @unstable */
-declare function copyImageToClipboard(blob: Blob): Promise<boolean>;
-/** Compare strings with natural (numeric-aware) ordering. @unstable */
-declare function compareNatural(a: string, b: string): number;
-/** Current time as Unix seconds, the form Location timestamps use. @unstable */
-declare function nowUnix(): number;
-/** Rolling anchor for a phase-relative locations/second average. @unstable */
-export interface PhaseRate {
-    t0: number;
-    done0: number;
-    done: number;
-    total: number;
-}
-/** Compute a locations/second rate for the current progress phase. Re-anchors when a
- *  new phase is detected (done went backward or total grew). Null until a quarter second
- *  of work has elapsed. @unstable */
-declare function phaseRate(prev: PhaseRate | null, done: number, total: number, now: number): {
-    state: PhaseRate;
-    rate: number | null;
-};
-
-/** @unstable */
-export type util_PhaseRate = PhaseRate;
-/** @unstable */
-declare const util_bestBy: typeof bestBy;
-/** @unstable */
-declare const util_chunk: typeof chunk;
-/** @unstable */
-declare const util_cmpVersion: typeof cmpVersion;
-/** @unstable */
-declare const util_compareNatural: typeof compareNatural;
-/** @unstable */
-declare const util_copyImageToClipboard: typeof copyImageToClipboard;
-/** @unstable */
-declare const util_downloadBlob: typeof downloadBlob;
-/** @unstable */
-declare const util_isPrereleaseVersion: typeof isPrereleaseVersion;
-/** @unstable */
-declare const util_isWeb: typeof isWeb;
-/** @unstable */
-declare const util_mmaBufUrl: typeof mmaBufUrl;
-/** @unstable */
-declare const util_nowUnix: typeof nowUnix;
-/** @unstable */
-declare const util_phaseRate: typeof phaseRate;
-/** @unstable */
-declare const util_pickFiles: typeof pickFiles;
-/** @unstable */
-declare const util_schemeBase: typeof schemeBase;
-/** @unstable */
-declare const util_shuffle: typeof shuffle;
-/** @unstable */
-declare const util_splitVersion: typeof splitVersion;
-/** @unstable */
-declare const util_toggleInSet: typeof toggleInSet;
-declare namespace util {
-  export { util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_pickFiles as pickFiles, util_schemeBase as schemeBase, util_shuffle as shuffle, util_splitVersion as splitVersion, util_toggleInSet as toggleInSet };
-  export type { util_PhaseRate as PhaseRate };
-}
-
-/** Sort tags by the chosen mode: name, location count, or manual order. */
-declare function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[];
-/** Color for a tag named `name`. An existing tag uses its stored color. */
-declare function tagColorFor(name: string, tags: Tag[]): string;
-/** Tags staged on a location until it saves: existing tags by id, and typed names that Save creates. */
-export interface PendingTags {
-    ids: number[];
-    names: string[];
-}
-/** Stage typed text as the existing tag it names, ignoring case, or as a name to create.
- *  Returns `pending` unchanged if already staged. */
-declare function addPendingTag(pending: PendingTags, name: string, tags: Tag[]): PendingTags;
-/** Stage the tag, or unstage it if it is already staged. */
-declare function togglePendingTag(pending: PendingTags, id: number): PendingTags;
-/** The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out. */
-declare function pendingTagIds({ ids, names }: PendingTags): Promise<number[]>;
-/** Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
- *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. */
-declare function displayTagName(name: string): string;
-
-/** @unstable */
-export type tags_PendingTags = PendingTags;
-declare const tags_addPendingTag: typeof addPendingTag;
-declare const tags_displayTagName: typeof displayTagName;
-declare const tags_pendingTagIds: typeof pendingTagIds;
-declare const tags_sortTagsByMode: typeof sortTagsByMode;
-declare const tags_tagColorFor: typeof tagColorFor;
-declare const tags_togglePendingTag: typeof togglePendingTag;
-declare namespace tags {
-  export { tags_addPendingTag as addPendingTag, tags_displayTagName as displayTagName, tags_pendingTagIds as pendingTagIds, tags_sortTagsByMode as sortTagsByMode, tags_tagColorFor as tagColorFor, tags_togglePendingTag as togglePendingTag };
-  export type { tags_PendingTags as PendingTags };
-}
-
-export type ConstsApi = typeof consts;
-/** Pure transforms over the selection list behind the sidebar. @unstable */
-export type SelectionOpsApi = typeof selectionOps;
-/** App settings and their option tables; the shape moves with every setting added. @unstable */
-export type SettingsApi = typeof settings;
-/** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
-export type SelectorPickApi = typeof picker;
-/** The raw command layer under the app-level API; any of them can change in a release. @unstable */
-export type CommandsApi = typeof commands;
-/** Raw command, shell, and file dialog access. @unstable */
-export type TauriApi = typeof tauri;
-export type RegistryApi = typeof registry;
-/** Enabling plugins and their activation lifecycle. @unstable */
-export type PluginHostApi = typeof pluginHost;
-/** The plugin marketplace and its update checks. @unstable */
-export type MarketplaceApi = typeof marketplace;
-export type PluginStorageApi = typeof pluginStorage;
-/** Which plugin owns a registration, and its teardown. @unstable */
-export type ScopeApi = typeof scope;
-export type PluginEventsApi = typeof pluginEvents;
-export type ExternalsApi = typeof externals;
-export type SidecarApi = typeof sidecar$1;
-export type FieldDefsApi = typeof fieldDefs;
-export type FieldDefRegistryApi = typeof fieldDefRegistry;
-/** The keys a field can be grouped by. @unstable */
-export type FieldProjectionsApi = typeof fieldProjections;
-/** Enrichment passes over the open map. @unstable */
-export type EnrichApi = typeof enrich$1;
-/** The providers the app registers for enrichment. @unstable */
-export type ProvidersApi = typeof providers;
-/** Bulk pinning locations to their panoramas. @unstable */
-export type PinPanoApi = typeof pinPano;
-/** Coverage validation passes. @unstable */
-export type ValidateApi = typeof validate;
-/** The validation categories users pick from, over the flags a check answers. @unstable */
-export type ValidationCategoriesApi = typeof validationCategories;
-export type QueryApi = typeof query$1;
-/** Screen positions of the rendered markers. @unstable */
-export type ScenePositionsApi = typeof scenePositions;
-/** Color conversion helpers. @unstable */
-export type ColorApi = typeof colorUtils;
-export type ToastApi = typeof toast$1;
-/** The global job tray. @unstable */
-export type JobsApi = typeof jobs;
-export type UseJobApi = typeof useJob$1;
-/** Compatibility bindings for flat plugin calls. */
-export type LegacyApi = typeof legacy;
-/** @unstable */
-export type TestApi = typeof testSurface;
-export type TypesApi = typeof types;
-/** General-purpose helpers. @unstable */
-export type UtilApi = typeof util;
-export type TagsApi = typeof tags;
-/** The global `MMA` object (also `window.MMA`). */
-interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
-    /** Shared UI primitives for plugin sidebars and dialogs. */
-    ui: typeof primitives;
-    /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
+export type AutosaveApi = {
     Autosave: typeof Autosave;
-    /** Edit map locations, metadata, value records, and selections. */
-    Edit: typeof Edit;
-    /** Add, update, remove, and inspect map locations. */
-    Location: typeof Location;
-    /** Manage tag records and their assignment to locations. */
-    Tag: typeof Tag;
-    /** Open locations and change the editor pane. */
-    Editor: typeof Editor;
-    /** Pending layers: staged edits that land on the map as one undo step. @unstable */
-    Layer: typeof Layer;
-    /** Procedure modules: ask one a question, or run one over locations. */
-    Procedure: typeof Procedure;
-    /** Registered field producers: register one, list them, or run them over locations. */
-    Provider: typeof Provider;
-    /** Navigate undo and redo history. */
-    History: typeof History;
-    /** Save and restore map versions. */
+};
+export type BindingsConstsApi = {
+    BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
+    CameraType: typeof CameraType;
+    CapturePick: typeof CapturePick;
+    /** @unstable */
+    DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
+    DEFAULT_MARKER_COLOR: typeof DEFAULT_MARKER_COLOR;
+    DatePart: typeof DatePart;
+    /** @unstable */
+    EFFECT_CALLS: typeof EFFECT_CALLS;
+    /** @unstable */
+    ERROR_CODES: typeof ERROR_CODES;
+    FieldType: typeof FieldType;
+    /** @unstable */
+    FirstSyncMode: typeof FirstSyncMode;
+    /** @unstable */
+    FrameKind: typeof FrameKind;
+    Group: typeof Group;
+    /** @unstable */
+    IssueState: typeof IssueState;
+    KNOWN_FIELDS: typeof KNOWN_FIELDS;
+    LocationFlag: typeof LocationFlag;
+    MapShape: typeof MapShape;
+    MergeWinner: typeof MergeWinner;
+    /** @unstable */
+    NO_SEL: typeof NO_SEL;
+    OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
+    /** @unstable */
+    PLAIN_CALLS: typeof PLAIN_CALLS;
+    /** @unstable */
+    PROJECTIONS: typeof PROJECTIONS;
+    PanoType: typeof PanoType;
+    Place: typeof Place;
+    RankingStrategy: typeof RankingStrategy;
+    RateCost: typeof RateCost;
+    /** @unstable */
+    ResolutionSide: typeof ResolutionSide;
+    ReviewMode: typeof ReviewMode;
+    /** @unstable */
+    SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
+    /** @unstable */
+    SYNC_PROVIDERS: typeof SYNC_PROVIDERS;
+    Sink: typeof Sink;
+    Stack: typeof Stack;
+    /** @unstable */
+    SyncDirection: typeof SyncDirection;
+    /** @unstable */
+    SyncTrigger: typeof SyncTrigger;
+    Timeline: typeof Timeline;
+    /** @unstable */
+    VALI_COUNTRIES: typeof VALI_COUNTRIES;
+    ValidationFlag: typeof ValidationFlag;
+};
+export type ColorApi = {
+    /** @unstable */
+    applyAccentColor: typeof applyAccentColor;
+    /** @unstable */
+    colorForName: typeof colorForName;
+    /** @unstable */
+    hexToHsl: typeof hexToHsl;
+    /** @unstable */
+    hexToRgb: typeof hexToRgb;
+    /** @unstable */
+    hslToHex: typeof hslToHex;
+    /** @unstable */
+    hslToRgb: typeof hslToRgb;
+    /** @unstable */
+    labelColor: typeof labelColor;
+    /** @unstable */
+    resolveSvColorHex: typeof resolveSvColorHex;
+    /** @unstable */
+    rgbCss: typeof rgbCss;
+    /** @unstable */
+    rgbToHex: typeof rgbToHex;
+    /** @unstable */
+    textColorFor: typeof textColorFor;
+};
+export type CommandsApi = {
+    /** @unstable */
+    cmd: typeof cmd;
+};
+export type CommitApi = {
     Commit: typeof Commit;
-    /** Rename or remove metadata fields across the map. */
-    Field: typeof Field$1;
-    /** Read the open map state and update its selection and metadata. */
-    Store: Omit<typeof Store, "patch" | "apply" | "resetDerived">;
-    /** Create, list, open, close, and organize maps. */
-    Maps: typeof Maps;
-    /** Read locations and summaries for a selector. */
-    Query: typeof Query;
-    /** Run mutations and wait for their state and display updates. */
-    Mutation: typeof Mutation;
-    /** Change the listed selections and inspect their active members. @unstable */
-    SelectionList: typeof SelectionList;
-    /** Uncommitted changes and their preview on the map. @unstable */
+};
+export type CommitDiffApi = {
+    /** @unstable */
     CommitDiff: typeof CommitDiff;
-    /** Stage, preview, and confirm an import into the open map. @unstable */
-    Import: typeof Import;
-    /** Saved selection rules. @unstable */
-    SavedSelection: typeof SavedSelection;
-    /** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
-    Scene: typeof Scene;
-    /** The embedded map host, its preferences, and click interceptors. @unstable */
+};
+export type EditApi = {
+    Edit: typeof Edit;
+};
+export type EditorApi = {
+    Editor: typeof Editor;
+};
+export type EnrichApi = {
+    /** @unstable */
+    enrich: typeof enrich;
+};
+export type ExternalsApi = {
+    getAvailableExternals: typeof getAvailableExternals;
+    mmaRequire: typeof mmaRequire;
+    preloadModules: typeof preloadModules;
+};
+export type FieldApi = {
+    Field: typeof Field$1;
+};
+export type FieldDefRegistryApi = {
+    declaredValues: typeof declaredValues;
+    fieldLabel: typeof fieldLabel;
+    fieldValueLabel: typeof fieldValueLabel;
+    getAllFieldDefs: typeof getAllFieldDefs;
+    /** @unstable */
+    getBuiltinKeys: typeof getBuiltinKeys;
+    getFieldDef: typeof getFieldDef;
+    /** @unstable */
+    getFieldKeys: typeof getFieldKeys;
+    getKnownFieldKeys: typeof getKnownFieldKeys;
+    isBuiltinField: typeof isBuiltinField;
+    /** @unstable */
+    isClearableField: typeof isClearableField;
+    /** @unstable */
+    isListableField: typeof isListableField;
+    /** @unstable */
+    isWritableField: typeof isWritableField;
+    registerPluginFieldDefs: typeof registerPluginFieldDefs;
+    unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
+};
+export type FieldDefsApi = {
+    /** @unstable */
+    enabledEnrichKeys: typeof enabledEnrichKeys;
+    /** @unstable */
+    enrichInputs: typeof enrichInputs;
+    /** @unstable */
+    getAllEnrichKeys: typeof getAllEnrichKeys;
+    /** @unstable */
+    getDefaultEnrichKeys: typeof getDefaultEnrichKeys;
+    /** @unstable */
+    getEnrichFieldOptions: typeof getEnrichFieldOptions;
+    /** @unstable */
+    isFieldEnabled: typeof isFieldEnabled;
+    knownFieldDefs: typeof knownFieldDefs;
+};
+export type FieldProjectionsApi = {
+    /** @unstable */
+    RANGE_ID: typeof RANGE_ID;
+    /** @unstable */
+    partitionKeyOptions: typeof partitionKeyOptions;
+    /** @unstable */
+    projectionsForType: typeof projectionsForType;
+};
+export type HistoryApi = {
+    History: typeof History;
+};
+export type HostApi = {
+    /** @unstable */
     MapHost: typeof MapHost;
-    /** Review sessions and their history. @unstable */
-    Review: typeof Review;
-    /** The seen-location history and how panorama visits are recorded into it. @unstable */
-    Seen: typeof Seen;
-    /** The shared panorama viewer. @unstable */
+};
+export type ImportApi = {
+    /** @unstable */
+    Import: typeof Import;
+};
+export type JobsApi = {
+    /** @unstable */
+    cancelJobs: typeof cancelJobs;
+    /** @unstable */
+    confirmMapExit: typeof confirmMapExit;
+    /** @unstable */
+    getExitRequest: typeof getExitRequest;
+    /** @unstable */
+    getJobs: typeof getJobs;
+    /** @unstable */
+    registerJob: typeof registerJob;
+    /** @unstable */
+    resolveMapExit: typeof resolveMapExit;
+    /** @unstable */
+    runJob: typeof runJob;
+};
+export type LayerApi = {
+    /** @unstable */
+    Layer: typeof Layer;
+};
+export type LegacyApi = {
+    addLocations: typeof addLocations;
+    /** @unstable */
+    addSelections: typeof addSelections;
+    /** @unstable */
+    addTagToLocations: typeof addTagToLocations;
+    /** @unstable */
+    applySelectionUpdate: typeof applySelectionUpdate;
+    autosave: typeof autosave;
+    /** @unstable */
+    checkoutCommit: typeof checkoutCommit;
+    /** @unstable */
+    closeDuplicates: typeof closeDuplicates;
+    closeLocation: typeof closeLocation;
+    closeMap: typeof closeMap$1;
+    commitMap: typeof commitMap;
+    /** @unstable */
+    copyName: typeof copyName;
+    /** @unstable */
+    countBy: typeof countBy;
+    /** @unstable */
+    countIn: typeof countIn;
+    /** @unstable */
+    coverage: typeof coverage;
+    createMap: typeof createMap;
+    /** @unstable */
+    createPluginStorage: typeof createPluginStorage;
+    /** @unstable */
+    currentSelection: typeof currentSelection;
+    deleteField: typeof deleteField;
+    deleteFolder: typeof deleteFolder;
+    deleteMap: typeof deleteMap$1;
+    deleteTags: typeof deleteTags;
+    /** @unstable */
+    discardOpenMap: typeof discardOpenMap;
+    duplicateLocation: typeof duplicateLocation;
+    duplicateMap: typeof duplicateMap;
+    edit: typeof edit;
+    exitPluginMode: typeof exitPluginMode;
+    /** @unstable */
+    fetchAllLocations: typeof fetchAllLocations;
+    /** @unstable */
+    fetchBounds: typeof fetchBounds;
+    /** @unstable */
+    fetchColumns: typeof fetchColumns;
+    /** @unstable */
+    fetchLocation: typeof fetchLocation;
+    /** @unstable */
+    fetchLocations: typeof fetchLocations;
+    /** @unstable */
+    fetchLocationsByIds: typeof fetchLocationsByIds;
+    /** @unstable */
+    fieldCoverage: typeof fieldCoverage;
+    /** @unstable */
+    fieldValues: typeof fieldValues;
+    /** @unstable */
+    getActiveLocation: typeof getActiveLocation;
+    getActiveSelections: typeof getActiveSelections;
+    /** @unstable */
+    getAllSelections: typeof getAllSelections;
+    /** @unstable */
+    getCurrentMap: typeof getCurrentMap;
+    /** @unstable */
+    getCurrentMapId: typeof getCurrentMapId;
+    /** @unstable */
+    getGhostedSelections: typeof getGhostedSelections;
+    /** @unstable */
+    getGoogleMap: typeof getGoogleMap;
+    /** @unstable */
+    getMapBadgeSources: typeof getMapBadgeSources;
+    /** @unstable */
+    getMapBadges: typeof getMapBadges;
+    getMapHost: typeof getMapHost;
+    getMapList: typeof getMapList;
+    getMapState: typeof getMapState;
+    /** @unstable */
+    getSelectedLocationIds: typeof getSelectedLocationIds;
+    /** @unstable */
+    getSelectedTagIds: typeof getSelectedTagIds;
+    /** @unstable */
+    getSelectedTagIdsDeep: typeof getSelectedTagIdsDeep;
+    /** @unstable */
+    getSelections: typeof getSelections;
+    getTag: typeof getTag;
+    getTagCounts: typeof getTagCounts;
+    getTags: typeof getTags;
+    getVisibleTags: typeof getVisibleTags;
+    /** @unstable */
+    getWorkArea: typeof getWorkArea;
+    /** @unstable */
+    historyAvailable: typeof historyAvailable;
+    /** @unstable */
+    initStore: typeof initStore;
+    /** @unstable */
+    installedVersion: typeof installedVersion;
+    /** @unstable */
+    invalidateMapList: typeof invalidateMapList;
+    /** @unstable */
+    isReservedMap: typeof isReservedMap;
+    locationsOf: typeof locationsOf;
+    moveMapToFolder: typeof moveMapToFolder;
+    mutate: typeof mutate;
+    /** @unstable */
+    openDuplicateLocation: typeof openDuplicateLocation;
+    openLocation: typeof openLocation;
+    openMap: typeof openMap$1;
+    openScratchMap: typeof openScratchMap;
+    /** @unstable */
+    openStagedLocation: typeof openStagedLocation;
+    /** @unstable */
+    partition: typeof partition;
+    /** @unstable */
+    previewDuplicateGroups: typeof previewDuplicateGroups;
+    /** @unstable */
+    previewLocation: typeof previewLocation;
+    /** @unstable */
+    query: typeof query;
+    read: typeof read;
+    /** @unstable */
+    registerEnrichFields: typeof registerEnrichFields;
+    /** @unstable */
+    registerEnrichmentProvider: typeof registerEnrichmentProvider;
+    /** @unstable */
+    registerMapBadges: typeof registerMapBadges;
+    registerProvider: typeof registerProvider;
+    /** @unstable */
+    reloadMapList: typeof reloadMapList;
+    /** @unstable */
+    removeDuplicate: typeof removeDuplicate;
+    removeLocations: typeof removeLocations;
+    /** @unstable */
+    removeSelections: typeof removeSelections;
+    /** @unstable */
+    removeTagFromAllLocations: typeof removeTagFromAllLocations;
+    /** @unstable */
+    removeTagFromLocations: typeof removeTagFromLocations;
+    renameField: typeof renameField;
+    renameFolder: typeof renameFolder;
+    /** @unstable */
+    request: typeof request;
+    /** @unstable */
+    resetSelections: typeof resetSelections;
+    /** @unstable */
+    resolveIds: typeof resolveIds;
+    resolveLocation: typeof resolveLocation;
+    /** @unstable */
+    sampleFrom: typeof sampleFrom;
+    select: typeof select;
+    /** @unstable */
+    setActiveLocation: typeof setActiveLocation;
+    setPluginMode: typeof setPluginMode;
+    /** @unstable */
+    setUserFieldDefs: typeof setUserFieldDefs;
+    /** @unstable */
+    setWorkArea: typeof setWorkArea;
+    settled: typeof settled;
+    tagIdsToNames: typeof tagIdsToNames;
+    updateLocations: typeof updateLocations;
+    /** @unstable */
+    useMapBadges: typeof useMapBadges;
+    useMapList: typeof useMapList;
+    useMapState: typeof useMapState;
+    /** @unstable */
+    waitForGoogleMap: typeof waitForGoogleMap;
+    waitForMapHost: typeof waitForMapHost;
+};
+export type LocationApi = {
+    Location: typeof Location;
+};
+export type MapsApi = {
+    Maps: typeof Maps;
+};
+export type MarketplaceApi = {
+    /** @unstable */
+    autoUpdatePlugin: typeof autoUpdatePlugin;
+    /** @unstable */
+    fetchPluginRegistry: typeof fetchPluginRegistry;
+    /** @unstable */
+    isPluginCompatible: typeof isPluginCompatible;
+    /** @unstable */
+    isPluginUpdatable: typeof isPluginUpdatable;
+    /** @unstable */
+    needsBuildUpdate: typeof needsBuildUpdate;
+    /** @unstable */
+    needsUpdate: typeof needsUpdate;
+    /** @unstable */
+    resolveBuild: typeof resolveBuild;
+};
+export type MutationApi = {
+    Mutation: typeof Mutation;
+};
+export type PanoApi = {
+    /** @unstable */
     Pano: typeof Pano;
+};
+export type PinPanoApi = {
+    /** @unstable */
+    bulkPinToPano: typeof bulkPinToPano;
+};
+export type PluginEventsApi = {
+    /** @unstable */
+    definePluginEvent: typeof definePluginEvent;
+    /** @unstable */
+    emitPluginEvent: typeof emitPluginEvent;
+    on: typeof on;
+    /** @unstable */
+    usePluginEvent: typeof usePluginEvent;
+};
+export type PluginHostApi = {
+    /** @unstable */
+    activatePlugin: typeof activatePlugin;
+    /** @unstable */
+    activatePlugins: typeof activatePlugins;
+    /** @unstable */
+    deactivatePlugin: typeof deactivatePlugin;
+    /** @unstable */
+    deactivatePlugins: typeof deactivatePlugins;
+    /** @unstable */
+    getEnabledPlugins: typeof getEnabledPlugins;
+    /** @unstable */
+    isPluginEnabled: typeof isPluginEnabled;
+    /** @unstable */
+    isReady: typeof isReady;
+    /** @unstable */
+    markReady: typeof markReady;
+    /** @unstable */
+    setPluginEnabled: typeof setPluginEnabled;
+};
+export type PluginStorageApi = {
+    mapStorage: typeof mapStorage;
+    /** @unstable */
+    reloadStorage: typeof reloadStorage;
+    storage: typeof storage;
+    usePluginState: typeof usePluginState;
+};
+export type ProcedureApi = {
+    Procedure: typeof Procedure;
+};
+export type ProviderApi = {
+    Provider: typeof Provider;
+};
+export type ProvidersApi = {
+    /** @unstable */
+    BUILTIN_PROVIDERS: typeof BUILTIN_PROVIDERS;
+    /** @unstable */
+    enrichRuns: typeof enrichRuns;
+    /** @unstable */
+    exactDateProvider: typeof exactDateProvider;
+    /** @unstable */
+    headingRoadProvider: typeof headingRoadProvider;
+    /** @unstable */
+    panoResolveProvider: typeof panoResolveProvider;
+    /** @unstable */
+    subdivisionProvider: typeof subdivisionProvider;
+    /** @unstable */
+    svMetaProvider: typeof svMetaProvider;
+    /** @unstable */
+    timezoneProvider: typeof timezoneProvider;
+};
+export type RegistryApi = {
+    getPlugin: typeof getPlugin;
+    getPlugins: typeof getPlugins;
+    isBackgroundPlugin: typeof isBackgroundPlugin;
+    registerPlugin: typeof registerPlugin;
+    /** @unstable */
+    setPendingManifest: typeof setPendingManifest;
+    /** @unstable */
+    unregisterPlugin: typeof unregisterPlugin;
+};
+export type ReviewApi = {
+    /** @unstable */
+    Review: typeof Review;
+};
+export type SavedSelectionApi = {
+    /** @unstable */
+    SavedSelection: typeof SavedSelection;
+};
+export type SceneApi = {
+    /** @unstable */
+    Scene: typeof Scene;
+};
+export type ScenePositionsApi = {
+    /** @unstable */
+    getScenePositions: typeof getScenePositions;
+};
+export type ScopeApi = {
+    /** @unstable */
+    disposePlugin: typeof disposePlugin;
+    /** @unstable */
+    resolvePluginPath: typeof resolvePluginPath;
+    /** @unstable */
+    runAsPlugin: typeof runAsPlugin;
+    /** @unstable */
+    setPluginBaseDir: typeof setPluginBaseDir;
+    /** @unstable */
+    trackDisposable: typeof trackDisposable;
+};
+export type SeenApi = {
+    /** @unstable */
+    Seen: typeof Seen;
+};
+export type SelectionListApi = {
+    /** @unstable */
+    SelectionList: typeof SelectionList;
+};
+export type SelectionsApi = {
+    /** @unstable */
+    OP_LABELS: typeof OP_LABELS;
+    /** @unstable */
+    SELECTIONS: typeof SELECTIONS;
+    /** @unstable */
+    UNARY_TYPES: typeof UNARY_TYPES;
+    /** @unstable */
+    addSelection: typeof addSelection;
+    /** @unstable */
+    all: typeof all;
+    /** @unstable */
+    any: typeof any;
+    /** @unstable */
+    buildSelection: typeof buildSelection;
+    /** @unstable */
+    childSelections: typeof childSelections;
+    /** @unstable */
+    filterIsLocalTime: typeof filterIsLocalTime;
+    /** @unstable */
+    has: typeof has;
+    /** @unstable */
+    lacks: typeof lacks;
+    /** @unstable */
+    memberOf: typeof memberOf;
+    /** @unstable */
+    not: typeof not;
+    /** @unstable */
+    panoIdSelector: typeof panoIdSelector;
+    /** @unstable */
+    replaceSelection: typeof replaceSelection;
+    /** @unstable */
+    selection: typeof selection;
+    /** @unstable */
+    selectionAt: typeof selectionAt;
+    /** @unstable */
+    selectionDisplayName: typeof selectionDisplayName;
+    /** @unstable */
+    tagIdOf: typeof tagIdOf;
+    /** @unstable */
+    tagSelector: typeof tagSelector;
+    /** @unstable */
+    toggleSelection: typeof toggleSelection;
+    /** @unstable */
+    unpannedSelector: typeof unpannedSelector;
+    /** @unstable */
+    untaggedSelector: typeof untaggedSelector;
+    /** @unstable */
+    withChildren: typeof withChildren;
+};
+export type SelectorPickApi = {
+    /** @unstable */
+    selectorForPick: typeof selectorForPick;
+    /** @unstable */
+    useSelectorPick: typeof useSelectorPick;
+};
+export type SettingsApi = {
+    /** @unstable */
+    APP_SETTINGS: typeof APP_SETTINGS;
+    /** @unstable */
+    BORDER_ARCHIVE_BYTES: typeof BORDER_ARCHIVE_BYTES;
+    /** @unstable */
+    BORDER_DETAILS: typeof BORDER_DETAILS;
+    /** @unstable */
+    CSS_VAR_SETTINGS: typeof CSS_VAR_SETTINGS;
+    /** @unstable */
+    DATE_TIMEZONES: typeof DATE_TIMEZONES;
+    /** @unstable */
+    DEFAULTS: typeof DEFAULTS;
+    /** @unstable */
+    DISCORD_PRESENCE_MODES: typeof DISCORD_PRESENCE_MODES;
+    /** @unstable */
+    EXACT_DATE_FORMATS: typeof EXACT_DATE_FORMATS;
+    /** @unstable */
+    GEOCODE_PROVIDERS: typeof GEOCODE_PROVIDERS;
+    /** @unstable */
+    GEOCODE_PROVIDER_LABELS: typeof GEOCODE_PROVIDER_LABELS;
+    /** @unstable */
+    LANGUAGES: typeof LANGUAGES;
+    /** @unstable */
+    MAP_LIST_FIELDS: typeof MAP_LIST_FIELDS;
+    /** @unstable */
+    MOVEMENT_CYCLE: typeof MOVEMENT_CYCLE;
+    /** @unstable */
+    MOVEMENT_MODES: typeof MOVEMENT_MODES;
+    /** @unstable */
+    OPACITY_TOGGLE_MODES: typeof OPACITY_TOGGLE_MODES;
+    /** @unstable */
+    POLYGON_COLOR_MODES: typeof POLYGON_COLOR_MODES;
+    /** @unstable */
+    PREVIEW_ASPECT_RATIOS: typeof PREVIEW_ASPECT_RATIOS;
+    /** @unstable */
+    PRIVATE_SETTINGS: typeof PRIVATE_SETTINGS;
+    /** @unstable */
+    SEEN_RESOLUTIONS: typeof SEEN_RESOLUTIONS;
+    /** @unstable */
+    SUBDIVISION_DETAILS: typeof SUBDIVISION_DETAILS;
+    /** @unstable */
+    TAG_FOLDER_COLOR_MODES: typeof TAG_FOLDER_COLOR_MODES;
+    /** @unstable */
+    TAG_SUGGESTION_LIMITS: typeof TAG_SUGGESTION_LIMITS;
+    /** @unstable */
+    TAG_VIEW_MODES: typeof TAG_VIEW_MODES;
+    /** @unstable */
+    UNIT_SYSTEMS: typeof UNIT_SYSTEMS;
+    /** @unstable */
+    getSettings: typeof getSettings;
+    /** @unstable */
+    navHiddenWithUI: typeof navHiddenWithUI;
+    /** @unstable */
+    panoDisplayOptions: typeof panoDisplayOptions;
+    /** @unstable */
+    resetSettings: typeof resetSettings;
+    /** @unstable */
+    setSetting: typeof setSetting;
+    /** @unstable */
+    useSetting: typeof useSetting;
+    /** @unstable */
+    useSettings: typeof useSettings;
+};
+export type SidecarApi = {
+    sidecar: typeof sidecar;
+};
+export type StoreApi = {
+    Store: typeof Store;
+};
+export type Store_QueryApi = {
+    Query: typeof Query;
+};
+export type Sv_QueryApi = {
+    panosAt: typeof panosAt;
+    svMetadata: typeof svMetadata;
+};
+export type TagApi = {
+    Tag: typeof Tag;
+};
+export type TagsApi = {
+    addPendingTag: typeof addPendingTag;
+    displayTagName: typeof displayTagName;
+    pendingTagIds: typeof pendingTagIds;
+    sortTagsByMode: typeof sortTagsByMode;
+    tagColorFor: typeof tagColorFor;
+    togglePendingTag: typeof togglePendingTag;
+};
+export type TauriApi = {
+    /** @unstable */
+    dialog: typeof dialog;
+    /** @unstable */
+    invoke: typeof invoke;
+    /** @unstable */
+    shell: typeof shell;
+};
+export type TestSurfaceApi = {
+    /** @unstable */
+    _test: typeof _test;
+};
+export type ToastApi = {
+    /** @unstable */
+    getToasts: typeof getToasts;
+    toast: typeof toast;
+};
+export type TypesApi = {
+    /** @unstable */
+    bboxTupleToBounds: typeof bboxTupleToBounds;
+    /** @unstable */
+    boundsToScoreTuple: typeof boundsToScoreTuple;
+    createFieldDef: typeof createFieldDef;
+    createLocation: typeof createLocation;
+    /** @unstable */
+    dropLocation: typeof dropLocation;
+    isPinned: typeof isPinned;
+    isWorldBounds: typeof isWorldBounds;
+    locId: typeof locId;
+    /** @unstable */
+    scoreTupleToBounds: typeof scoreTupleToBounds;
+    setPinned: typeof setPinned;
+};
+export type UiApi = {
+    ui: typeof ui;
+};
+export type UseJobApi = {
+    useJob: typeof useJob;
+};
+export type UtilApi = {
+    /** @unstable */
+    bestBy: typeof bestBy;
+    /** @unstable */
+    chunk: typeof chunk;
+    /** @unstable */
+    cmpVersion: typeof cmpVersion;
+    /** @unstable */
+    compareNatural: typeof compareNatural;
+    /** @unstable */
+    copyImageToClipboard: typeof copyImageToClipboard;
+    /** @unstable */
+    downloadBlob: typeof downloadBlob;
+    /** @unstable */
+    isPrereleaseVersion: typeof isPrereleaseVersion;
+    /** @unstable */
+    isWeb: typeof isWeb;
+    /** @unstable */
+    mmaBufUrl: typeof mmaBufUrl;
+    /** @unstable */
+    nowUnix: typeof nowUnix;
+    /** @unstable */
+    phaseRate: typeof phaseRate;
+    /** @unstable */
+    pickFiles: typeof pickFiles;
+    /** @unstable */
+    schemeBase: typeof schemeBase;
+    /** @unstable */
+    shuffle: typeof shuffle;
+    /** @unstable */
+    splitVersion: typeof splitVersion;
+    /** @unstable */
+    toggleInSet: typeof toggleInSet;
+};
+export type ValidateApi = {
+    /** @unstable */
+    validateLocations: typeof validateLocations;
+};
+export type ValidationCategoriesApi = {
+    /** @unstable */
+    STANDARD_VALIDATION_CATEGORIES: typeof STANDARD_VALIDATION_CATEGORIES;
+    /** @unstable */
+    VALIDATION_CATEGORIES: typeof VALIDATION_CATEGORIES;
+    /** @unstable */
+    validationCategory: typeof validationCategory;
+};
+/** The global `MMA` object (also `window.MMA`). */
+interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, EnrichApi, ExternalsApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MarketplaceApi, MutationApi, PanoApi, PinPanoApi, PluginEventsApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScenePositionsApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {
@@ -8019,5 +7595,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
+export type { MMA, MMA as MMAApi, commands, events };
 export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueNames, ValueRecord, VirtualTag, Work, WorkResult };

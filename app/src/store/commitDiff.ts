@@ -21,6 +21,7 @@ export interface CommitDiffPreview {
 }
 
 let commitDiffPreview: CommitDiffPreview | null = null;
+/** Uncommitted changes and their preview on the map. @api @unstable */
 export const CommitDiff = {
 	/** Whether there are uncommitted changes (adds, removes, or updates). */
 	has: (): boolean => {

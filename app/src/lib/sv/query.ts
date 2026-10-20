@@ -14,7 +14,7 @@ export interface SearchOpts {
 
 /** Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
  *  not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
- *  Duplicates are deduped and large batches are split automatically. */
+ *  Duplicates are deduped and large batches are split automatically. @api */
 export async function svMetadata(
 	panoIds: string[],
 	signal?: AbortSignal,
@@ -36,7 +36,7 @@ export async function svMetadata(
 /** The nearest pano to each point, aligned to `points`, null where there is no coverage.
  *  `opts.sources` narrows which collections are searched and `opts.preference` picks
  *  nearest or best. `onPano` sees each point's answer the moment its search resolves,
- *  ahead of the full array. */
+ *  ahead of the full array. @api */
 export async function panosAt(
 	points: LatLng[],
 	radius = SV_SEARCH_RADIUS,

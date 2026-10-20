@@ -7,6 +7,7 @@ import { Scene } from "@/lib/render/scene";
 
 export type Mutation<T = Location> = bindings.Mutation<T>;
 
+/** Run mutations and wait for their state and display updates. @api */
 export const Mutation = {
 	/** The result of a mutation that reached no map. */
 	none: (): Mutation => ({ version: 0, keys: [] }),

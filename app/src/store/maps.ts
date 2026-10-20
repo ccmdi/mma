@@ -93,6 +93,7 @@ function resetMapState() {
 	Store.resetDerived();
 }
 
+/** Create, list, open, close, and organize maps. @api */
 export const Maps = {
 	/** One-time store startup. The app calls this; plugins never need to. @unstable */
 	init: async () => {

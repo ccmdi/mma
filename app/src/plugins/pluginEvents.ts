@@ -9,7 +9,7 @@ import {
 import { trackDisposable } from "@/plugins/scope";
 
 /** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
- *  deactivation. */
+ *  deactivation. @api */
 export function on<E extends EditorEvent | PluginEvent<unknown>>(
 	event: E,
 	handler: EventHandler<E>,
@@ -20,12 +20,12 @@ export function on<E extends EditorEvent | PluginEvent<unknown>>(
 }
 
 /** Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
- *  whoever raises it and whoever hears it agree on the payload. @unstable */
+ *  whoever raises it and whoever hears it agree on the payload. @api @unstable */
 export function definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T> {
 	return `plugin:${pluginId}:${name}` as PluginEvent<T>;
 }
 
-/** Raise one of a plugin's own events, with its payload when it carries one. @unstable */
+/** Raise one of a plugin's own events, with its payload when it carries one. @api @unstable */
 export function emitPluginEvent<T>(
 	event: PluginEvent<T>,
 	...payload: T extends void ? [] : [payload: T]
@@ -34,7 +34,7 @@ export function emitPluginEvent<T>(
 }
 
 /** React hook: what `read` returns, read again each time `event` is raised. `read` must return
- *  the same reference while nothing it reads has changed. @unstable */
+ *  the same reference while nothing it reads has changed. @api @unstable */
 export function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V {
 	return useEventValue(event, read);
 }

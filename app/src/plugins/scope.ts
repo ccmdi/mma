@@ -9,7 +9,7 @@ let currentOwner: string | null = null;
 const stores = new Map<string, Disposable[]>();
 const baseDirs = new Map<string, string>();
 
-/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. */
+/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. @api @unstable */
 export function runAsPlugin<T>(id: string, fn: () => T): T {
 	const prev = currentOwner;
 	currentOwner = id;
@@ -20,7 +20,7 @@ export function runAsPlugin<T>(id: string, fn: () => T): T {
 	}
 }
 
-/** Enroll a teardown callback under the current plugin. No-op outside activation. */
+/** Enroll a teardown callback under the current plugin. No-op outside activation. @api @unstable */
 export function trackDisposable(dispose: Disposable): void {
 	if (!currentOwner) return;
 	let store = stores.get(currentOwner);
@@ -31,13 +31,13 @@ export function trackDisposable(dispose: Disposable): void {
 	store.push(dispose);
 }
 
-/** Set the base directory for a plugin's assets on disk. */
+/** Set the base directory for a plugin's assets on disk. @api @unstable */
 export function setPluginBaseDir(id: string, dir: string): void {
 	baseDirs.set(id, dir);
 }
 
 /** Resolve a relative path against the current plugin's base directory. Absolute
- *  paths and `res://` URLs pass through unchanged. */
+ *  paths and `res://` URLs pass through unchanged. @api @unstable */
 export function resolvePluginPath(path: string): string {
 	if (!currentOwner || path.startsWith("res://") || path.startsWith("/") || /^[a-zA-Z]:/.test(path))
 		return path;
@@ -45,7 +45,7 @@ export function resolvePluginPath(path: string): string {
 	return dir ? `${dir}/${path}` : path;
 }
 
-/** Run all teardowns a plugin registered (in reverse order) and clear them. */
+/** Run all teardowns a plugin registered (in reverse order) and clear them. @api @unstable */
 export function disposePlugin(id: string): void {
 	const store = stores.get(id);
 	if (!store) return;

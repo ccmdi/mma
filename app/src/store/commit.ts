@@ -8,6 +8,7 @@ import { trace } from "@/lib/util/debug";
 import { Scene } from "@/lib/render/scene";
 import { Editor } from "./editor";
 
+/** Save and restore map versions. @api */
 export const Commit = {
 	/** Commit all pending changes to the map's version history. Clears the undo stack. */
 	create: async (message?: string): Promise<string> => {

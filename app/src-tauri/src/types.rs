@@ -175,6 +175,7 @@ pub struct TsConst {
     doc: &'static [&'static str],
     literal: String,
     union: bool,
+    api: bool,
     unstable: bool,
 }
 
@@ -185,6 +186,7 @@ impl TsConst {
             doc: &[],
             literal: serde_json::to_string(&v).expect("constant serializes"),
             union: false,
+            api: false,
             unstable: false,
         }
     }
@@ -220,12 +222,19 @@ impl TsConst {
             doc: &[],
             literal: format!("{{\n{body}}}"),
             union,
+            api: false,
             unstable: false,
         }
     }
 
     pub fn with_doc(mut self, doc: &'static [&'static str]) -> Self {
         self.doc = doc;
+        self
+    }
+
+    /// Puts the constant on the plugin surface.
+    pub fn api(mut self) -> Self {
+        self.api = true;
         self
     }
 
@@ -241,34 +250,26 @@ impl TsConst {
             "
 ",
         );
-        let tag = if self.unstable { " @unstable" } else { "" };
+        let tags = [(self.api, "@api"), (self.unstable, "@unstable")]
+            .iter()
+            .filter(|(on, _)| *on)
+            .map(|(_, tag)| *tag)
+            .collect::<Vec<_>>()
+            .join(" ");
         match self.doc {
-            [] if self.unstable => ts.push_str("/** @unstable */\n"),
-            [] => {}
-            [one] => ts.push_str(&format!(
-                "/** {}{tag} */
-",
-                one.trim()
-            )),
+            [] if tags.is_empty() => {}
+            [] => ts.push_str(&format!("/** {tags} */\n")),
+            [one] if tags.is_empty() => ts.push_str(&format!("/** {} */\n", one.trim())),
+            [one] => ts.push_str(&format!("/** {} {tags} */\n", one.trim())),
             many => {
-                ts.push_str(
-                    "/**
-",
-                );
+                ts.push_str("/**\n");
                 for line in many {
-                    ts.push_str(&format!(
-                        " * {}
-",
-                        line.trim()
-                    ));
+                    ts.push_str(&format!(" * {}\n", line.trim()));
                 }
-                if self.unstable {
-                    ts.push_str(" * @unstable\n");
+                if !tags.is_empty() {
+                    ts.push_str(&format!(" * {tags}\n"));
                 }
-                ts.push_str(
-                    " */
-",
-                );
+                ts.push_str(" */\n");
             }
         }
         ts.push_str(&format!(

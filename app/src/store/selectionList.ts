@@ -8,6 +8,7 @@ import { selection } from "./selections";
 import type { Selector } from "@/types";
 import { tagIdOf } from "@/store/selections";
 
+/** Change the listed selections and inspect their active members. @api @unstable */
 export const SelectionList = {
 	/** The listed selections, in list order. */
 	listed: memoOnRefs(

@@ -5,7 +5,7 @@ import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { t } from "@/lib/i18n";
 
-/** True when `appVersion` meets the plugin's minimum version requirement. */
+/** True when `appVersion` meets the plugin's minimum version requirement. @api @unstable */
 export function isPluginCompatible(
 	minAppVersion: string | null | undefined,
 	appVersion: string,
@@ -13,7 +13,7 @@ export function isPluginCompatible(
 	return !minAppVersion || cmpVersion(appVersion, minAppVersion) >= 0;
 }
 
-/** True when a newer version is published and the installed version is known. */
+/** True when a newer version is published and the installed version is known. @api @unstable */
 export function isPluginUpdatable(
 	installedVersion: string | undefined,
 	latestVersion: string | undefined,
@@ -21,7 +21,7 @@ export function isPluginUpdatable(
 	return !!installedVersion && !!latestVersion && installedVersion !== latestVersion;
 }
 
-/** True when either the plugin or its sidecar has a newer published version. */
+/** True when either the plugin or its sidecar has a newer published version. @api @unstable */
 export function needsUpdate(
 	installedVersion: string | undefined,
 	latestVersion: string | undefined,
@@ -41,7 +41,7 @@ export interface ResolvedBuild {
 }
 
 /** The newest build of a plugin this app version can run. Falls back through older
- *  pinned builds when the latest is incompatible. Null when none fit. */
+ *  pinned builds when the latest is incompatible. Null when none fit. @api @unstable */
 export function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null {
 	if (isPluginCompatible(entry.minAppVersion, appVersion)) {
 		return {
@@ -64,7 +64,7 @@ export function resolveBuild(entry: PluginManifest, appVersion: string): Resolve
 	return null;
 }
 
-/** True when the installed plugin or its sidecar should be refreshed to `target`. */
+/** True when the installed plugin or its sidecar should be refreshed to `target`. @api @unstable */
 export function needsBuildUpdate(
 	installedVersion: string | undefined,
 	target: ResolvedBuild,
@@ -82,7 +82,7 @@ const REGISTRY_URL = "https://raw.githubusercontent.com/ccmdi/mma/master/plugins
 
 let registryPromise: Promise<PluginManifest[]> | null = null;
 
-/** Fetch the marketplace plugin registry. Later calls return the first result until restart. */
+/** Fetch the marketplace plugin registry. Later calls return the first result until restart. @api @unstable */
 export function fetchPluginRegistry(): Promise<PluginManifest[]> {
 	if (!registryPromise) {
 		registryPromise = fetch(REGISTRY_URL, { signal: AbortSignal.timeout(5000) }).then((r) => {
@@ -97,7 +97,7 @@ export function fetchPluginRegistry(): Promise<PluginManifest[]> {
 }
 
 /** Auto-update a plugin to the newest compatible build before loading it. Falls back
- *  to what is on disk on failure. */
+ *  to what is on disk on failure. @api @unstable */
 export async function autoUpdatePlugin(
 	m: PluginManifest,
 	latest: PluginManifest | undefined,

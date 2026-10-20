@@ -1,6 +1,6 @@
 # MMA API reference
 
-Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
+Every member of the global `MMA` object (also `window.MMA`), grouped by the file that declares it.
 
 - `stable` members keep working across releases. A rename or removal ships with a shim.
 - `unstable` members are documented but can change or disappear in any release.
@@ -10,69 +10,138 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 
 **Stable surfaces**
 
-- [Consts](#consts)
-- [Registry](#registry)
-- [PluginStorage](#pluginstorage)
-- [PluginEvents](#pluginevents)
-- [Externals](#externals)
-- [Sidecar](#sidecar)
-- [FieldDefs](#fielddefs)
-- [FieldDefRegistry](#fielddefregistry)
-- [Query](#query)
-- [Toast](#toast)
-- [UseJob](#usejob)
-- [Types](#types)
-- [Tags](#tags)
-- [Legacy](#legacy)
-- [Ui](#ui)
 - [Autosave](#autosave)
+- [Bindings consts](#bindings-consts)
+- [Commit](#commit)
 - [Edit](#edit)
-- [Location](#location)
-- [Tag](#tag)
 - [Editor](#editor)
+- [Externals](#externals)
+- [Field](#field)
+- [Field def registry](#field-def-registry)
+- [Field defs](#field-defs)
+- [History](#history)
+- [Legacy](#legacy)
+- [Location](#location)
+- [Maps](#maps)
+- [Mutation](#mutation)
+- [Plugin events](#plugin-events)
+- [Plugin storage](#plugin-storage)
 - [Procedure](#procedure)
 - [Provider](#provider)
-- [History](#history)
-- [Commit](#commit)
-- [Field](#field)
+- [Registry](#registry)
+- [Sidecar](#sidecar)
 - [Store](#store)
-- [Maps](#maps)
-- [Query](#query)
-- [Mutation](#mutation)
+- [Store / Query](#store--query)
+- [Sv / Query](#sv--query)
+- [Tag](#tag)
+- [Tags](#tags)
+- [Toast](#toast)
+- [Types](#types)
+- [Ui](#ui)
+- [Use job](#use-job)
 
 **Unstable surfaces**
 
-- [SelectionOps](#selectionops)
-- [Settings](#settings)
-- [SelectorPick](#selectorpick)
-- [Commands](#commands)
-- [Tauri](#tauri)
-- [PluginHost](#pluginhost)
-- [Marketplace](#marketplace)
-- [Scope](#scope)
-- [FieldProjections](#fieldprojections)
-- [Enrich](#enrich)
-- [Providers](#providers)
-- [PinPano](#pinpano)
-- [Validate](#validate)
-- [ValidationCategories](#validationcategories)
-- [ScenePositions](#scenepositions)
 - [Color](#color)
-- [Jobs](#jobs)
-- [Test](#test)
-- [Util](#util)
-- [Layer](#layer)
-- [SelectionList](#selectionlist)
-- [CommitDiff](#commitdiff)
+- [Commands](#commands)
+- [Commit diff](#commit-diff)
+- [Enrich](#enrich)
+- [Field projections](#field-projections)
+- [Host](#host)
 - [Import](#import)
-- [SavedSelection](#savedselection)
-- [Scene](#scene)
-- [MapHost](#maphost)
-- [Review](#review)
-- [Seen](#seen)
+- [Jobs](#jobs)
+- [Layer](#layer)
+- [Marketplace](#marketplace)
 - [Pano](#pano)
+- [Pin pano](#pin-pano)
+- [Plugin host](#plugin-host)
+- [Providers](#providers)
+- [Review](#review)
+- [Saved selection](#saved-selection)
+- [Scene](#scene)
+- [Scene positions](#scene-positions)
+- [Scope](#scope)
+- [Seen](#seen)
+- [Selection list](#selection-list)
+- [Selections](#selections)
+- [Selector pick](#selector-pick)
+- [Settings](#settings)
+- [Tauri](#tauri)
+- [Test surface](#test-surface)
+- [Util](#util)
+- [Validate](#validate)
+- [Validation categories](#validation-categories)
 
-## Consts
+## Autosave
+
+### Autosave
+
+`stable` · since v0.12.0
+
+Debounced persistence of the open map: schedule, hold, cancel, or flush it.
+
+#### Autosave.cancel
+
+`unstable` · since v0.12.0
+
+```ts
+Autosave.cancel(): void
+```
+
+Cancel any pending autosave timer.
+
+#### Autosave.exclusive
+
+`unstable` · since v0.12.0
+
+```ts
+Autosave.exclusive<T>(write: () => Promise<T>): Promise<T>
+```
+
+Run `write` once every save started so far has finished, and hold later saves until it does.
+Writes to the map's files that must not interleave with a save go through here.
+
+#### Autosave.flush
+
+`unstable` · since v0.12.0
+
+```ts
+Autosave.flush(): Promise<void>
+```
+
+Save any unsaved changes now instead of waiting for the timer.
+
+#### Autosave.hold
+
+`unstable` · since v0.12.0
+
+```ts
+Autosave.hold(): () => void
+```
+
+Defer autosave until the returned release function runs. Useful for batches that land many mutations.
+
+#### Autosave.schedule
+
+`unstable` · since v0.12.0
+
+```ts
+Autosave.schedule(): void
+```
+
+Schedule a debounced autosave. Mutations call this automatically.
+
+#### Autosave.waitForInflight
+
+`unstable` · since v0.12.0
+
+```ts
+Autosave.waitForInflight(): Promise<void>
+```
+
+Wait until every save and background commit started so far has finished.
+
+## Bindings consts
 
 ### BUILTIN_FIELDS
 
@@ -1049,166 +1118,294 @@ ValidationFlag: {
 One finding of a Street View coverage check. `validate` answers each row with the
 findings that apply, combined into one number.
 
-## Registry
+## Commit
 
-### getPlugin
+### Commit
 
-`stable` · since v0.10.3
+`stable` · since v0.12.0
 
-```ts
-getPlugin(id: string): Plugin | undefined
-```
+Save and restore map versions.
 
-Look up a registered plugin by id.
+#### Commit.background
 
-### getPlugins
-
-`stable` · since v0.10.3
+`unstable` · since v0.12.0
 
 ```ts
-getPlugins(): Plugin[]
+Commit.background(mapId: string, message: string): void
 ```
 
-All registered plugins, sorted by name.
+Commit `mapId` in the background once pending saves finish.
 
-### isBackgroundPlugin
+#### Commit.checkout
 
-`stable` · since v0.10.3
+`unstable` · since v0.12.0
 
 ```ts
-isBackgroundPlugin(id: string): boolean
+Commit.checkout(commitId: string): Promise<void>
 ```
 
-True when the plugin contributes data only and has no UI surfaces.
+Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo.
 
-### registerPlugin
+#### Commit.create
 
-`stable` · since v0.3.1
+`stable` · since v0.12.0
 
 ```ts
-registerPlugin(plugin: Plugin | PluginBehavior): void
+Commit.create(message?: string): Promise<string>
 ```
 
-Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close.
+Commit all pending changes to the map's version history. Clears the undo stack.
 
-### setPendingManifest
+## Edit
 
-`unstable` · since v0.10.3
+### Edit
+
+`stable` · since v0.12.0
+
+Edit map locations, metadata, value records, and selections.
+
+#### Edit.locations
+
+`unstable` · since v0.12.0
 
 ```ts
-setPendingManifest(manifest: PluginManifest | null): void
+Edit.locations(
+  target: Target,
+  edits: Parameters<typeof cmd.storeEdit>[1],
+  records?: Parameters<typeof cmd.storeEdit>[2],
+): Promise<EditResult>
 ```
 
-Set the manifest used to fill identity fields on the next `registerPlugin` call.
+Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
+by their ids in `records`, matched to the map's by name. Map changes are undoable in that
+map.
 
-### unregisterPlugin
+#### Edit.meta
 
-`unstable` · since v0.10.3
+`stable` · since v0.12.0
 
 ```ts
-unregisterPlugin(id: string): void
+Edit.meta(
+  patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
+    id?: string;
+  },
+): Promise<void>
 ```
 
-Remove a plugin from the registry.
+Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
+Settings merge key by key, so send only the keys that change.
 
-## PluginStorage
+#### Edit.values
 
-### mapStorage
-
-`stable` · since v0.11.4
+`stable` · since v0.12.0
 
 ```ts
-mapStorage(id: string): MapPluginStorage
+Edit.values(
+  ...props: Parameters<typeof cmd.storeEditValues>
+): Promise<Mutation<ValueRecord>>
 ```
 
-Persistent key-value storage a plugin keeps with the open map, so every map has its own.
-Each write changes only one key, patched onto the current map settings.
+Edit an interned field's value records in one undoable step.
 
-### reloadStorage
+#### Edit.work
 
-`unstable` · since v0.11.3
+`unstable` · since v0.12.0
 
 ```ts
-reloadStorage(id: string): void
+Edit.work(
+  selector: Selector,
+  op: Work,
+  target?: Target,
+): Promise<WorkResult>
 ```
 
-Re-read a plugin's store after another window wrote it.
+Run `op` across every location `selector` matches on a map or in a pending layer. Map
+changes are one undoable step.
 
-### storage
+## Editor
 
-`stable` · since v0.6.1
+### Editor
+
+`stable` · since v0.12.0
+
+Open locations and change the editor pane.
+
+#### Editor.close
+
+`stable` · since v0.12.0
 
 ```ts
-storage(id: string): PluginStorage
+Editor.close(): void
 ```
 
-Persistent key-value storage namespaced to a plugin. Survives restarts.
+Close the open location and return to the pane it was opened from.
 
-### usePluginState
+#### Editor.closeDuplicates
 
-`stable` · since v0.7.4
+`unstable` · since v0.12.0
 
 ```ts
-usePluginState<T>(
-  pluginId: string,
-  key: string,
-  initial: T | (() => T),
-): readonly [T, (action: SetStateAction<T>) => void]
+Editor.closeDuplicates(): void
 ```
 
-React state hook backed by the plugin's persistent store. Survives sidebar
-unmount and app restart. Values are global, not per-map.
+Close the duplicate-resolution panel and return to the overview.
 
-## PluginEvents
+#### Editor.closePlugin
 
-### definePluginEvent
-
-`unstable` · since v0.11.0
+`stable` · since v0.12.0
 
 ```ts
-definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>
+Editor.closePlugin(): void
 ```
 
-Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
-whoever raises it and whoever hears it agree on the payload.
+Close the plugin sidebar and return to the overview.
 
-### emitPluginEvent
+#### Editor.draft
 
-`unstable` · since v0.11.0
+`unstable` · since v0.12.0
 
 ```ts
-emitPluginEvent<T>(
-  event: PluginEvent<T>,
-  ...payload: T extends void ? [] : [payload: T]
-): void
+Editor.draft(): Draft
 ```
 
-Raise one of a plugin's own events, with its payload when it carries one.
+The open draft's edit and save, the same pair for as long as this opening lasts.
 
-### on
+#### Editor.get
 
-`stable` · since v0.3.1
+`stable` · since v0.12.0
 
 ```ts
-on<E extends EditorEvent | PluginEvent<unknown>>(
-  event: E,
-  handler: EventHandler<E>,
-): () => void
+Editor.get(): Readonly<EditorState>
 ```
 
-Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
-deactivation.
+Imperative snapshot of the editor state.
 
-### usePluginEvent
+#### Editor.open
 
-`unstable` · since v0.11.0
+`stable` · since v0.12.0
 
 ```ts
-usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V
+Editor.open(
+  target: MaybeLocation,
+  checkDuplicates?: boolean,
+): Promise<void>
 ```
 
-React hook: what `read` returns, read again each time `event` is raised. `read` must return
-the same reference while nothing it reads has changed.
+Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
+within 2m opens the duplicate-resolution panel instead. A later opening or closing
+supersedes one still loading.
+
+#### Editor.openDuplicate
+
+`unstable` · since v0.12.0
+
+```ts
+Editor.openDuplicate(loc: Location): Promise<void>
+```
+
+Open one location from the duplicate-resolution panel in the editor.
+
+#### Editor.openImport
+
+`unstable` · since v0.12.0
+
+```ts
+Editor.openImport(index: number): Promise<void>
+```
+
+Preview a copy of a staged-import location. The import row stays staged until Confirm.
+
+#### Editor.openPlugin
+
+`stable` · since v0.12.0
+
+```ts
+Editor.openPlugin(pluginId: string): void
+```
+
+Open a plugin's sidebar (switches the editor pane to "plugin").
+
+#### Editor.preview
+
+`unstable` · since v0.12.0
+
+```ts
+Editor.preview(loc: Location): void
+```
+
+Open an arbitrary location read-only as a seen-preview: loads its pano without
+adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
+
+#### Editor.refresh
+
+`unstable` · since v0.12.0
+
+```ts
+Editor.refresh(): Promise<void>
+```
+
+Reread the current draft. Superseded reads and errors cannot update the next opening.
+
+#### Editor.removeDuplicate
+
+`unstable` · since v0.12.0
+
+```ts
+Editor.removeDuplicate(id: number): void
+```
+
+Drop a location from the duplicate-resolution panel (does not delete it).
+
+#### Editor.resolve
+
+`stable` · since v0.12.0
+
+```ts
+Editor.resolve(m: MaybeLocation): Promise<Location | null>
+```
+
+Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
+
+#### Editor.setArea
+
+`unstable` · since v0.12.0
+
+```ts
+Editor.setArea(area: WorkArea): void
+```
+
+Transition the editor pane, enforcing state invariants:
+leaving "location" closes the open location, leaving "plugin" clears the plugin id.
+
+#### Editor.use
+
+`stable` · since v0.12.0
+
+```ts
+Editor.use<T>(selector: (s: EditorState) => T): T
+```
+
+Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`.
+
+#### Editor.usePosition
+
+`unstable` · since v0.12.0
+
+```ts
+Editor.usePosition(): LatLng
+```
+
+Where the open location stands, or 0,0 while nothing is open.
+
+#### Editor.useWriting
+
+`unstable` · since v0.12.0
+
+```ts
+Editor.useWriting(): boolean
+```
+
+Whether procedure work is still writing to the open draft.
 
 ## Externals
 
@@ -1243,114 +1440,42 @@ preloadModules(ids: string[]): Promise<void>
 
 Load lazy bundled modules so `mmaRequire` can return them synchronously.
 
-## Sidecar
+## Field
 
-### sidecar
+### Field
 
-`stable` · since v0.7.0
+`stable` · since v0.12.0
 
-The nested `sidecar` namespace on the plugin surface.
+Rename or remove metadata fields across the map.
 
-#### sidecar.installedVersion
+#### Field.remove
 
-`stable` · since v0.7.0
-
-```ts
-sidecar.installedVersion(pluginId: string): Promise<string | null>
-```
-
-The sidecar version installed for a plugin, or null when it has none yet.
-
-#### sidecar.request
-
-`stable` · since v0.9.0
+`stable` · since v0.12.0
 
 ```ts
-sidecar.request<T>(
-  pluginId: string,
-  command: string,
-  payload?: unknown,
-  opts?: SidecarOptions<T>,
-): Promise<T | null>
+Field.remove(key: string): Promise<void>
 ```
 
-Send a command to a plugin's sidecar and resolve with its last emitted JSON
-object (null if it emitted none). `payload` is sent as JSON.
+Delete extra-field `key` from every location, its definition, and the listed selections,
+in one undoable step.
 
-## FieldDefs
+#### Field.rename
 
-### enabledEnrichKeys
-
-`unstable` · since v0.12.1
+`stable` · since v0.12.0
 
 ```ts
-enabledEnrichKeys(enrichFields?: string[] | null): string[]
+Field.rename(
+  from: string,
+  to: string,
+  winner?: MergeWinner,
+): Promise<void>
 ```
 
-The fields enrichment fetches for `enrichFields` (the default set when null): the chosen
-ones and every field they read, so no field runs without its inputs.
+Rename extra-field `from` to `to` across all locations, its definition, and the listed
+selections, in one undoable step. When a location already holds `to`, `winner` decides
+which value survives. Saved selections are map-independent rules and keep their names.
 
-### enrichInputs
-
-`unstable` · since v0.12.1
-
-```ts
-enrichInputs(key: string): string[]
-```
-
-The enrichment fields `key`'s provider reads.
-
-### getAllEnrichKeys
-
-`unstable` · since v0.10.3
-
-```ts
-getAllEnrichKeys(): string[]
-```
-
-All enrichment field keys (core and plugin-registered).
-
-### getDefaultEnrichKeys
-
-`unstable` · since v0.10.3
-
-```ts
-getDefaultEnrichKeys(): string[]
-```
-
-Keys enriched when enrichFields is null (the default set: all options except defaultOff ones).
-
-### getEnrichFieldOptions
-
-`unstable` · since v0.10.3
-
-```ts
-getEnrichFieldOptions(): EnrichFieldOption[]
-```
-
-All enrichment field options: the core fields, then every registered provider's own fields.
-
-### isFieldEnabled
-
-`unstable` · since v0.10.3
-
-```ts
-isFieldEnabled(enrichFields: string[] | null, key: string): boolean
-```
-
-True when enrichment fetches `key` for the given enrichment set.
-
-### knownFieldDefs
-
-`stable` · since v0.10.3
-
-```ts
-knownFieldDefs(...keys: string[]): Record<string, FieldDef>
-```
-
-Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`).
-
-## FieldDefRegistry
+## Field def registry
 
 ### declaredValues
 
@@ -1493,272 +1618,113 @@ unregisterPluginFieldDefs(keys: string[]): void
 
 Remove plugin field definitions by key (called when a plugin is deactivated).
 
-## Query
+## Field defs
 
-### panosAt
+### enabledEnrichKeys
 
-`stable` · since v0.10.3
-
-```ts
-panosAt(
-  points: LatLng[],
-  radius?: number,
-  opts?: SearchOpts,
-  signal?: AbortSignal,
-  onPano?: (index: number, pano: Pano | null) => void,
-): Promise<(Pano | null)[]>
-```
-
-The nearest pano to each point, aligned to `points`, null where there is no coverage.
-`opts.sources` narrows which collections are searched and `opts.preference` picks
-nearest or best. `onPano` sees each point's answer the moment its search resolves,
-ahead of the full array.
-
-### svMetadata
-
-`stable` · since v0.10.0
+`unstable` · since v0.12.1
 
 ```ts
-svMetadata(
-  panoIds: string[],
-  signal?: AbortSignal,
-): Promise<(Pano | null)[]>
+enabledEnrichKeys(enrichFields?: string[] | null): string[]
 ```
 
-Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
-not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
-Duplicates are deduped and large batches are split automatically.
+The fields enrichment fetches for `enrichFields` (the default set when null): the chosen
+ones and every field they read, so no field runs without its inputs.
 
-## Toast
+### enrichInputs
 
-### getToasts
+`unstable` · since v0.12.1
+
+```ts
+enrichInputs(key: string): string[]
+```
+
+The enrichment fields `key`'s provider reads.
+
+### getAllEnrichKeys
 
 `unstable` · since v0.10.3
 
 ```ts
-getToasts(): ToastEntry[]
+getAllEnrichKeys(): string[]
 ```
 
-Current list of visible toasts.
+All enrichment field keys (core and plugin-registered).
 
-### toast
-
-`stable` · since v0.6.1
-
-```ts
-toast(
-  message: string,
-  duration?: number,
-  container?: HTMLElement,
-): void
-```
-
-Show a brief toast notification. Optionally scoped to a `container` element.
-
-## UseJob
-
-### useJob
-
-`stable` · since v0.10.0
-
-```ts
-useJob<R = unknown, P = never>(): Job<R, P>
-```
-
-User-triggered async work that reports progress and can be cancelled. Unmounting cancels.
-
-## Types
-
-### bboxTupleToBounds
+### getDefaultEnrichKeys
 
 `unstable` · since v0.10.3
 
 ```ts
-bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null
+getDefaultEnrichKeys(): string[]
 ```
 
-Convert a [west, south, east, north] bbox tuple to Bounds, or null.
+Keys enriched when enrichFields is null (the default set: all options except defaultOff ones).
 
-### boundsToScoreTuple
+### getEnrichFieldOptions
 
 `unstable` · since v0.10.3
 
 ```ts
-boundsToScoreTuple(b: Bounds): [number, number, number, number]
+getEnrichFieldOptions(): EnrichFieldOption[]
 ```
 
-Convert a Bounds object to a [south, west, north, east] tuple.
+All enrichment field options: the core fields, then every registered provider's own fields.
 
-### createFieldDef
-
-`stable` · since v0.10.2
-
-```ts
-createFieldDef(
-  type: FieldType,
-  over?: Partial<Omit<FieldDef, "type">>,
-): FieldDef
-```
-
-A field definition with every optional attribute spelled absent.
-
-### createLocation
-
-`stable` · since v0.3.1
-
-```ts
-createLocation(partial: Partial<Location> & LatLng): Location
-```
-
-Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
-overrides hold; adding it to the map returns its real id.
-
-### dropLocation
+### isFieldEnabled
 
 `unstable` · since v0.10.3
 
 ```ts
-dropLocation(
-  source: Location,
-  live: PanoCapture,
-  panoId: string | null,
-  tagNames: string[],
-): {
-  location: Location;
-  records: {
-    tags: Record<number, ValueRecord>;
-  };
-}
+isFieldEnabled(enrichFields: string[] | null, key: string): boolean
 ```
 
-A new Location at the viewer's live camera, carrying `source`'s flags, tagged `tagNames`
-through `records`, which the map it lands in matches to its own tags by name. `extra`
-describes the pano it was fetched for, so it only survives a drop that stayed on that
-pano.
+True when enrichment fetches `key` for the given enrichment set.
 
-### isPinned
+### knownFieldDefs
 
 `stable` · since v0.10.3
 
 ```ts
-isPinned(loc: Location): loc is Location & {
-  panoId: string;
-}
+knownFieldDefs(...keys: string[]): Record<string, FieldDef>
 ```
 
-Pinned: the location always opens this exact pano.
+Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`).
 
-### isWorldBounds
+## History
 
-`stable` · since v0.10.3
+### History
+
+`stable` · since v0.12.0
+
+Whether undo and redo are available.
+Navigate undo and redo history.
+
+#### History.available
+
+`unstable` · since v0.12.0
 
 ```ts
-isWorldBounds(b: Bounds): boolean
+History.available(
+  history: MapState["history"],
+  stack: Stack,
+  timeline: Timeline,
+): boolean
 ```
 
-True when bounds span the entire world.
+Whether `timeline` can step back (undo) or forward (redo).
 
-### locId
+#### History.step
 
-`stable` · since v0.10.3
+`stable` · since v0.12.0
 
 ```ts
-locId(m: MaybeLocation): number
+History.step(stack: Stack, timeline: Timeline): Promise<void>
 ```
 
-Extract the id from a MaybeLocation.
-
-### scoreTupleToBounds
-
-`unstable` · since v0.10.3
-
-```ts
-scoreTupleToBounds(props: [number, number, number, number]): Bounds
-```
-
-Convert a [south, west, north, east] tuple to a Bounds object.
-
-### setPinned
-
-`stable` · since v0.10.7
-
-```ts
-setPinned(loc: Location, on: boolean): Location
-```
-
-The location pinned to the pano it carries, or unpinned to float on default coverage.
-
-## Tags
-
-### addPendingTag
-
-`stable` · since v0.12.2
-
-```ts
-addPendingTag(pending: PendingTags, name: string, tags: Tag[]): PendingTags
-```
-
-Stage typed text as the existing tag it names, ignoring case, or as a name to create.
-Returns `pending` unchanged if already staged.
-
-### displayTagName
-
-`stable` · since v0.10.3
-
-```ts
-displayTagName(name: string): string
-```
-
-Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
-the `/`-path to its shortest unique suffix; otherwise returns the name verbatim.
-
-### pendingTagIds
-
-`stable` · since v0.12.2
-
-```ts
-pendingTagIds(props: PendingTags): Promise<number[]>
-```
-
-The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out.
-
-### sortTagsByMode
-
-`stable` · since v0.10.3
-
-```ts
-sortTagsByMode(
-  tags: Tag[],
-  mode: TagSortMode,
-  counts: Record<number, number>,
-): Tag[]
-```
-
-Sort tags by the chosen mode: name, location count, or manual order.
-
-### tagColorFor
-
-`stable` · since v0.10.3
-
-```ts
-tagColorFor(name: string, tags: Tag[]): string
-```
-
-Color for a tag named `name`. An existing tag uses its stored color.
-
-### togglePendingTag
-
-`stable` · since v0.12.2
-
-```ts
-togglePendingTag(pending: PendingTags, id: number): PendingTags
-```
-
-Stage the tag, or unstage it if it is already staged.
+Undo the newest edit on `timeline`, or redo the newest undone one.
 
 ## Legacy
-
-Compatibility bindings for flat plugin calls.
 
 ### addLocations
 
@@ -1809,6 +1775,8 @@ Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }`
 `stable` · `deprecated` · since v0.12.0
 
 **Deprecated in v0.12.0.** Use `MMA.Autosave`.
+
+Debounced persistence of the open map: schedule, hold, cancel, or flush it.
 
 #### autosave.cancel
 
@@ -2100,6 +2068,8 @@ Copy a map, uncommitted edits included, into a new map named `name` and return i
 `stable` · `deprecated` · since v0.12.0
 
 **Deprecated in v0.12.0.** Use `MMA.Edit`.
+
+Edit map locations, metadata, value records, and selections.
 
 #### edit.locations
 
@@ -3119,6 +3089,1162 @@ waitForMapHost(): Promise<MapHost>
 
 Wait for the main editor map to be ready.
 
+## Location
+
+### Location
+
+`stable` · since v0.12.0
+
+A single Street View location on a map.
+
+This is the atomic unit of data in the system. Locations are stored in columns
+on disk and addressed by `id` everywhere. The `id` is unique
+within a map and assigned by the store's monotonic allocator.
+Add, update, remove, and inspect map locations.
+
+#### Location.add
+
+`stable` · since v0.12.0
+
+```ts
+Location.add(locs: Location[]): Promise<number[]>
+```
+
+Add locations to the map and return their new ids, in order. Undoable.
+
+#### Location.addTo
+
+`unstable` · since v0.12.0
+
+```ts
+Location.addTo(
+  mapId: string,
+  location: Location,
+  records: Parameters<typeof Edit.locations>[2],
+): Promise<boolean>
+```
+
+Add `location` to another map unless that map already holds it, its interned values
+named by `records`. Resolves to whether it was added. Undoable in that map.
+
+#### Location.duplicate
+
+`stable` · since v0.12.0
+
+```ts
+Location.duplicate(id: number): Promise<number | null>
+```
+
+Clone a location in place and return the new id, or null if it doesn't exist. Undoable.
+
+#### Location.duplicateGroups
+
+`unstable` · since v0.12.0
+
+```ts
+Location.duplicateGroups(distance: number): Promise<number[][]>
+```
+
+Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres.
+
+#### Location.remove
+
+`stable` · since v0.12.0
+
+```ts
+Location.remove(ids: ReadonlyIdSet): Promise<void>
+```
+
+Remove locations by id. Undoable.
+
+#### Location.update
+
+`stable` · since v0.12.0
+
+```ts
+Location.update(updates: Patch<Location>[]): Promise<void>
+```
+
+Patch locations by id. Only include the fields you're changing; `extra` merges
+per-key (null deletes a key). Undoable by default.
+
+## Maps
+
+### Maps
+
+`stable` · since v0.12.0
+
+Create, list, open, close, and organize maps.
+
+#### Maps.badges
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.badges(): Map<string, MapBadge[]>
+```
+
+Badges per map id, from every registered source.
+
+#### Maps.badgeSources
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.badgeSources(): readonly BadgeSource[]
+```
+
+Every registered badge source, in registration order.
+
+#### Maps.close
+
+`stable` · since v0.12.0
+
+```ts
+Maps.close(): Promise<void>
+```
+
+Close the open map, saving unsaved changes first.
+
+#### Maps.copyName
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.copyName(name: string): string
+```
+
+The name a copy of the map named `name` starts with.
+
+#### Maps.create
+
+`stable` · since v0.12.0
+
+```ts
+Maps.create(name: string, folder?: string | null): Promise<MapMeta>
+```
+
+Create a new empty map and return its metadata.
+
+#### Maps.discard
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.discard(): void
+```
+
+Drop the open map without persisting anything
+
+#### Maps.duplicate
+
+`stable` · since v0.12.0
+
+```ts
+Maps.duplicate(id: string, name: string): Promise<MapMeta>
+```
+
+Copy a map, uncommitted edits included, into a new map named `name` and return its metadata.
+
+#### Maps.init
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.init(): Promise<void>
+```
+
+One-time store startup. The app calls this; plugins never need to.
+
+#### Maps.invalidate
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.invalidate(): Promise<void>
+```
+
+Refresh the map list and notify other windows of the change.
+
+#### Maps.isReserved
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.isReserved(id: string | null): boolean
+```
+
+Whether `id` belongs to an app fixture rather than a user-created map.
+
+#### Maps.list
+
+`stable` · since v0.12.0
+
+```ts
+Maps.list(): MapMeta[]
+```
+
+The list of all maps (metadata only).
+
+#### Maps.moveToFolder
+
+`stable` · since v0.12.0
+
+```ts
+Maps.moveToFolder(mapId: string, folder: string | null): Promise<void>
+```
+
+Move a map into a folder, or to the root when `folder` is null.
+
+#### Maps.open
+
+`stable` · since v0.12.0
+
+```ts
+Maps.open(id: string): Promise<void>
+```
+
+Open a map in this window, closing any currently open map first.
+
+#### Maps.openScratch
+
+`stable` · since v0.12.0
+
+```ts
+Maps.openScratch(): Promise<void>
+```
+
+Open the scratch map, creating it on first use.
+
+#### Maps.registerBadges
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.registerBadges(source: BadgeSource): void
+```
+
+Add a source of map-row badges.
+
+#### Maps.reload
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.reload(): Promise<void>
+```
+
+Refresh the map list from disk.
+
+#### Maps.remove
+
+`stable` · since v0.12.0
+
+```ts
+Maps.remove(id: string): Promise<void>
+```
+
+Permanently delete a map and all its data. Not undoable.
+
+#### Maps.removeFolder
+
+`stable` · since v0.12.0
+
+```ts
+Maps.removeFolder(name: string): Promise<void>
+```
+
+Delete a folder. Maps in it become unfoldered.
+
+#### Maps.renameFolder
+
+`stable` · since v0.12.0
+
+```ts
+Maps.renameFolder(from: string, to: string): Promise<void>
+```
+
+Rename a folder, moving all its maps to the new name.
+
+#### Maps.useBadges
+
+`unstable` · since v0.12.0
+
+```ts
+Maps.useBadges(): Map<string, MapBadge[]>
+```
+
+Reactive Maps.badges.
+
+#### Maps.useList
+
+`stable` · since v0.12.0
+
+```ts
+Maps.useList(): MapMeta[]
+```
+
+Reactive list of all maps (metadata only).
+
+## Mutation
+
+### Mutation
+
+`stable` · since v0.12.0
+
+The version a write reached and the keys it assigned. Other updates arrive on the change feed.
+Run mutations and wait for their state and display updates.
+
+#### Mutation.none
+
+`stable` · since v0.12.0
+
+```ts
+Mutation.none(): Mutation
+```
+
+The result of a mutation that reached no map.
+
+#### Mutation.run
+
+`stable` · since v0.12.0
+
+```ts
+Mutation.run<
+  R extends
+    | Mutation
+    | {
+        mutation: Mutation;
+      } = Mutation,
+>(
+  fn: () => Promise<R>,
+  ...fallback: Mutation extends R ? [empty?: R] : [empty: R]
+): Promise<R>
+```
+
+#### Mutation.settle
+
+`stable` · since v0.12.0
+
+```ts
+Mutation.settle(m: Mutation): Promise<void>
+```
+
+Resolves once the open map's state and its markers both show `m`. A mutation that reached
+no map (version 0) settles at once.
+
+## Plugin events
+
+### definePluginEvent
+
+`unstable` · since v0.11.0
+
+```ts
+definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>
+```
+
+Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
+whoever raises it and whoever hears it agree on the payload.
+
+### emitPluginEvent
+
+`unstable` · since v0.11.0
+
+```ts
+emitPluginEvent<T>(
+  event: PluginEvent<T>,
+  ...payload: T extends void ? [] : [payload: T]
+): void
+```
+
+Raise one of a plugin's own events, with its payload when it carries one.
+
+### on
+
+`stable` · since v0.3.1
+
+```ts
+on<E extends EditorEvent | PluginEvent<unknown>>(
+  event: E,
+  handler: EventHandler<E>,
+): () => void
+```
+
+Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
+deactivation.
+
+### usePluginEvent
+
+`unstable` · since v0.11.0
+
+```ts
+usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V
+```
+
+React hook: what `read` returns, read again each time `event` is raised. `read` must return
+the same reference while nothing it reads has changed.
+
+## Plugin storage
+
+### mapStorage
+
+`stable` · since v0.11.4
+
+```ts
+mapStorage(id: string): MapPluginStorage
+```
+
+Persistent key-value storage a plugin keeps with the open map, so every map has its own.
+Each write changes only one key, patched onto the current map settings.
+
+### reloadStorage
+
+`unstable` · since v0.11.3
+
+```ts
+reloadStorage(id: string): void
+```
+
+Re-read a plugin's store after another window wrote it.
+
+### storage
+
+`stable` · since v0.6.1
+
+```ts
+storage(id: string): PluginStorage
+```
+
+Persistent key-value storage namespaced to a plugin. Survives restarts.
+
+### usePluginState
+
+`stable` · since v0.7.4
+
+```ts
+usePluginState<T>(
+  pluginId: string,
+  key: string,
+  initial: T | (() => T),
+): readonly [T, (action: SetStateAction<T>) => void]
+```
+
+React state hook backed by the plugin's persistent store. Survives sidebar
+unmount and app restart. Values are global, not per-map.
+
+## Procedure
+
+### Procedure
+
+`stable` · since v0.12.0
+
+Procedure modules: ask one a question, or run one over locations.
+
+#### Procedure.decl
+
+`unstable` · since v0.12.0
+
+```ts
+Procedure.decl(spec: ProcedureSpec, config?: unknown): ProcedureDecl
+```
+
+The part of a spec the engine reads for a run and a query alike, with `config` as the
+JSON text the wire carries.
+
+#### Procedure.drive
+
+`unstable` · since v0.12.0
+
+```ts
+Procedure.drive(
+  scheduled: Scheduled[],
+  opts: RunOpts,
+): Promise<ProcedureOutcomes>
+```
+
+Drive scheduled items through the engine as one run and gather what comes back.
+
+#### Procedure.entry
+
+`unstable` · since v0.12.0
+
+```ts
+Procedure.entry(name: string): string
+```
+
+Entry point of a procedure this app bundles. Plugins ship their own paths.
+
+#### Procedure.name
+
+`unstable` · since v0.12.0
+
+```ts
+Procedure.name(entry: string): string
+```
+
+The readable name behind an entry point, for surfaces that show one.
+
+#### Procedure.noWork
+
+`unstable` · since v0.12.0
+
+```ts
+Procedure.noWork(): BatchOutcome
+```
+
+An outcome for work that never ran.
+
+#### Procedure.query
+
+`unstable` · since v0.12.0
+
+```ts
+Procedure.query<T = unknown, P = unknown>(
+  spec: ProcedureSpec,
+  input: unknown,
+  opts?: {
+    signal?: AbortSignal;
+    onPartial?: (
+      entries: {
+        id: number;
+        value: P;
+      }[],
+    ) => void;
+  },
+): Promise<T>
+```
+
+Ask a procedure a read-only question under its declared network limits. Rejects when it
+exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
+pages of answers as they resolve, ahead of the full result; each entry carries the id
+the emitting side chose for it.
+
+#### Procedure.run
+
+`unstable` · since v0.12.0
+
+```ts
+Procedure.run<T, C>(
+  spec: ProcedureSpec<T, C>,
+  selector: Selector,
+  opts: Omit<RunOpts, "force"> &
+    RunSettings & {
+      config?: Partial<NoInfer<C>>;
+    },
+): Promise<ProcedureOutcome<T>>
+```
+
+Run a single procedure over `selector` and return its typed results.
+
+## Provider
+
+### Provider
+
+`stable` · since v0.12.0
+
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+Registered field producers: register one, list them, or run them over locations.
+
+#### Provider.forField
+
+`unstable` · since v0.12.0
+
+```ts
+Provider.forField(field: string): Provider | undefined
+```
+
+The provider that produces a given extra field, if any.
+
+#### Provider.labels
+
+`unstable` · since v0.12.0
+
+```ts
+Provider.labels(
+  field: string,
+  keys: string[],
+  key?: KeySpec,
+): Promise<string[]>
+```
+
+Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
+become locale month names; otherwise falls back to the keys themselves when the field's
+procedure has no `label` query or returns a non-matching array.
+
+#### Provider.list
+
+`unstable` · since v0.12.0
+
+```ts
+Provider.list(): Provider[]
+```
+
+All registered providers.
+
+#### Provider.register
+
+`stable` · since v0.12.0
+
+```ts
+Provider.register(provider: Provider): Promise<void>
+```
+
+Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
+deactivates. Resolves once the provider can run.
+
+#### Provider.run
+
+`unstable` · since v0.12.0
+
+```ts
+Provider.run<C extends readonly unknown[]>(
+  runs: { [K in keyof C]: ProviderRun<C[K]> },
+  selector: Selector,
+  opts?: RunOpts,
+): Promise<ProcedureOutcomes>
+```
+
+Run registered providers over the locations `selector` matches and write their results
+back. Resolves once every provider finishes, or on abort.
+
+## Registry
+
+### getPlugin
+
+`stable` · since v0.10.3
+
+```ts
+getPlugin(id: string): Plugin | undefined
+```
+
+Look up a registered plugin by id.
+
+### getPlugins
+
+`stable` · since v0.10.3
+
+```ts
+getPlugins(): Plugin[]
+```
+
+All registered plugins, sorted by name.
+
+### isBackgroundPlugin
+
+`stable` · since v0.10.3
+
+```ts
+isBackgroundPlugin(id: string): boolean
+```
+
+True when the plugin contributes data only and has no UI surfaces.
+
+### registerPlugin
+
+`stable` · since v0.3.1
+
+```ts
+registerPlugin(plugin: Plugin | PluginBehavior): void
+```
+
+Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close.
+
+### setPendingManifest
+
+`unstable` · since v0.10.3
+
+```ts
+setPendingManifest(manifest: PluginManifest | null): void
+```
+
+Set the manifest used to fill identity fields on the next `registerPlugin` call.
+
+### unregisterPlugin
+
+`unstable` · since v0.10.3
+
+```ts
+unregisterPlugin(id: string): void
+```
+
+Remove a plugin from the registry.
+
+## Sidecar
+
+### sidecar
+
+`stable` · since v0.7.0
+
+The nested `sidecar` namespace on the plugin surface.
+
+#### sidecar.installedVersion
+
+`stable` · since v0.7.0
+
+```ts
+sidecar.installedVersion(pluginId: string): Promise<string | null>
+```
+
+The sidecar version installed for a plugin, or null when it has none yet.
+
+#### sidecar.request
+
+`stable` · since v0.9.0
+
+```ts
+sidecar.request<T>(
+  pluginId: string,
+  command: string,
+  payload?: unknown,
+  opts?: SidecarOptions<T>,
+): Promise<T | null>
+```
+
+Send a command to a plugin's sidecar and resolve with its last emitted JSON
+object (null if it emitted none). `payload` is sent as JSON.
+
+## Store
+
+### Store
+
+`stable` · since v0.12.0
+
+Read and update the open map state.
+
+#### Store.get
+
+`stable` · unreleased
+
+```ts
+Store.get(): Readonly<MapState>
+```
+
+Imperative snapshot of the map state.
+
+#### Store.use
+
+`stable` · unreleased
+
+```ts
+Store.use<T>(selector: (s: MapState) => T): T
+```
+
+Reactive slice of the map state. Re-renders only when the selected value's
+reference changes (`Object.is`), so selectors must return state fields or
+memoized values, not a new value per call.
+
+## Store / Query
+
+### Query
+
+`stable` · since v0.12.0
+
+Read locations and summaries for a selector.
+
+#### Query.locationsOf
+
+`stable` · since v0.12.0
+
+```ts
+Query.locationsOf(list: LocationList): Promise<Location[]>
+```
+
+The locations an answer carries, fetched from its temp file when it was too large to send inline.
+
+#### Query.read
+
+`stable` · since v0.12.0
+
+```ts
+Query.read<A extends Ask>(
+  selector: Selector,
+  ask: A,
+  target?: Target,
+): Promise<ReadResult<AnswerOf<A["kind"]>>>
+```
+
+Ask one question about the locations `selector` matches. A full-location answer loads any
+backing file automatically; ask for ids or columns when full locations are unnecessary.
+
+## Sv / Query
+
+### panosAt
+
+`stable` · since v0.10.3
+
+```ts
+panosAt(
+  points: LatLng[],
+  radius?: number,
+  opts?: SearchOpts,
+  signal?: AbortSignal,
+  onPano?: (index: number, pano: Pano | null) => void,
+): Promise<(Pano | null)[]>
+```
+
+The nearest pano to each point, aligned to `points`, null where there is no coverage.
+`opts.sources` narrows which collections are searched and `opts.preference` picks
+nearest or best. `onPano` sees each point's answer the moment its search resolves,
+ahead of the full array.
+
+### svMetadata
+
+`stable` · since v0.10.0
+
+```ts
+svMetadata(
+  panoIds: string[],
+  signal?: AbortSignal,
+): Promise<(Pano | null)[]>
+```
+
+Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
+not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
+Duplicates are deduped and large batches are split automatically.
+
+## Tag
+
+### Tag
+
+`stable` · since v0.12.0
+
+A tag's display identity: name, color, sidebar order, and document links.
+Manage tag records and their assignment to locations.
+
+#### Tag.all
+
+`stable` · since v0.12.0
+
+```ts
+Tag.all(): Record<number, Tag>
+```
+
+Tag records, including unreferenced records.
+
+#### Tag.assign
+
+`stable` · since v0.12.0
+
+```ts
+Tag.assign(
+  selector: Selector,
+  records: TagCreate[],
+): Promise<WorkResult>
+```
+
+Get or create tag records and assign them to matching locations.
+
+#### Tag.counts
+
+`stable` · since v0.12.0
+
+```ts
+Tag.counts(): Record<number, number>
+```
+
+Per-tag location counts, keyed by numeric id.
+
+#### Tag.create
+
+`stable` · since v0.12.0
+
+```ts
+Tag.create(records: TagCreate[]): Promise<number[]>
+```
+
+Get or create tag records by name and return their ids.
+
+#### Tag.get
+
+`stable` · since v0.12.0
+
+```ts
+Tag.get(id: number): Tag | undefined
+```
+
+Look up a tag record, including unreferenced tags.
+
+#### Tag.names
+
+`stable` · since v0.12.0
+
+```ts
+Tag.names(ids: number[]): string[]
+```
+
+Tag names for the given ids, skipping any that no longer resolve.
+
+#### Tag.remove
+
+`stable` · since v0.12.0
+
+```ts
+Tag.remove(tagIds: number[]): Promise<WorkResult>
+```
+
+Remove tags from every location in one undoable step.
+Unreferenced tags are hidden; undo restores them.
+
+#### Tag.rename
+
+`stable` · since v0.12.0
+
+```ts
+Tag.rename(
+  ids: number[],
+  name: string,
+  scope?: Selector | null,
+): Promise<void>
+```
+
+Move matching locations to a tag with the given name, optionally within a selector.
+
+#### Tag.reorder
+
+`stable` · since v0.12.0
+
+```ts
+Tag.reorder(ids: number[]): Promise<Mutation<ValueRecord>>
+```
+
+Set tag display order from an ordered list of ids.
+
+#### Tag.update
+
+`stable` · since v0.12.0
+
+```ts
+Tag.update(updates: Patch<Tag>[]): Promise<Mutation<ValueRecord>>
+```
+
+Update tag display records in one undoable edit.
+
+#### Tag.visible
+
+`stable` · since v0.12.0
+
+```ts
+Tag.visible(): Tag[]
+```
+
+Tag records referenced by at least one location.
+
+## Tags
+
+### addPendingTag
+
+`stable` · since v0.12.2
+
+```ts
+addPendingTag(pending: PendingTags, name: string, tags: Tag[]): PendingTags
+```
+
+Stage typed text as the existing tag it names, ignoring case, or as a name to create.
+Returns `pending` unchanged if already staged.
+
+### displayTagName
+
+`stable` · since v0.10.3
+
+```ts
+displayTagName(name: string): string
+```
+
+Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
+the `/`-path to its shortest unique suffix; otherwise returns the name verbatim.
+
+### pendingTagIds
+
+`stable` · since v0.12.2
+
+```ts
+pendingTagIds(props: PendingTags): Promise<number[]>
+```
+
+The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out.
+
+### sortTagsByMode
+
+`stable` · since v0.10.3
+
+```ts
+sortTagsByMode(
+  tags: Tag[],
+  mode: TagSortMode,
+  counts: Record<number, number>,
+): Tag[]
+```
+
+Sort tags by the chosen mode: name, location count, or manual order.
+
+### tagColorFor
+
+`stable` · since v0.10.3
+
+```ts
+tagColorFor(name: string, tags: Tag[]): string
+```
+
+Color for a tag named `name`. An existing tag uses its stored color.
+
+### togglePendingTag
+
+`stable` · since v0.12.2
+
+```ts
+togglePendingTag(pending: PendingTags, id: number): PendingTags
+```
+
+Stage the tag, or unstage it if it is already staged.
+
+## Toast
+
+### getToasts
+
+`unstable` · since v0.10.3
+
+```ts
+getToasts(): ToastEntry[]
+```
+
+Current list of visible toasts.
+
+### toast
+
+`stable` · since v0.6.1
+
+```ts
+toast(
+  message: string,
+  duration?: number,
+  container?: HTMLElement,
+): void
+```
+
+Show a brief toast notification. Optionally scoped to a `container` element.
+
+## Types
+
+### bboxTupleToBounds
+
+`unstable` · since v0.10.3
+
+```ts
+bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null
+```
+
+Convert a [west, south, east, north] bbox tuple to Bounds, or null.
+
+### boundsToScoreTuple
+
+`unstable` · since v0.10.3
+
+```ts
+boundsToScoreTuple(b: Bounds): [number, number, number, number]
+```
+
+Convert a Bounds object to a [south, west, north, east] tuple.
+
+### createFieldDef
+
+`stable` · since v0.10.2
+
+```ts
+createFieldDef(
+  type: FieldType,
+  over?: Partial<Omit<FieldDef, "type">>,
+): FieldDef
+```
+
+A field definition with every optional attribute spelled absent.
+
+### createLocation
+
+`stable` · since v0.3.1
+
+```ts
+createLocation(partial: Partial<Location> & LatLng): Location
+```
+
+Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
+overrides hold; adding it to the map returns its real id.
+
+### dropLocation
+
+`unstable` · since v0.10.3
+
+```ts
+dropLocation(
+  source: Location,
+  live: PanoCapture,
+  panoId: string | null,
+  tagNames: string[],
+): {
+  location: Location;
+  records: {
+    tags: Record<number, ValueRecord>;
+  };
+}
+```
+
+A new Location at the viewer's live camera, carrying `source`'s flags, tagged `tagNames`
+through `records`, which the map it lands in matches to its own tags by name. `extra`
+describes the pano it was fetched for, so it only survives a drop that stayed on that
+pano.
+
+### isPinned
+
+`stable` · since v0.10.3
+
+```ts
+isPinned(loc: Location): loc is Location & {
+  panoId: string;
+}
+```
+
+Pinned: the location always opens this exact pano.
+
+### isWorldBounds
+
+`stable` · since v0.10.3
+
+```ts
+isWorldBounds(b: Bounds): boolean
+```
+
+True when bounds span the entire world.
+
+### locId
+
+`stable` · since v0.10.3
+
+```ts
+locId(m: MaybeLocation): number
+```
+
+Extract the id from a MaybeLocation.
+
+### scoreTupleToBounds
+
+`unstable` · since v0.10.3
+
+```ts
+scoreTupleToBounds(props: [number, number, number, number]): Bounds
+```
+
+Convert a [south, west, north, east] tuple to a Bounds object.
+
+### setPinned
+
+`stable` · since v0.10.7
+
+```ts
+setPinned(loc: Location, on: boolean): Location
+```
+
+The location pinned to the pano it carries, or unpinned to float on default coverage.
+
 ## Ui
 
 ### ui
@@ -3761,2060 +4887,136 @@ Shows `content` as a tooltip when its child is hovered. The child is not wrapped
 ui.useCloseDialog(): () => void
 ```
 
-## Autosave
+## Use job
 
-### Autosave
+### useJob
 
-`stable` · since v0.12.0
+`stable` · since v0.10.0
 
-Debounced persistence of the open map: schedule, hold, cancel, or flush it.
-
-#### Autosave.cancel
-
-`unstable` · since v0.12.0
-
-```ts
-Autosave.cancel(): void
-```
-
-Cancel any pending autosave timer.
-
-#### Autosave.exclusive
-
-`unstable` · since v0.12.0
-
-```ts
-Autosave.exclusive<T>(write: () => Promise<T>): Promise<T>
-```
-
-Run `write` once every save started so far has finished, and hold later saves until it does.
-Writes to the map's files that must not interleave with a save go through here.
-
-#### Autosave.flush
-
-`unstable` · since v0.12.0
-
-```ts
-Autosave.flush(): Promise<void>
-```
-
-Save any unsaved changes now instead of waiting for the timer.
-
-#### Autosave.hold
-
-`unstable` · since v0.12.0
-
-```ts
-Autosave.hold(): () => void
-```
-
-Defer autosave until the returned release function runs. Useful for batches that land many mutations.
-
-#### Autosave.schedule
-
-`unstable` · since v0.12.0
-
-```ts
-Autosave.schedule(): void
-```
-
-Schedule a debounced autosave. Mutations call this automatically.
-
-#### Autosave.waitForInflight
-
-`unstable` · since v0.12.0
-
-```ts
-Autosave.waitForInflight(): Promise<void>
-```
-
-Wait until every save and background commit started so far has finished.
-
-## Edit
-
-### Edit
-
-`stable` · since v0.12.0
-
-Edit map locations, metadata, value records, and selections.
-
-#### Edit.locations
-
-`unstable` · since v0.12.0
-
-```ts
-Edit.locations(
-  target: Target,
-  edits: Parameters<typeof cmd.storeEdit>[1],
-  records?: Parameters<typeof cmd.storeEdit>[2],
-): Promise<EditResult>
-```
-
-Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
-by their ids in `records`, matched to the map's by name. Map changes are undoable in that
-map.
-
-#### Edit.meta
-
-`stable` · since v0.12.0
-
-```ts
-Edit.meta(
-  patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
-    id?: string;
-  },
-): Promise<void>
-```
-
-Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
-Settings merge key by key, so send only the keys that change.
-
-#### Edit.values
-
-`stable` · since v0.12.0
-
-```ts
-Edit.values(
-  ...props: Parameters<typeof cmd.storeEditValues>
-): Promise<Mutation<ValueRecord>>
-```
-
-Edit an interned field's value records in one undoable step.
-
-#### Edit.work
-
-`unstable` · since v0.12.0
-
-```ts
-Edit.work(
-  selector: Selector,
-  op: Work,
-  target?: Target,
-): Promise<WorkResult>
-```
-
-Run `op` across every location `selector` matches on a map or in a pending layer. Map
-changes are one undoable step.
-
-## Location
-
-### Location
-
-`stable` · since v0.12.0
-
-Add, update, remove, and inspect map locations.
-
-#### Location.add
-
-`stable` · since v0.12.0
-
-```ts
-Location.add(locs: Location[]): Promise<number[]>
-```
-
-Add locations to the map and return their new ids, in order. Undoable.
-
-#### Location.addTo
-
-`unstable` · since v0.12.0
-
-```ts
-Location.addTo(
-  mapId: string,
-  location: Location,
-  records: Parameters<typeof Edit.locations>[2],
-): Promise<boolean>
-```
-
-Add `location` to another map unless that map already holds it, its interned values
-named by `records`. Resolves to whether it was added. Undoable in that map.
-
-#### Location.duplicate
-
-`stable` · since v0.12.0
-
-```ts
-Location.duplicate(id: number): Promise<number | null>
-```
-
-Clone a location in place and return the new id, or null if it doesn't exist. Undoable.
-
-#### Location.duplicateGroups
-
-`unstable` · since v0.12.0
-
-```ts
-Location.duplicateGroups(distance: number): Promise<number[][]>
-```
-
-Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres.
-
-#### Location.remove
-
-`stable` · since v0.12.0
-
-```ts
-Location.remove(ids: ReadonlyIdSet): Promise<void>
-```
-
-Remove locations by id. Undoable.
-
-#### Location.update
-
-`stable` · since v0.12.0
-
-```ts
-Location.update(updates: Patch<Location>[]): Promise<void>
-```
-
-Patch locations by id. Only include the fields you're changing; `extra` merges
-per-key (null deletes a key). Undoable by default.
-
-## Tag
-
-### Tag
-
-`stable` · since v0.12.0
-
-Manage tag records and their assignment to locations.
-
-#### Tag.all
-
-`stable` · since v0.12.0
-
-```ts
-Tag.all(): Record<number, Tag>
-```
-
-Tag records, including unreferenced records.
-
-#### Tag.assign
-
-`stable` · since v0.12.0
-
-```ts
-Tag.assign(
-  selector: Selector,
-  records: TagCreate[],
-): Promise<WorkResult>
-```
-
-Get or create tag records and assign them to matching locations.
-
-#### Tag.counts
-
-`stable` · since v0.12.0
-
-```ts
-Tag.counts(): Record<number, number>
-```
-
-Per-tag location counts, keyed by numeric id.
-
-#### Tag.create
-
-`stable` · since v0.12.0
-
-```ts
-Tag.create(records: TagCreate[]): Promise<number[]>
-```
-
-Get or create tag records by name and return their ids.
-
-#### Tag.get
-
-`stable` · since v0.12.0
-
-```ts
-Tag.get(id: number): Tag | undefined
-```
-
-Look up a tag record, including unreferenced tags.
-
-#### Tag.names
-
-`stable` · since v0.12.0
-
-```ts
-Tag.names(ids: number[]): string[]
-```
-
-Tag names for the given ids, skipping any that no longer resolve.
-
-#### Tag.remove
-
-`stable` · since v0.12.0
-
-```ts
-Tag.remove(tagIds: number[]): Promise<WorkResult>
-```
-
-Remove tags from every location in one undoable step.
-Unreferenced tags are hidden; undo restores them.
-
-#### Tag.rename
-
-`stable` · since v0.12.0
-
-```ts
-Tag.rename(
-  ids: number[],
-  name: string,
-  scope?: Selector | null,
-): Promise<void>
-```
-
-Move matching locations to a tag with the given name, optionally within a selector.
-
-#### Tag.reorder
-
-`stable` · since v0.12.0
-
-```ts
-Tag.reorder(ids: number[]): Promise<Mutation<ValueRecord>>
-```
-
-Set tag display order from an ordered list of ids.
-
-#### Tag.update
-
-`stable` · since v0.12.0
-
-```ts
-Tag.update(updates: Patch<Tag>[]): Promise<Mutation<ValueRecord>>
-```
-
-Update tag display records in one undoable edit.
-
-#### Tag.visible
-
-`stable` · since v0.12.0
-
-```ts
-Tag.visible(): Tag[]
-```
-
-Tag records referenced by at least one location.
-
-## Editor
-
-### Editor
-
-`stable` · since v0.12.0
-
-Open locations and change the editor pane.
-
-#### Editor.close
-
-`stable` · since v0.12.0
-
-```ts
-Editor.close(): void
-```
-
-Close the open location and return to the pane it was opened from.
-
-#### Editor.closeDuplicates
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.closeDuplicates(): void
-```
-
-Close the duplicate-resolution panel and return to the overview.
-
-#### Editor.closePlugin
-
-`stable` · since v0.12.0
-
-```ts
-Editor.closePlugin(): void
-```
-
-Close the plugin sidebar and return to the overview.
-
-#### Editor.draft
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.draft(): Draft
-```
-
-The open draft's edit and save, the same pair for as long as this opening lasts.
-
-#### Editor.get
-
-`stable` · since v0.12.0
-
-```ts
-Editor.get(): Readonly<EditorState>
-```
-
-Imperative snapshot of the editor state.
-
-#### Editor.open
-
-`stable` · since v0.12.0
-
-```ts
-Editor.open(
-  target: MaybeLocation,
-  checkDuplicates?: boolean,
-): Promise<void>
-```
-
-Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
-within 2m opens the duplicate-resolution panel instead. A later opening or closing
-supersedes one still loading.
-
-#### Editor.openDuplicate
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.openDuplicate(loc: Location): Promise<void>
-```
-
-Open one location from the duplicate-resolution panel in the editor.
-
-#### Editor.openImport
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.openImport(index: number): Promise<void>
-```
-
-Preview a copy of a staged-import location. The import row stays staged until Confirm.
-
-#### Editor.openPlugin
-
-`stable` · since v0.12.0
-
-```ts
-Editor.openPlugin(pluginId: string): void
-```
-
-Open a plugin's sidebar (switches the editor pane to "plugin").
-
-#### Editor.preview
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.preview(loc: Location): void
-```
-
-Open an arbitrary location read-only as a seen-preview: loads its pano without
-adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
-
-#### Editor.refresh
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.refresh(): Promise<void>
-```
-
-Reread the current draft. Superseded reads and errors cannot update the next opening.
-
-#### Editor.removeDuplicate
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.removeDuplicate(id: number): void
-```
-
-Drop a location from the duplicate-resolution panel (does not delete it).
-
-#### Editor.resolve
-
-`stable` · since v0.12.0
-
-```ts
-Editor.resolve(m: MaybeLocation): Promise<Location | null>
-```
-
-Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
-
-#### Editor.setArea
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.setArea(area: WorkArea): void
-```
-
-Transition the editor pane, enforcing state invariants:
-leaving "location" closes the open location, leaving "plugin" clears the plugin id.
-
-#### Editor.use
-
-`stable` · since v0.12.0
-
-```ts
-Editor.use<T>(selector: (s: EditorState) => T): T
-```
-
-Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`.
-
-#### Editor.usePosition
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.usePosition(): LatLng
-```
-
-Where the open location stands, or 0,0 while nothing is open.
-
-#### Editor.useWriting
-
-`unstable` · since v0.12.0
-
-```ts
-Editor.useWriting(): boolean
-```
-
-Whether procedure work is still writing to the open draft.
-
-## Procedure
-
-### Procedure
-
-`stable` · since v0.12.0
-
-Procedure modules: ask one a question, or run one over locations.
-
-#### Procedure.decl
-
-`unstable` · since v0.12.0
-
-```ts
-Procedure.decl(spec: ProcedureSpec, config?: unknown): ProcedureDecl
-```
-
-The part of a spec the engine reads for a run and a query alike, with `config` as the
-JSON text the wire carries.
-
-#### Procedure.drive
-
-`unstable` · since v0.12.0
-
-```ts
-Procedure.drive(
-  scheduled: Scheduled[],
-  opts: RunOpts,
-): Promise<ProcedureOutcomes>
-```
-
-Drive scheduled items through the engine as one run and gather what comes back.
-
-#### Procedure.entry
-
-`unstable` · since v0.12.0
-
-```ts
-Procedure.entry(name: string): string
-```
-
-Entry point of a procedure this app bundles. Plugins ship their own paths.
-
-#### Procedure.name
-
-`unstable` · since v0.12.0
-
-```ts
-Procedure.name(entry: string): string
-```
-
-The readable name behind an entry point, for surfaces that show one.
-
-#### Procedure.noWork
-
-`unstable` · since v0.12.0
-
-```ts
-Procedure.noWork(): BatchOutcome
-```
-
-An outcome for work that never ran.
-
-#### Procedure.query
-
-`unstable` · since v0.12.0
-
-```ts
-Procedure.query<T = unknown, P = unknown>(
-  spec: ProcedureSpec,
-  input: unknown,
-  opts?: {
-    signal?: AbortSignal;
-    onPartial?: (
-      entries: {
-        id: number;
-        value: P;
-      }[],
-    ) => void;
-  },
-): Promise<T>
-```
-
-Ask a procedure a read-only question under its declared network limits. Rejects when it
-exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
-pages of answers as they resolve, ahead of the full result; each entry carries the id
-the emitting side chose for it.
-
-#### Procedure.run
-
-`unstable` · since v0.12.0
-
-```ts
-Procedure.run<T, C>(
-  spec: ProcedureSpec<T, C>,
-  selector: Selector,
-  opts: Omit<RunOpts, "force"> &
-    RunSettings & {
-      config?: Partial<NoInfer<C>>;
-    },
-): Promise<ProcedureOutcome<T>>
-```
-
-Run a single procedure over `selector` and return its typed results.
-
-## Provider
-
-### Provider
-
-`stable` · since v0.12.0
-
-Registered field producers: register one, list them, or run them over locations.
-
-#### Provider.forField
-
-`unstable` · since v0.12.0
-
-```ts
-Provider.forField(field: string): Provider | undefined
-```
-
-The provider that produces a given extra field, if any.
-
-#### Provider.labels
-
-`unstable` · since v0.12.0
-
-```ts
-Provider.labels(
-  field: string,
-  keys: string[],
-  key?: KeySpec,
-): Promise<string[]>
-```
-
-Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
-become locale month names; otherwise falls back to the keys themselves when the field's
-procedure has no `label` query or returns a non-matching array.
-
-#### Provider.list
-
-`unstable` · since v0.12.0
-
-```ts
-Provider.list(): Provider[]
-```
-
-All registered providers.
-
-#### Provider.register
-
-`stable` · since v0.12.0
-
-```ts
-Provider.register(provider: Provider): Promise<void>
-```
-
-Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
-deactivates. Resolves once the provider can run.
-
-#### Provider.run
-
-`unstable` · since v0.12.0
-
-```ts
-Provider.run<C extends readonly unknown[]>(
-  runs: { [K in keyof C]: ProviderRun<C[K]> },
-  selector: Selector,
-  opts?: RunOpts,
-): Promise<ProcedureOutcomes>
-```
-
-Run registered providers over the locations `selector` matches and write their results
-back. Resolves once every provider finishes, or on abort.
-
-## History
-
-### History
-
-`stable` · since v0.12.0
-
-Navigate undo and redo history.
-
-#### History.available
-
-`unstable` · since v0.12.0
-
-```ts
-History.available(
-  history: MapState["history"],
-  stack: Stack,
-  timeline: Timeline,
-): boolean
-```
-
-Whether `timeline` can step back (undo) or forward (redo).
-
-#### History.step
-
-`stable` · since v0.12.0
-
-```ts
-History.step(stack: Stack, timeline: Timeline): Promise<void>
-```
-
-Undo the newest edit on `timeline`, or redo the newest undone one.
-
-## Commit
-
-### Commit
-
-`stable` · since v0.12.0
-
-Save and restore map versions.
-
-#### Commit.background
-
-`unstable` · since v0.12.0
-
-```ts
-Commit.background(mapId: string, message: string): void
-```
-
-Commit `mapId` in the background once pending saves finish.
-
-#### Commit.checkout
-
-`unstable` · since v0.12.0
-
-```ts
-Commit.checkout(commitId: string): Promise<void>
-```
-
-Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo.
-
-#### Commit.create
-
-`stable` · since v0.12.0
-
-```ts
-Commit.create(message?: string): Promise<string>
-```
-
-Commit all pending changes to the map's version history. Clears the undo stack.
-
-## Field
-
-### Field
-
-`stable` · since v0.12.0
-
-Rename or remove metadata fields across the map.
-
-#### Field.remove
-
-`stable` · since v0.12.0
-
-```ts
-Field.remove(key: string): Promise<void>
-```
-
-Delete extra-field `key` from every location, its definition, and the listed selections,
-in one undoable step.
-
-#### Field.rename
-
-`stable` · since v0.12.0
-
-```ts
-Field.rename(
-  from: string,
-  to: string,
-  winner?: MergeWinner,
-): Promise<void>
-```
-
-Rename extra-field `from` to `to` across all locations, its definition, and the listed
-selections, in one undoable step. When a location already holds `to`, `winner` decides
-which value survives. Saved selections are map-independent rules and keep their names.
-
-## Store
-
-### Store
-
-`stable` · since v0.12.0
-
-Read the open map state and update its selection and metadata.
-
-#### Store.get
-
-`stable` · unreleased
-
-```ts
-Store.get(): Readonly<MapState>
-```
-
-Imperative snapshot of the map state.
-
-#### Store.use
-
-`stable` · unreleased
-
-```ts
-Store.use<T>(selector: (s: MapState) => T): T
-```
-
-Reactive slice of the map state. Re-renders only when the selected value's
-reference changes (`Object.is`), so selectors must return state fields or
-memoized values, not a new value per call.
-
-## Maps
-
-### Maps
-
-`stable` · since v0.12.0
-
-Create, list, open, close, and organize maps.
-
-#### Maps.badges
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.badges(): Map<string, MapBadge[]>
-```
-
-Badges per map id, from every registered source.
-
-#### Maps.badgeSources
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.badgeSources(): readonly BadgeSource[]
-```
-
-Every registered badge source, in registration order.
-
-#### Maps.close
-
-`stable` · since v0.12.0
-
-```ts
-Maps.close(): Promise<void>
-```
-
-Close the open map, saving unsaved changes first.
-
-#### Maps.copyName
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.copyName(name: string): string
-```
-
-The name a copy of the map named `name` starts with.
-
-#### Maps.create
-
-`stable` · since v0.12.0
-
-```ts
-Maps.create(name: string, folder?: string | null): Promise<MapMeta>
-```
-
-Create a new empty map and return its metadata.
-
-#### Maps.discard
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.discard(): void
-```
-
-Drop the open map without persisting anything
-
-#### Maps.duplicate
-
-`stable` · since v0.12.0
-
-```ts
-Maps.duplicate(id: string, name: string): Promise<MapMeta>
-```
-
-Copy a map, uncommitted edits included, into a new map named `name` and return its metadata.
-
-#### Maps.init
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.init(): Promise<void>
-```
-
-One-time store startup. The app calls this; plugins never need to.
-
-#### Maps.invalidate
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.invalidate(): Promise<void>
-```
-
-Refresh the map list and notify other windows of the change.
-
-#### Maps.isReserved
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.isReserved(id: string | null): boolean
-```
-
-Whether `id` belongs to an app fixture rather than a user-created map.
-
-#### Maps.list
-
-`stable` · since v0.12.0
-
-```ts
-Maps.list(): MapMeta[]
-```
-
-The list of all maps (metadata only).
-
-#### Maps.moveToFolder
-
-`stable` · since v0.12.0
-
-```ts
-Maps.moveToFolder(mapId: string, folder: string | null): Promise<void>
-```
-
-Move a map into a folder, or to the root when `folder` is null.
-
-#### Maps.open
-
-`stable` · since v0.12.0
-
-```ts
-Maps.open(id: string): Promise<void>
-```
-
-Open a map in this window, closing any currently open map first.
-
-#### Maps.openScratch
-
-`stable` · since v0.12.0
-
-```ts
-Maps.openScratch(): Promise<void>
-```
-
-Open the scratch map, creating it on first use.
-
-#### Maps.registerBadges
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.registerBadges(source: BadgeSource): void
-```
-
-Add a source of map-row badges.
-
-#### Maps.reload
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.reload(): Promise<void>
-```
-
-Refresh the map list from disk.
-
-#### Maps.remove
-
-`stable` · since v0.12.0
-
-```ts
-Maps.remove(id: string): Promise<void>
-```
-
-Permanently delete a map and all its data. Not undoable.
-
-#### Maps.removeFolder
-
-`stable` · since v0.12.0
-
-```ts
-Maps.removeFolder(name: string): Promise<void>
-```
-
-Delete a folder. Maps in it become unfoldered.
-
-#### Maps.renameFolder
-
-`stable` · since v0.12.0
-
-```ts
-Maps.renameFolder(from: string, to: string): Promise<void>
-```
-
-Rename a folder, moving all its maps to the new name.
-
-#### Maps.useBadges
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.useBadges(): Map<string, MapBadge[]>
-```
-
-Reactive Maps.badges.
-
-#### Maps.useList
-
-`stable` · since v0.12.0
-
-```ts
-Maps.useList(): MapMeta[]
-```
-
-Reactive list of all maps (metadata only).
-
-## Query
-
-### Query
-
-`stable` · since v0.12.0
-
-Read locations and summaries for a selector.
-
-#### Query.locationsOf
-
-`stable` · since v0.12.0
-
-```ts
-Query.locationsOf(list: LocationList): Promise<Location[]>
-```
-
-The locations an answer carries, fetched from its temp file when it was too large to send inline.
-
-#### Query.read
-
-`stable` · since v0.12.0
-
-```ts
-Query.read<A extends Ask>(
-  selector: Selector,
-  ask: A,
-  target?: Target,
-): Promise<ReadResult<AnswerOf<A["kind"]>>>
-```
-
-Ask one question about the locations `selector` matches. A full-location answer loads any
-backing file automatically; ask for ids or columns when full locations are unnecessary.
-
-## Mutation
-
-### Mutation
-
-`stable` · since v0.12.0
-
-Run mutations and wait for their state and display updates.
-
-#### Mutation.none
-
-`stable` · since v0.12.0
-
-```ts
-Mutation.none(): Mutation
-```
-
-The result of a mutation that reached no map.
-
-#### Mutation.run
-
-`stable` · since v0.12.0
-
-```ts
-Mutation.run<
-  R extends
-    | Mutation
-    | {
-        mutation: Mutation;
-      } = Mutation,
->(
-  fn: () => Promise<R>,
-  ...fallback: Mutation extends R ? [empty?: R] : [empty: R]
-): Promise<R>
-```
-
-#### Mutation.settle
-
-`stable` · since v0.12.0
-
 ```ts
-Mutation.settle(m: Mutation): Promise<void>
+useJob<R = unknown, P = never>(): Job<R, P>
 ```
 
-Resolves once the open map's state and its markers both show `m`. A mutation that reached
-no map (version 0) settles at once.
+User-triggered async work that reports progress and can be cancelled. Unmounting cancels.
 
 # Unstable surfaces
 
 Everything below can change in any release.
 
-## SelectionOps
+## Color
 
-Pure transforms over the selection list behind the sidebar.
-
-### addSelection
-
-`unstable` · since v0.4.0
-
-```ts
-addSelection(...selectors: Selector[]): SelectionOp
-```
-
-### all
-
-`unstable` · since v0.11.0
-
-```ts
-all(...selectors: Selector[]): Selector
-```
-
-Locations matching every one of `selectors`; with none, every location.
-
-### any
-
-`unstable` · since v0.11.0
-
-```ts
-any(...selectors: Selector[]): Selector
-```
-
-Locations matching any of `selectors`; with none, no location.
-
-### buildSelection
+### applyAccentColor
 
 `unstable` · since v0.10.3
 
 ```ts
-buildSelection(selector: Selector): Promise<Selection>
+applyAccentColor(hex: string): void
 ```
 
-### childSelections
+Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color.
 
-`unstable` · since v0.10.5
-
-```ts
-childSelections<S>(selector: Selector$1<S>): S[]
-```
-
-Every child selection a selector wraps, whatever shape it wraps them in.
-
-### filterIsLocalTime
+### colorForName
 
 `unstable` · since v0.10.3
 
 ```ts
-filterIsLocalTime(test: FilterOp): boolean
+colorForName(name: string): string
 ```
 
-Whether a predicate reads the location's clock in its own timezone. Only a range can.
+Deterministic tag color from a name.
 
-### has
-
-`unstable` · since v0.11.0
-
-```ts
-has(field: string): Selector
-```
-
-Locations holding a value for `field`.
-
-### lacks
-
-`unstable` · since v0.11.0
-
-```ts
-lacks(field: string): Selector
-```
-
-Locations holding no value for `field`.
-
-### memberOf
-
-`unstable` · since v0.12.2
-
-```ts
-memberOf(selector: Selector): {
-  field: string;
-  id: number;
-} | null
-```
-
-The interned value a selector tests membership of, or null when it tests something else.
-The single place that recognises value membership, so nothing else has to know its shape.
-
-### not
-
-`unstable` · since v0.11.0
-
-```ts
-not(selector: Selector): Selector
-```
-
-Locations not matching `selector`.
-
-### OP_LABELS
+### hexToHsl
 
 `unstable` · since v0.10.3
 
 ```ts
-OP_LABELS: Record<
-  | "between"
-  | "between_anytime"
-  | "between_anyyear"
-  | "contains"
-  | "eq"
-  | "gt"
-  | "gte"
-  | "has"
-  | "lt"
-  | "lte"
-  | "neq"
-  | "notcontains"
-  | "nothas",
-  string
->
+hexToHsl(hex: string): HSL
 ```
 
-Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
-operators are marked for translation.
+Convert "#rrggbb" to HSL.
 
-### panoIdSelector
-
-`unstable` · since v0.11.1
-
-```ts
-panoIdSelector(on: boolean): Selector
-```
-
-Locations pinned to one exact pano (the flag plus a pano id), or the locations not
-pinned.
-
-### replaceSelection
+### hexToRgb
 
 `unstable` · since v0.10.3
 
 ```ts
-replaceSelection(path: SelectionPath, selector: Selector): SelectionOp
+hexToRgb(hex: string): RGB
 ```
 
-### selection
+Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex.
 
-`unstable` · since v0.12.0
-
-```ts
-selection(selector: Selector, color?: RGB): SelectionInput
-```
-
-An unaddressed selection input; the store supplies its key and default color.
-
-### selectionAt
-
-`unstable` · since v0.11.3
-
-```ts
-selectionAt(
-  rows: ListedSelection[],
-  path: SelectionPath,
-): Selection | undefined
-```
-
-### selectionDisplayName
+### hslToHex
 
 `unstable` · since v0.10.3
 
 ```ts
-selectionDisplayName(sel: SelectionInput, valueNames?: ValueNames): string
+hslToHex(props: HSL): string
 ```
 
-Human-readable label for a selection. Pass `valueNames` to resolve interned values by
-saved name rather than the open map's records.
+Convert HSL to "#rrggbb".
 
-### SELECTIONS
+### hslToRgb
 
 `unstable` · since v0.10.3
 
 ```ts
-SELECTIONS: {
-  Duplicates: SelectionDescriptor<"Duplicates">;
-  EvenlySpaced: SelectionDescriptor<"EvenlySpaced">;
-  Everything: SelectionDescriptor<"Everything">;
-  Filter: SelectionDescriptor<"Filter">;
-  Intersection: SelectionDescriptor<"Intersection">;
-  Invert: SelectionDescriptor<"Invert">;
-  Locations: SelectionDescriptor<"Locations">;
-  Manual: SelectionDescriptor<"Manual">;
-  Nearby: SelectionDescriptor<"Nearby">;
-  Nearest: SelectionDescriptor<"Nearest">;
-  Polygon: SelectionDescriptor<"Polygon">;
-  Ranked: SelectionDescriptor<"Ranked">;
-  Reviewed: SelectionDescriptor<"Reviewed">;
-  Sample: SelectionDescriptor<"Sample">;
-  Selected: SelectionDescriptor<"Selected">;
-  Spaced: SelectionDescriptor<"Spaced">;
-  Uncommitted: SelectionDescriptor<"Uncommitted">;
-  Union: SelectionDescriptor<"Union">;
-  Validation: SelectionDescriptor<"Validation">;
-}
+hslToRgb(h: number, s: number, l: number): RGB
 ```
 
-The display label of each selector variant.
+Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple.
 
-### tagIdOf
-
-`unstable` · since v0.11.1
-
-```ts
-tagIdOf(selector: Selector): number | null
-```
-
-The tag a selector names, or null when it names something else.
-
-### tagSelector
-
-`unstable` · since v0.11.1
-
-```ts
-tagSelector(tagId: number): Selector
-```
-
-Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
-else, so there is no tag selector to build.
-
-### toggleSelection
-
-`unstable` · since v0.11.3
-
-```ts
-toggleSelection(...selectors: Selector[]): SelectionOp
-```
-
-### UNARY_TYPES
+### labelColor
 
 `unstable` · since v0.10.3
 
 ```ts
-UNARY_TYPES: readonly ["Invert"]
+labelColor(name: string, overrides: Record<string, string>): string
 ```
 
-### unpannedSelector
+A label's color: a user override if set, else a deterministic color from its name.
 
-`unstable` · since v0.11.1
-
-```ts
-unpannedSelector(): Selector
-```
-
-Locations whose heading was never set.
-
-### untaggedSelector
-
-`unstable` · since v0.11.1
-
-```ts
-untaggedSelector(): Selector
-```
-
-Locations with no tags: `tags` resolves to nothing on an untagged location.
-
-### withChildren
-
-`unstable` · since v0.10.5
-
-```ts
-withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>
-```
-
-`selector` with its children replaced, keeping the shape it wraps them in.
-
-## Settings
-
-App settings and their option tables; the shape moves with every setting added.
-
-### APP_SETTINGS
+### resolveSvColorHex
 
 `unstable` · since v0.10.3
 
 ```ts
-APP_SETTINGS: PersistedStore<{
-  showCameraBadges: boolean;
-  showLinksControl: boolean;
-  clickToGo: boolean;
-  showRoadLabels: boolean;
-  defaultMovementMode: MovementMode;
-  showCar: boolean;
-  showCrosshair: boolean;
-  showCompass: boolean;
-  showCompassTape: boolean;
-  showZoom: boolean;
-  showReturnToSpawn: boolean;
-  showJumpButtons: boolean;
-  showMapLinks: boolean;
-  showCoordinateDisplay: boolean;
-  showFullscreenButton: boolean;
-  showScreenshotButton: boolean;
-  showPanoMetadata: boolean;
-  exactDateFormat: ExactDateFormat;
-  dateTimezone: DateTimezone;
-  showNavArrow: boolean;
-  showGroundArrow: boolean;
-  hidePanoUI: boolean;
-  hideNavWithUI: boolean;
-  fullscreenMap: boolean;
-  showFullscreenMapMeta: boolean;
-  showFullscreenMiniLocationPreview: boolean;
-  fullscreenMiniLocationScale: number;
-  showFullscreenMinimap: boolean;
-  fullscreenMinimapScale: number;
-  fullscreenMinimapCloseDelay: number;
-  showFullscreenTagbar: boolean;
-  showFullscreenDatePicker: boolean;
-  showFullscreenReviewBar: boolean;
-  showFullscreenGeocode: boolean;
-  customCss: string;
-  enableSeen: boolean;
-  enableSeenThumbnails: boolean;
-  seenResolution: SeenResolution;
-  mapPanSpeed: number;
-  panoLookSpeed: number;
-  slowModifier: number;
-  showFps: boolean;
-  mapListFields: MapListField[];
-  hiddenMapBadges: string[];
-  language: Language;
-  units: UnitSystem;
-  restoreSession: boolean;
-  appZoom: number;
-  prereleaseUpdates: boolean;
-  discordPresence: DiscordPresenceMode;
-  labelColors: Record<string, string>;
-  geocodeProvider: GeocodeProvider;
-  nominatimApiKey: string;
-  panToImported: boolean;
-  enterOpensCenter: boolean;
-  pastePadding: number;
-  followOpenInReview: boolean;
-  markerColor: RGB;
-  openLocationColor: RGB;
-  importPreviewColor: RGB;
-  svTrail: boolean;
-  svTrailColor: RGB;
-  svTrailPosition: boolean;
-  panoDotColor: RGB;
-  opacityToggleMode: OpacityToggleMode;
-  polygonColorMode: PolygonColorMode;
-  polygonColor: RGB;
-  panoDotScaled: boolean;
-  tagViewMode: TagViewMode;
-  truncateTagPaths: boolean;
-  tagFolderColorMode: TagFolderColorMode;
-  tagFolderColor: RGB;
-  tagSortMode: TagSortMode;
-  tagGap: number;
-  animateTagReorder: boolean;
-  borderDetail: BorderDetail;
-  subdivisionDetail: SubdivisionDetail;
-  previewAspectRatio: PreviewAspectRatio;
-  tagSuggestionLimit: number;
-  remoteApi: boolean;
-  remoteApiKey: string;
-  pinnedCommands: PinnedEntry[];
-}>
+resolveSvColorHex(color: string): string
 ```
 
-A value saved in local storage: its key and its defaults.
+Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
+ramp name (legacy stored format).
 
-### BORDER_ARCHIVE_BYTES
+### rgbCss
 
 `unstable` · since v0.10.3
 
 ```ts
-BORDER_ARCHIVE_BYTES: {
-  readonly medium: 7460312;
-  readonly heavy: 21514464;
-  readonly adm1: 56891952;
-}
+rgbCss(props: RGB): string
 ```
 
-Download size of each border detail level, in bytes.
+Format an RGB tuple as a CSS `rgb(r, g, b)` string.
 
-### BORDER_DETAILS
+### rgbToHex
 
 `unstable` · since v0.10.3
 
 ```ts
-BORDER_DETAILS: {
-  readonly light: "Standard (bundled)";
-  readonly medium: "High ({size})";
-  readonly heavy: "Ultra ({size})";
-}
+rgbToHex(rgb: RGB): string
 ```
 
-### CSS_VAR_SETTINGS
+Convert an RGB byte tuple to "#rrggbb".
+
+### textColorFor
 
 `unstable` · since v0.10.3
 
 ```ts
-CSS_VAR_SETTINGS: readonly (readonly [
-  cssVar: string,
-  value: (s: AppSettings) => string,
-])[]
+textColorFor(bg: string): string
 ```
 
-App settings exposed as CSS custom properties on `:root`.
-
-### DATE_TIMEZONES
-
-`unstable` · since v0.10.3
-
-```ts
-DATE_TIMEZONES: { readonly location: "Location timezone"; readonly utc: "UTC" }
-```
-
-### DEFAULTS
-
-`unstable` · since v0.10.3
-
-```ts
-DEFAULTS: {
-  showCameraBadges: boolean;
-  showLinksControl: boolean;
-  clickToGo: boolean;
-  showRoadLabels: boolean;
-  defaultMovementMode: "moving" | "nmpz" | "no-move";
-  showCar: boolean;
-  showCrosshair: boolean;
-  showCompass: boolean;
-  showCompassTape: boolean;
-  showZoom: boolean;
-  showReturnToSpawn: boolean;
-  showJumpButtons: boolean;
-  showMapLinks: boolean;
-  showCoordinateDisplay: boolean;
-  showFullscreenButton: boolean;
-  showScreenshotButton: boolean;
-  showPanoMetadata: boolean;
-  exactDateFormat: "date" | "datetime";
-  dateTimezone: "location" | "utc";
-  showNavArrow: boolean;
-  showGroundArrow: boolean;
-  hidePanoUI: boolean;
-  /** Hiding the pano UI also hides navigation: link arrows, ground arrow, click-to-go X. */
-  hideNavWithUI: boolean;
-  fullscreenMap: boolean;
-  showFullscreenMapMeta: boolean;
-  showFullscreenMiniLocationPreview: boolean;
-  fullscreenMiniLocationScale: number;
-  showFullscreenMinimap: boolean;
-  fullscreenMinimapScale: number;
-  /** Milliseconds the fullscreen minimap stays expanded after the pointer leaves it. */
-  fullscreenMinimapCloseDelay: number;
-  showFullscreenTagbar: boolean;
-  showFullscreenDatePicker: boolean;
-  showFullscreenReviewBar: boolean;
-  showFullscreenGeocode: boolean;
-  customCss: string;
-  enableSeen: boolean;
-  enableSeenThumbnails: boolean;
-  seenResolution: "high" | "low" | "medium";
-  mapPanSpeed: number;
-  panoLookSpeed: number;
-  slowModifier: number;
-  showFps: boolean;
-  mapListFields: ("created" | "lastOpened" | "locationCount")[];
-  /** Ids of map-row badge sources that are hidden. */
-  hiddenMapBadges: string[];
-  /** Read once at boot; changing it relaunches the app rather than re-rendering. */
-  language: "de" | "en" | "en-XA" | "es" | "fr" | "ja" | "pl" | "ru" | "zh-Hans";
-  /** Every distance the UI shows or accepts; stored values stay metric. */
-  units: "auto" | "imperial" | "metric";
-  /** Reopen the maps that were open when the session last ended (main window closed). */
-  restoreSession: boolean;
-  /** Zoom factor of every window's UI, set by the app zoom hotkeys. */
-  appZoom: number;
-  /** Offer pre-release builds to the updater as well as full releases. */
-  prereleaseUpdates: boolean;
-  /** Discord Rich Presence: off, generic (no map name), or full (map name + count). */
-  discordPresence: "full" | "generic" | "off";
-  /** Per-label color overrides (hex), keyed by lowercased label name. Shared across all maps. */
-  labelColors: Record<string, string>;
-  geocodeProvider: "google" | "local" | "nominatim";
-  nominatimApiKey: string;
-  panToImported: boolean;
-  /** With no location open, Enter shows a center crosshair and opens the location under it. */
-  enterOpensCenter: boolean;
-  /** Smallest half-width, in degrees, the map frames around a single pasted or imported point. */
-  pastePadding: number;
-  followOpenInReview: boolean;
-  markerColor: RGB;
-  openLocationColor: RGB;
-  importPreviewColor: RGB;
-  svTrail: boolean;
-  svTrailColor: RGB;
-  svTrailPosition: boolean;
-  panoDotColor: RGB;
-  /** What the layer opacity hotkeys restore a layer to when toggling it back on. */
-  opacityToggleMode: "full" | "previous";
-  /** Initial color mode for newly drawn polygon selections. Recoloring by hand overrides either mode. */
-  polygonColorMode: "fixed" | "random";
-  polygonColor: RGB;
-  panoDotScaled: boolean;
-  tagViewMode: "flat" | "tree";
-  /** Tree view only: render each tag as the shortest path suffix that's still unique. */
-  truncateTagPaths: boolean;
-  /** Tree view: how a colorless folder row gets its color. `direct` uses tagFolderColor; `firstChild` inherits the first own-colored descendant in display order, with tagFolderColor as the fallback for colorless subtrees. */
-  tagFolderColorMode: "direct" | "firstChild";
-  tagFolderColor: RGB;
-  tagSortMode: TagSortMode;
-  /** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. */
-  tagGap: number;
-  animateTagReorder: boolean;
-  borderDetail: "heavy" | "light" | "medium";
-  subdivisionDetail: "adm1" | "off";
-  previewAspectRatio: "16 / 10" | "16 / 9" | "21 / 9" | "32 / 9" | "4 / 3" | "free";
-  tagSuggestionLimit: number;
-  /** Local REST transport for window.MMA (Settings > Advanced). */
-  remoteApi: boolean;
-  remoteApiKey: string;
-  pinnedCommands: PinnedEntry[];
-}
-```
-
-Default values for every app setting.
-
-### DISCORD_PRESENCE_MODES
-
-`unstable` · since v0.10.3
-
-```ts
-DISCORD_PRESENCE_MODES: {
-  readonly off: "Off";
-  readonly generic: "Generic (no map name)";
-  readonly full: "Full (map name + count)";
-}
-```
-
-### EXACT_DATE_FORMATS
-
-`unstable` · since v0.10.3
-
-```ts
-EXACT_DATE_FORMATS: {
-  readonly date: "Date only";
-  readonly datetime: "Date + time";
-}
-```
-
-### GEOCODE_PROVIDER_LABELS
-
-`unstable` · since v0.10.3
-
-```ts
-GEOCODE_PROVIDER_LABELS: Record<"google" | "local" | "nominatim", string>
-```
-
-### GEOCODE_PROVIDERS
-
-`unstable` · since v0.10.3
-
-```ts
-GEOCODE_PROVIDERS: {
-  readonly local: "Local (offline)";
-  readonly nominatim: "Nominatim";
-  readonly google: "Google (from panorama)";
-}
-```
-
-### getSettings
-
-`unstable` · since v0.4.0
-
-```ts
-getSettings(): AppSettings
-```
-
-The current app settings snapshot.
-
-### LANGUAGES
-
-`unstable` · since v0.10.3
-
-```ts
-LANGUAGES: {
-  en: "English";
-  de: "Deutsch";
-  es: "Español";
-  fr: "Français";
-  ja: "日本語";
-  pl: "Polski";
-  ru: "Русский";
-  "zh-Hans": "简体中文";
-  "en-XA": "Pseudolocale";
-}
-```
-
-Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale.
-
-### MAP_LIST_FIELDS
-
-`unstable` · since v0.10.3
-
-```ts
-MAP_LIST_FIELDS: {
-  readonly locationCount: "Location count";
-  readonly lastOpened: "Last opened";
-  readonly created: "Date created";
-}
-```
-
-### MOVEMENT_CYCLE
-
-`unstable` · since v0.10.3
-
-```ts
-MOVEMENT_CYCLE: ("moving" | "nmpz" | "no-move")[]
-```
-
-### MOVEMENT_MODES
-
-`unstable` · since v0.10.3
-
-```ts
-MOVEMENT_MODES: {
-  readonly moving: "Moving";
-  readonly "no-move": "No Move";
-  readonly nmpz: "NMPZ";
-}
-```
-
-### navHiddenWithUI
-
-`unstable` · since v0.10.3
-
-```ts
-navHiddenWithUI(s: AppSettings): boolean
-```
-
-True while the pano-UI toggle covers the navigation visuals too.
-
-### OPACITY_TOGGLE_MODES
-
-`unstable` · since v0.10.3
-
-```ts
-OPACITY_TOGGLE_MODES: {
-  readonly previous: "Last used opacity";
-  readonly full: "Full opacity";
-}
-```
-
-### panoDisplayOptions
-
-`unstable` · since v0.10.3
-
-```ts
-panoDisplayOptions(s: AppSettings): {
-  linksControl: boolean;
-  clickToGo: boolean;
-  showRoadLabels: boolean;
-  scrollwheel: boolean;
-}
-```
-
-Effective StreetViewPanorama display options derived from the current settings.
-
-### POLYGON_COLOR_MODES
-
-`unstable` · since v0.10.3
-
-```ts
-POLYGON_COLOR_MODES: { readonly random: "Random"; readonly fixed: "Fixed color" }
-```
-
-### PREVIEW_ASPECT_RATIOS
-
-`unstable` · since v0.10.3
-
-```ts
-PREVIEW_ASPECT_RATIOS: {
-  "4 / 3": "4:3";
-  "16 / 10": "16:10";
-  "16 / 9": "16:9";
-  "21 / 9": "21:9";
-  "32 / 9": "32:9";
-  free: "Free";
-}
-```
-
-### PRIVATE_SETTINGS
-
-`unstable` · since v0.10.3
-
-```ts
-PRIVATE_SETTINGS: ReadonlySet<
-  | "animateTagReorder"
-  | "appZoom"
-  | "borderDetail"
-  | "clickToGo"
-  | "customCss"
-  | "dateTimezone"
-  | "defaultMovementMode"
-  | "discordPresence"
-  | "enableSeen"
-  | "enableSeenThumbnails"
-  | "enterOpensCenter"
-  | "exactDateFormat"
-  | "followOpenInReview"
-  | "fullscreenMap"
-  | "fullscreenMiniLocationScale"
-  | "fullscreenMinimapCloseDelay"
-  | "fullscreenMinimapScale"
-  | "geocodeProvider"
-  | "hiddenMapBadges"
-  | "hideNavWithUI"
-  | "hidePanoUI"
-  | "importPreviewColor"
-  | "labelColors"
-  | "language"
-  | "mapListFields"
-  | "mapPanSpeed"
-  | "markerColor"
-  | "nominatimApiKey"
-  | "opacityToggleMode"
-  | "openLocationColor"
-  | "panToImported"
-  | "panoDotColor"
-  | "panoDotScaled"
-  | "panoLookSpeed"
-  | "pastePadding"
-  | "pinnedCommands"
-  | "polygonColor"
-  | "polygonColorMode"
-  | "prereleaseUpdates"
-  | "previewAspectRatio"
-  | "remoteApi"
-  | "remoteApiKey"
-  | "restoreSession"
-  | "seenResolution"
-  | "showCameraBadges"
-  | "showCar"
-  | "showCompass"
-  | "showCompassTape"
-  | "showCoordinateDisplay"
-  | "showCrosshair"
-  | "showFps"
-  | "showFullscreenButton"
-  | "showFullscreenDatePicker"
-  | "showFullscreenGeocode"
-  | "showFullscreenMapMeta"
-  | "showFullscreenMiniLocationPreview"
-  | "showFullscreenMinimap"
-  | "showFullscreenReviewBar"
-  | "showFullscreenTagbar"
-  | "showGroundArrow"
-  | "showJumpButtons"
-  | "showLinksControl"
-  | "showMapLinks"
-  | "showNavArrow"
-  | "showPanoMetadata"
-  | "showReturnToSpawn"
-  | "showRoadLabels"
-  | "showScreenshotButton"
-  | "showZoom"
-  | "slowModifier"
-  | "subdivisionDetail"
-  | "svTrail"
-  | "svTrailColor"
-  | "svTrailPosition"
-  | "tagFolderColor"
-  | "tagFolderColorMode"
-  | "tagGap"
-  | "tagSortMode"
-  | "tagSuggestionLimit"
-  | "tagViewMode"
-  | "truncateTagPaths"
-  | "units"
->
-```
-
-Settings holding private information that should not be exfiltrated.
-
-### resetSettings
-
-`unstable` · since v0.10.3
-
-```ts
-resetSettings(): void
-```
-
-Reset all settings to defaults.
-
-### SEEN_RESOLUTIONS
-
-`unstable` · since v0.10.3
-
-```ts
-SEEN_RESOLUTIONS: {
-  readonly low: "Low (160x90)";
-  readonly medium: "Medium (320x180)";
-  readonly high: "High (640x360)";
-}
-```
-
-### setSetting
-
-`unstable` · since v0.4.0
-
-```ts
-setSetting<K extends keyof AppSettings>(
-  key: K,
-  value: AppSettings[K],
-): void
-```
-
-Update one setting and persist. Emits `settings:changed`.
-
-### SUBDIVISION_DETAILS
-
-`unstable` · since v0.10.3
-
-```ts
-SUBDIVISION_DETAILS: { readonly off: "Off"; readonly adm1: "States / provinces" }
-```
-
-### TAG_FOLDER_COLOR_MODES
-
-`unstable` · since v0.10.3
-
-```ts
-TAG_FOLDER_COLOR_MODES: {
-  readonly direct: "Fixed color";
-  readonly firstChild: "Inherit first child";
-}
-```
-
-### TAG_SUGGESTION_LIMITS
-
-`unstable` · since v0.10.3
-
-```ts
-TAG_SUGGESTION_LIMITS: readonly [5, 10, 25, 50, 0]
-```
-
-Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All").
-
-### TAG_VIEW_MODES
-
-`unstable` · since v0.10.3
-
-```ts
-TAG_VIEW_MODES: { readonly flat: "Flat"; readonly tree: "Tree" }
-```
-
-### UNIT_SYSTEMS
-
-`unstable` · since v0.10.3
-
-```ts
-UNIT_SYSTEMS: {
-  readonly auto: "Automatic";
-  readonly metric: "Metric (m / km)";
-  readonly imperial: "Imperial (ft / mi)";
-}
-```
-
-Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles.
-
-### useSetting
-
-`unstable` · since v0.10.3
-
-```ts
-useSetting<K extends keyof AppSettings>(key: K): AppSettings[K]
-```
-
-React hook: one setting value, re-rendering only when that key changes.
-
-### useSettings
-
-`unstable` · since v0.10.3
-
-```ts
-useSettings(): AppSettings
-```
-
-React hook: all settings, re-rendering on any change.
-
-## SelectorPick
-
-The selector picker the pick dialogs share; its choices move with the UI.
-
-### selectorForPick
-
-`unstable` · since v0.10.0
-
-```ts
-selectorForPick(choice: SelectorPick): Selector
-```
-
-Convert a picker choice into the corresponding `Selector`.
-
-### useSelectorPick
-
-`unstable` · since v0.10.0
-
-```ts
-useSelectorPick(initial?: SelectorPick): SelectorPickController
-```
-
-React hook: selector state with live counts. Defaults to the current selection when one
-exists, else all locations.
+Return "#000" or "#fff" for readable text on the given hex background.
 
 ## Commands
-
-The raw command layer under the app-level API; any of them can change in a release.
 
 ### cmd
 
@@ -7203,1218 +6405,7 @@ cmd.writeTempFile(name: string, content: string): Promise<string>
 Write text to a temp file and return its path. `name` is a leaf filename
 (cannot contain path separators).
 
-## Tauri
-
-Raw command, shell, and file dialog access.
-
-### dialog
-
-`unstable` · since v0.3.1
-
-#### dialog.open
-
-`unstable` · since v0.3.1
-
-```ts
-dialog.open<T extends OpenDialogOptions>(
-  options?: T,
-): Promise<OpenDialogReturn<T>>
-```
-
-Open a file/directory selection dialog.
-
-The selected paths are added to the filesystem and asset protocol scopes.
-When security is more important than the easy of use of this API,
-prefer writing a dedicated command instead.
-
-Note that the scope change is not persisted, so the values are cleared when the application is restarted.
-You can save it to the filesystem using [tauri-plugin-persisted-scope](https://github.com/tauri-apps/tauri-plugin-persisted-scope).
-
-#### dialog.save
-
-`unstable` · since v0.3.1
-
-```ts
-dialog.save(options?: SaveDialogOptions): Promise<string | null>
-```
-
-Open a file/directory save dialog.
-
-The selected path is added to the filesystem and asset protocol scopes.
-When security is more important than the easy of use of this API,
-prefer writing a dedicated command instead.
-
-Note that the scope change is not persisted, so the values are cleared when the application is restarted.
-You can save it to the filesystem using [tauri-plugin-persisted-scope](https://github.com/tauri-apps/tauri-plugin-persisted-scope).
-
-### invoke
-
-`unstable` · since v0.3.1
-
-```ts
-invoke<T>(
-  cmd: string,
-  args?: InvokeArgs,
-  options?: InvokeOptions,
-): Promise<T>
-```
-
-Sends a message to the backend.
-
-### shell
-
-`unstable` · since v0.3.1
-
-```ts
-shell: { Command: typeof Command }
-```
-
-Low-level command, shell, and file dialog access.
-
-## PluginHost
-
-Enabling plugins and their activation lifecycle.
-
-### activatePlugin
-
-`unstable` · since v0.10.3
-
-```ts
-activatePlugin(id: string): void
-```
-
-Activate a single plugin by id.
-
-### activatePlugins
-
-`unstable` · since v0.10.3
-
-```ts
-activatePlugins(): void
-```
-
-Activate all enabled plugins. Called when a map opens.
-
-### deactivatePlugin
-
-`unstable` · since v0.10.3
-
-```ts
-deactivatePlugin(id: string): void
-```
-
-Deactivate a single plugin and stop its sidecar.
-
-### deactivatePlugins
-
-`unstable` · since v0.10.3
-
-```ts
-deactivatePlugins(): void
-```
-
-Deactivate all plugins and stop their sidecars. Called when a map closes.
-
-### getEnabledPlugins
-
-`unstable` · since v0.10.3
-
-```ts
-getEnabledPlugins(): Plugin[]
-```
-
-All registered plugins the user has enabled.
-
-### isPluginEnabled
-
-`unstable` · since v0.10.3
-
-```ts
-isPluginEnabled(id: string): boolean
-```
-
-True when the plugin is enabled by the user.
-
-### isReady
-
-`unstable` · since v0.10.3
-
-```ts
-isReady(): boolean
-```
-
-True once the MMA surface is installed and plugins are safe to call it.
-
-### markReady
-
-`unstable` · since v0.10.3
-
-```ts
-markReady(): void
-```
-
-Mark the plugin surface as ready.
-
-### setPluginEnabled
-
-`unstable` · since v0.10.3
-
-```ts
-setPluginEnabled(id: string, enabled: boolean): void
-```
-
-Enable or disable a plugin.
-
-## Marketplace
-
-The plugin marketplace and its update checks.
-
-### autoUpdatePlugin
-
-`unstable` · since v0.10.3
-
-```ts
-autoUpdatePlugin(
-  m: PluginManifest,
-  latest: PluginManifest | undefined,
-  appVersion: string,
-): Promise<PluginManifest>
-```
-
-Auto-update a plugin to the newest compatible build before loading it. Falls back
-to what is on disk on failure.
-
-### fetchPluginRegistry
-
-`unstable` · since v0.10.3
-
-```ts
-fetchPluginRegistry(): Promise<PluginManifest[]>
-```
-
-Fetch the marketplace plugin registry. Later calls return the first result until restart.
-
-### isPluginCompatible
-
-`unstable` · since v0.10.3
-
-```ts
-isPluginCompatible(
-  minAppVersion: string | null | undefined,
-  appVersion: string,
-): boolean
-```
-
-True when `appVersion` meets the plugin's minimum version requirement.
-
-### isPluginUpdatable
-
-`unstable` · since v0.10.3
-
-```ts
-isPluginUpdatable(
-  installedVersion: string | undefined,
-  latestVersion: string | undefined,
-): boolean
-```
-
-True when a newer version is published and the installed version is known.
-
-### needsBuildUpdate
-
-`unstable` · since v0.10.3
-
-```ts
-needsBuildUpdate(
-  installedVersion: string | undefined,
-  target: ResolvedBuild,
-  installedSidecarVersion: string | null | undefined,
-): boolean
-```
-
-True when the installed plugin or its sidecar should be refreshed to `target`.
-
-### needsUpdate
-
-`unstable` · since v0.10.3
-
-```ts
-needsUpdate(
-  installedVersion: string | undefined,
-  latestVersion: string | undefined,
-  installedSidecarVersion: string | null | undefined,
-  latestSidecarVersion: string | undefined,
-): boolean
-```
-
-True when either the plugin or its sidecar has a newer published version.
-
-### resolveBuild
-
-`unstable` · since v0.10.3
-
-```ts
-resolveBuild(
-  entry: PluginManifest,
-  appVersion: string,
-): ResolvedBuild | null
-```
-
-The newest build of a plugin this app version can run. Falls back through older
-pinned builds when the latest is incompatible. Null when none fit.
-
-## Scope
-
-Which plugin owns a registration, and its teardown.
-
-### disposePlugin
-
-`unstable` · since v0.10.3
-
-```ts
-disposePlugin(id: string): void
-```
-
-Run all teardowns a plugin registered (in reverse order) and clear them.
-
-### resolvePluginPath
-
-`unstable` · since v0.10.3
-
-```ts
-resolvePluginPath(path: string): string
-```
-
-Resolve a relative path against the current plugin's base directory. Absolute
-paths and `res://` URLs pass through unchanged.
-
-### runAsPlugin
-
-`unstable` · since v0.10.3
-
-```ts
-runAsPlugin<T>(id: string, fn: () => T): T
-```
-
-Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown.
-
-### setPluginBaseDir
-
-`unstable` · since v0.10.3
-
-```ts
-setPluginBaseDir(id: string, dir: string): void
-```
-
-Set the base directory for a plugin's assets on disk.
-
-### trackDisposable
-
-`unstable` · since v0.10.3
-
-```ts
-trackDisposable(dispose: Disposable): void
-```
-
-Enroll a teardown callback under the current plugin. No-op outside activation.
-
-## FieldProjections
-
-The keys a field can be grouped by.
-
-### partitionKeyOptions
-
-`unstable` · since v0.10.3
-
-```ts
-partitionKeyOptions(
-  type: FieldType,
-  rangeForDates: boolean,
-): {
-  id: string;
-  label: string;
-}[]
-```
-
-Partition-key dropdown options for a field type.
-
-### projectionsForType
-
-`unstable` · since v0.10.3
-
-```ts
-projectionsForType(type: FieldType): FieldProjection[]
-```
-
-Projections valid for a field type, in display order (first = dialog default).
-
-### RANGE_ID
-
-`unstable` · since v0.10.3
-
-```ts
-RANGE_ID: "range"
-```
-
-The "Range" partition option (numeric binning).
-
-## Enrich
-
-Enrichment passes over the open map.
-
-### enrich
-
-`unstable` · since v0.10.3
-
-```ts
-enrich(
-  selector: Selector,
-  props?: RunOpts & {
-    resolve?: boolean;
-  },
-): Promise<ProcedureOutcomes>
-```
-
-## Providers
-
-The providers the app registers for enrichment.
-
-### BUILTIN_PROVIDERS
-
-`unstable` · since v0.12.0
-
-```ts
-BUILTIN_PROVIDERS: readonly Provider<unknown, unknown>[]
-```
-
-The providers the app registers at startup.
-
-### enrichRuns
-
-`unstable` · since v0.10.3
-
-```ts
-enrichRuns(
-  enrichFields: string[] | null,
-  exclude?: string[],
-): ProviderRun[]
-```
-
-Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
-read. Fields not offered in the enrichment settings are always included.
-
-### exactDateProvider
-
-`unstable` · since v0.10.3
-
-```ts
-exactDateProvider: {
-  id: string;
-  /** Name shown in enrichment progress and results. */
-  label: string;
-  /** The procedure that computes this provider's fields. */
-  procedure: ProcedureSpec<unknown, unknown>;
-  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
-  fieldDefs: Record<string, FieldDef> | undefined;
-  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
-  defaultOff: boolean | undefined;
-  /** Core columns this provider writes (e.g. `panoId`). */
-  provides: string[] | undefined;
-  /** Fields this provider reads; it runs after their producers finish. */
-  requires: string[] | undefined;
-}
-```
-
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
-
-### headingRoadProvider
-
-`unstable` · since v0.12.0
-
-```ts
-headingRoadProvider: {
-  id: string;
-  /** Name shown in enrichment progress and results. */
-  label: string;
-  /** The procedure that computes this provider's fields. */
-  procedure: ProcedureSpec<unknown, HeadingRoadConfig>;
-  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
-  fieldDefs: Record<string, FieldDef> | undefined;
-  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
-  defaultOff: boolean | undefined;
-  /** Core columns this provider writes (e.g. `panoId`). */
-  provides: string[] | undefined;
-  /** Fields this provider reads; it runs after their producers finish. */
-  requires: string[] | undefined;
-}
-```
-
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
-
-### panoResolveProvider
-
-`unstable` · since v0.10.3
-
-```ts
-panoResolveProvider: {
-  id: string;
-  /** Name shown in enrichment progress and results. */
-  label: string;
-  /** The procedure that computes this provider's fields. */
-  procedure: ProcedureSpec<{ panoId: string }, PanoResolveConfig>;
-  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
-  fieldDefs: Record<string, FieldDef> | undefined;
-  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
-  defaultOff: boolean | undefined;
-  /** Core columns this provider writes (e.g. `panoId`). */
-  provides: string[] | undefined;
-  /** Fields this provider reads; it runs after their producers finish. */
-  requires: string[] | undefined;
-}
-```
-
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
-
-### subdivisionProvider
-
-`unstable` · since v0.10.3
-
-```ts
-subdivisionProvider: {
-  id: string;
-  /** Name shown in enrichment progress and results. */
-  label: string;
-  /** The procedure that computes this provider's fields. */
-  procedure: ProcedureSpec<unknown, unknown>;
-  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
-  fieldDefs: Record<string, FieldDef> | undefined;
-  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
-  defaultOff: boolean | undefined;
-  /** Core columns this provider writes (e.g. `panoId`). */
-  provides: string[] | undefined;
-  /** Fields this provider reads; it runs after their producers finish. */
-  requires: string[] | undefined;
-}
-```
-
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
-
-### svMetaProvider
-
-`unstable` · since v0.10.3
-
-```ts
-svMetaProvider: {
-  id: string;
-  /** Name shown in enrichment progress and results. */
-  label: string;
-  /** The procedure that computes this provider's fields. */
-  procedure: ProcedureSpec<unknown, unknown>;
-  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
-  fieldDefs: Record<string, FieldDef> | undefined;
-  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
-  defaultOff: boolean | undefined;
-  /** Core columns this provider writes (e.g. `panoId`). */
-  provides: string[] | undefined;
-  /** Fields this provider reads; it runs after their producers finish. */
-  requires: string[] | undefined;
-}
-```
-
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
-
-### timezoneProvider
-
-`unstable` · since v0.10.3
-
-```ts
-timezoneProvider: {
-  id: string;
-  /** Name shown in enrichment progress and results. */
-  label: string;
-  /** The procedure that computes this provider's fields. */
-  procedure: ProcedureSpec<unknown, unknown>;
-  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
-  fieldDefs: Record<string, FieldDef> | undefined;
-  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
-  defaultOff: boolean | undefined;
-  /** Core columns this provider writes (e.g. `panoId`). */
-  provides: string[] | undefined;
-  /** Fields this provider reads; it runs after their producers finish. */
-  requires: string[] | undefined;
-}
-```
-
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
-
-## PinPano
-
-Bulk pinning locations to their panoramas.
-
-### bulkPinToPano
-
-`unstable` · since v0.4.0
-
-```ts
-bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>
-```
-
-Pin every location in the selector to its pano id, resolving pano ids first when asked.
-
-## Validate
-
-Coverage validation passes.
-
-### validateLocations
-
-`unstable` · since v0.4.0
-
-```ts
-validateLocations(
-  selector: Selector,
-  opts?: BulkOpts & {
-    config?: Partial<ValidateConfig>;
-    categories?: readonly string[];
-  },
-): Promise<ValidationOutcome>
-```
-
-Check that each location's Street View coverage still exists, grouping the locations
-into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted).
-
-## ValidationCategories
-
-The validation categories users pick from, over the flags a check answers.
-
-### STANDARD_VALIDATION_CATEGORIES
-
-`unstable` · since v0.11.4
-
-```ts
-STANDARD_VALIDATION_CATEGORIES: string[]
-```
-
-### VALIDATION_CATEGORIES
-
-`unstable` · since v0.11.4
-
-```ts
-VALIDATION_CATEGORIES: readonly ValidationCategory[]
-```
-
-### validationCategory
-
-`unstable` · since v0.11.4
-
-```ts
-validationCategory(key: string): ValidationCategory | null
-```
-
-The category a key names, or null for one this version does not know.
-
-## ScenePositions
-
-Screen positions of the rendered markers.
-
-### getScenePositions
-
-`unstable` · since v0.9.0
-
-```ts
-getScenePositions(): {
-  ids: Uint32Array;
-  positions: Float32Array;
-}
-```
-
-Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
-
-## Color
-
-Color conversion helpers.
-
-### applyAccentColor
-
-`unstable` · since v0.10.3
-
-```ts
-applyAccentColor(hex: string): void
-```
-
-Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color.
-
-### colorForName
-
-`unstable` · since v0.10.3
-
-```ts
-colorForName(name: string): string
-```
-
-Deterministic tag color from a name.
-
-### hexToHsl
-
-`unstable` · since v0.10.3
-
-```ts
-hexToHsl(hex: string): HSL
-```
-
-Convert "#rrggbb" to HSL.
-
-### hexToRgb
-
-`unstable` · since v0.10.3
-
-```ts
-hexToRgb(hex: string): RGB
-```
-
-Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex.
-
-### hslToHex
-
-`unstable` · since v0.10.3
-
-```ts
-hslToHex(props: HSL): string
-```
-
-Convert HSL to "#rrggbb".
-
-### hslToRgb
-
-`unstable` · since v0.10.3
-
-```ts
-hslToRgb(h: number, s: number, l: number): RGB
-```
-
-Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple.
-
-### labelColor
-
-`unstable` · since v0.10.3
-
-```ts
-labelColor(name: string, overrides: Record<string, string>): string
-```
-
-A label's color: a user override if set, else a deterministic color from its name.
-
-### resolveSvColorHex
-
-`unstable` · since v0.10.3
-
-```ts
-resolveSvColorHex(color: string): string
-```
-
-Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
-ramp name (legacy stored format).
-
-### rgbCss
-
-`unstable` · since v0.10.3
-
-```ts
-rgbCss(props: RGB): string
-```
-
-Format an RGB tuple as a CSS `rgb(r, g, b)` string.
-
-### rgbToHex
-
-`unstable` · since v0.10.3
-
-```ts
-rgbToHex(rgb: RGB): string
-```
-
-Convert an RGB byte tuple to "#rrggbb".
-
-### textColorFor
-
-`unstable` · since v0.10.3
-
-```ts
-textColorFor(bg: string): string
-```
-
-Return "#000" or "#fff" for readable text on the given hex background.
-
-## Jobs
-
-The global job tray.
-
-### cancelJobs
-
-`unstable` · since v0.10.7
-
-```ts
-cancelJobs(scope: JobScope): void
-```
-
-Cancel every live job of `scope` that can be cancelled. Owners observe their own
-abort and end their jobs; entries without a cancel are removed outright.
-
-### confirmMapExit
-
-`unstable` · since v0.10.7
-
-```ts
-confirmMapExit(kind: MapExitKind): Promise<boolean>
-```
-
-Gate a user action that would end every map-scoped job. Resolves true immediately when
-none are live; otherwise raises the confirm dialog, and true means the jobs were
-cancelled and the action should proceed.
-
-### getExitRequest
-
-`unstable` · since v0.10.7
-
-```ts
-getExitRequest(): {
-  kind: MapExitKind;
-} | null
-```
-
-The pending map-exit confirmation, for the dialog.
-
-### getJobs
-
-`unstable` · since v0.10.7
-
-```ts
-getJobs(): JobEntry[]
-```
-
-Live jobs, for the tray. Reference changes on every update.
-
-### registerJob
-
-`unstable` · since v0.10.7
-
-```ts
-registerJob(label: string, opts?: JobOpts): JobHandle
-```
-
-Register a long-running operation with the global job tray. The caller owns the
-work; the registry owns only its presentation and the cancel/reveal controls.
-
-### resolveMapExit
-
-`unstable` · since v0.10.7
-
-```ts
-resolveMapExit(ok: boolean): void
-```
-
-Answer the pending map-exit confirmation.
-
-### runJob
-
-`unstable` · since v0.10.7
-
-```ts
-runJob<R>(
-  label: string,
-  fn: (ctx: JobRunContext) => Promise<R>,
-  opts?: Omit<JobOpts, "cancel">,
-): Promise<Settled<R>>
-```
-
-Sugar for promise-shaped work: registers a job wired to an AbortController, reports
-through the handle, ends the job however `fn` settles, and resolves to how it settled.
-A failure also toasts.
-
-## Test
-
-### _test
-
-`unstable` · since v0.6.1
-
-The nested `_test` namespace on the plugin surface.
-
-#### _test.closeMap
-
-`unstable` · since v0.6.1
-
-```ts
-_test.closeMap(): Promise<void>
-```
-
-Close the current map and return to the map list.
-
-#### _test.deleteMap
-
-`unstable` · since v0.6.1
-
-```ts
-_test.deleteMap(id: string): Promise<void>
-```
-
-Delete a map by id.
-
-#### _test.importFile
-
-`unstable` · since v0.6.1
-
-```ts
-_test.importFile(
-  droppedFields: string[],
-  tagNames?: string[],
-): Promise<EditorImportResult>
-```
-
-Import a previewed file, optionally assigning tags.
-
-#### _test.importPaste
-
-`unstable` · since v0.6.1
-
-```ts
-_test.importPaste(text: string): Promise<EditorImportResult[]>
-```
-
-Import locations from pasted text and commit them to the map.
-
-#### _test.mapOpen
-
-`unstable` · since v0.11.0
-
-```ts
-_test.mapOpen: {
-  start: number;
-  seen: Set<string>;
-  begin(): void;
-  mark(phase: string): void;
-}
-```
-
-Cross-module stopwatch for map-open latency.
-
-#### _test.openMap
-
-`unstable` · since v0.6.1
-
-```ts
-_test.openMap(id: string): Promise<void>
-```
-
-Open a map by id and navigate to it.
-
-#### _test.syncSelections
-
-`unstable` · since v0.8.2
-
-```ts
-_test.syncSelections(): Promise<{
-  ids: number[];
-}>
-```
-
-Force a full selection re-resolve and return the selected IDs.
-
-## Util
-
-General-purpose helpers.
-
-### bestBy
-
-`unstable` · since v0.10.3
-
-```ts
-bestBy<T>(
-  items: Iterable<T>,
-  isBetter: (a: T, b: T) => boolean,
-): T | null
-```
-
-The item `isBetter` prefers over every other, or null when there are none.
-
-### chunk
-
-`unstable` · since v0.10.3
-
-```ts
-chunk<T>(arr: readonly T[], n: number): T[][]
-```
-
-Split `arr` into sub-arrays of at most `n` elements.
-
-### cmpVersion
-
-`unstable` · since v0.10.3
-
-```ts
-cmpVersion(a: string, b: string): number
-```
-
-Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
-Build metadata is ignored; a pre-release sorts below the release it precedes.
-
-### compareNatural
-
-`unstable` · since v0.10.3
-
-```ts
-compareNatural(a: string, b: string): number
-```
-
-Compare strings with natural (numeric-aware) ordering.
-
-### copyImageToClipboard
-
-`unstable` · since v0.10.3
-
-```ts
-copyImageToClipboard(blob: Blob): Promise<boolean>
-```
-
-Copy an image Blob to the clipboard. False when the platform refuses it.
-
-### downloadBlob
-
-`unstable` · since v0.10.3
-
-```ts
-downloadBlob(blob: Blob, fileName: string): void
-```
-
-Trigger a browser download from an in-memory Blob.
-
-### isPrereleaseVersion
-
-`unstable` · since v0.10.3
-
-```ts
-isPrereleaseVersion(v: string): boolean
-```
-
-True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1".
-
-### isWeb
-
-`unstable` · since v0.10.3
-
-```ts
-isWeb(): boolean
-```
-
-True when the app runs in a browser instead of the desktop app.
-
-### mmaBufUrl
-
-`unstable` · since v0.5.0
-
-```ts
-mmaBufUrl(path: string): string
-```
-
-URL that serves a local file over the `mma-buf://` protocol.
-
-### nowUnix
-
-`unstable` · since v0.10.3
-
-```ts
-nowUnix(): number
-```
-
-Current time as Unix seconds, the form Location timestamps use.
-
-### phaseRate
-
-`unstable` · since v0.10.4
-
-```ts
-phaseRate(
-  prev: PhaseRate | null,
-  done: number,
-  total: number,
-  now: number,
-): {
-  state: PhaseRate;
-  rate: number | null;
-}
-```
-
-Compute a locations/second rate for the current progress phase. Re-anchors when a
-new phase is detected (done went backward or total grew). Null until a quarter second
-of work has elapsed.
-
-### pickFiles
-
-`unstable` · since v0.11.4
-
-```ts
-pickFiles(
-  accept: string,
-  opts?: {
-    multiple?: boolean;
-  },
-): Promise<File[]>
-```
-
-Prompt for files; resolves empty when the picker is dismissed.
-
-### schemeBase
-
-`unstable` · since v0.10.3
-
-```ts
-schemeBase(scheme: string): string
-```
-
-Base URL for a custom URI scheme, platform-adjusted.
-
-### shuffle
-
-`unstable` · since v0.11.0
-
-```ts
-shuffle<T>(items: T[]): T[]
-```
-
-Shuffle `items` in place (Fisher-Yates) and return them.
-
-### splitVersion
-
-`unstable` · since v0.10.3
-
-```ts
-splitVersion(v: string): [core: string, pre: string]
-```
-
-`["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent.
-
-### toggleInSet
-
-`unstable` · since v0.10.3
-
-```ts
-toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>
-```
-
-Copy of `set` with `value` toggled, or forced on/off by `on`.
-
-## Layer
-
-### Layer
-
-`unstable` · since v0.12.0
-
-Pending layers: staged edits that land on the map as one undo step.
-
-#### Layer.open
-
-`unstable` · since v0.12.0
-
-```ts
-Layer.open(edits?: LocationEdits): Promise<Layer>
-```
-
-Create a layer and stage its first edits.
-
-## SelectionList
-
-### SelectionList
-
-`unstable` · since v0.12.0
-
-Change the listed selections and inspect their active members.
-
-#### SelectionList.active
-
-`unstable` · since v0.12.0
-
-```ts
-SelectionList.active(): Selection[]
-```
-
-Listed selections that are not ghosted.
-
-#### SelectionList.listed
-
-`unstable` · since v0.12.1
-
-```ts
-SelectionList.listed(): ListedSelection[]
-```
-
-The listed selections, in list order.
-
-#### SelectionList.run
-
-`unstable` · since v0.12.0
-
-```ts
-SelectionList.run(write: () => Promise<Mutation>): Promise<void>
-```
-
-Run a mutation that may change the listed selections, and announce the change when it
-does.
-
-#### SelectionList.select
-
-`unstable` · since v0.12.0
-
-```ts
-SelectionList.select<
-  R extends
-    | number[]
-    | {
-        ids: number[];
-      },
->(
-  pick: (selector: Selector) => Promise<R>,
-  perSelection?: boolean,
-): Promise<{
-  picked: number;
-  results: R[];
-}>
-```
-
-#### SelectionList.tagIds
-
-`unstable` · since v0.12.0
-
-```ts
-SelectionList.tagIds(): ReadonlySet<number>
-```
-
-Tag ids with a top-level listed tag selection, including ghosted selections.
-
-#### SelectionList.tagIdsDeep
-
-`unstable` · since v0.12.0
-
-```ts
-SelectionList.tagIdsDeep(): readonly number[]
-```
-
-Tag ids from active selection leaves, including repeated ids and composite children.
-
-#### SelectionList.update
-
-`unstable` · since v0.12.0
-
-```ts
-SelectionList.update(op: SelectionOp): Promise<void>
-```
-
-Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections.
-
-## CommitDiff
+## Commit diff
 
 ### CommitDiff
 
@@ -8493,305 +6484,60 @@ CommitDiff.use(): Counts
 
 React hook: the uncommitted add/remove/modify counts.
 
-## Import
+## Enrich
 
-### Import
+### enrich
 
-`unstable` · since v0.12.0
-
-Stage, preview, and confirm an import into the open map.
-
-#### Import.cancel
-
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Import.cancel(): void
+enrich(
+  selector: Selector,
+  props?: RunOpts & {
+    resolve?: boolean;
+  },
+): Promise<ProcedureOutcomes>
 ```
 
-Discard the staged import without committing.
+## Field projections
 
-#### Import.confirm
+### partitionKeyOptions
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Import.confirm(
-  droppedFields: string[],
-  tagNames?: string[],
-  droppedTags?: string[],
-): Promise<EditorImportResult | null>
+partitionKeyOptions(
+  type: FieldType,
+  rangeForDates: boolean,
+): {
+  id: string;
+  label: string;
+}[]
 ```
 
-Import the staged file, dropping chosen fields and tags and applying bulk tags.
+Partition-key dropdown options for a field type.
 
-#### Import.fromPath
+### projectionsForType
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Import.fromPath(path: string): Promise<void>
+projectionsForType(type: FieldType): FieldProjection[]
 ```
 
-Import from a file path.
+Projections valid for a field type, in display order (first = dialog default).
 
-#### Import.paste
+### RANGE_ID
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Import.paste(text: string): Promise<void>
+RANGE_ID: "range"
 ```
 
-Stage pasted text for preview. Throws if no locations are found.
+The "Range" partition option (numeric binning).
 
-#### Import.previewPositions
-
-`unstable` · since v0.12.0
-
-```ts
-Import.previewPositions(): Float32Array<ArrayBufferLike>
-```
-
-The preview marker positions for the staged import.
-
-#### Import.reset
-
-`unstable` · since v0.12.0
-
-```ts
-Import.reset(): void
-```
-
-Discard the staged import and its pending layer.
-
-#### Import.staging
-
-`unstable` · since v0.12.0
-
-```ts
-Import.staging(): ImportStaging | null
-```
-
-The current staged import, or null if none.
-
-## SavedSelection
-
-### SavedSelection
-
-`unstable` · since v0.12.0
-
-Saved selection rules.
-
-#### SavedSelection.apply
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.apply(saved: SavedSelection): number
-```
-
-Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
-were added.
-
-#### SavedSelection.index
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.index(): SavedSelectionInfo[]
-```
-
-The rules that exist, as identity only. Empty until the index loads: the first
-call starts the read and `saved-selections:changed` announces it.
-
-#### SavedSelection.isSaveable
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.isSaveable(selector: Selector): boolean
-```
-
-Whether the selector tree contains only portable types (no map-local leaves).
-
-#### SavedSelection.load
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.load(ids: string[]): Promise<SavedSelection[]>
-```
-
-Load the full rule bodies for the given `ids`.
-
-#### SavedSelection.loadAll
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.loadAll(): Promise<SavedSelection[]>
-```
-
-Every rule with its body.
-
-#### SavedSelection.MAP_LOCAL_TYPES
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.MAP_LOCAL_TYPES: readonly [
-  "Locations",
-  "Manual",
-  "Validation",
-  "Reviewed",
-  "Selected",
-]
-```
-
-Selection types that cannot be saved as rules because they are bound to the open map.
-
-#### SavedSelection.parts
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.parts(saved: SavedSelection): SavedPart[]
-```
-
-A rule's parts: its top-level `Union` is the list it was saved from, anything else is
-a single part.
-
-#### SavedSelection.remove
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.remove(id: string): Promise<void>
-```
-
-Permanently delete a saved selection rule.
-
-#### SavedSelection.save
-
-`unstable` · since v0.12.0
-
-```ts
-SavedSelection.save(name: string, selections: Selection[]): Promise<boolean>
-```
-
-Persists the saveable selections as one rule. False when none of them are saveable.
-
-## Scene
-
-### Scene
-
-`unstable` · since v0.12.0
-
-The marker scene the map surfaces render from, and its load lifecycle.
-
-#### Scene.clear
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.clear(): void
-```
-
-Clear all marker data from the scene and stop following the map.
-
-#### Scene.defaultColor
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.defaultColor(): RGBA
-```
-
-Current default marker color as RGBA.
-
-#### Scene.get
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.get(): CellManager
-```
-
-The shared scene that all map surfaces render from.
-
-#### Scene.load
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.load(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>
-```
-
-Load the whole scene again and follow every change to it from there.
-
-#### Scene.reached
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.reached(version: number): Promise<FrameSummary>
-```
-
-Resolves once the scene has applied the frame for map version `version`, with what that
-frame did. Resolves at once, with nothing applied, when the scene follows no map.
-
-#### Scene.recolor
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.recolor(mc: RGB): void
-```
-
-Change the default marker color and repaint.
-
-#### Scene.selected
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.selected(): SelectedIds
-```
-
-The ids of the locations the listed selections select.
-
-#### Scene.setDefaultColor
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.setDefaultColor(r: number, g: number, b: number): void
-```
-
-Set the default marker color (RGB bytes).
-
-#### Scene.settled
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.settled(): Promise<void>
-```
-
-Resolves when the most recently started full scene load has finished (or immediately if none is in flight).
-
-#### Scene.useSelected
-
-`unstable` · since v0.12.0
-
-```ts
-Scene.useSelected(): SelectedIds
-```
-
-Reactive Scene.selected.
-
-## MapHost
+## Host
 
 ### MapHost
 
@@ -8918,414 +6664,285 @@ MapHost.wait(): Promise<MapHost>
 
 Wait for the main editor map to be ready.
 
-## Review
+## Import
 
-### Review
-
-`unstable` · since v0.12.0
-
-Review sessions and their history.
-
-#### Review.advance
+### Import
 
 `unstable` · since v0.12.0
 
-```ts
-Review.advance(s: ReviewSession): {
-  session: ReviewSession;
-  done: boolean;
-}
-```
+Stage, preview, and confirm an import into the open map.
 
-Mark the current cursor reviewed and step forward. `done` is true when the
-session has no remaining items.
-
-#### Review.appendNewMatches
-
-`unstable` · since v0.12.2
-
-```ts
-Review.appendNewMatches(): Promise<void>
-```
-
-Append the new matches to the end of the worklist, in the map's review order.
-
-#### Review.begin
+#### Import.cancel
 
 `unstable` · since v0.12.0
 
 ```ts
-Review.begin(ids: number[], source?: Selection): Promise<void>
+Import.cancel(): void
 ```
 
-Start or resume a review over `ids`. When `source` is a selection, re-reviewing
-that selection resumes any in-progress session for it.
+Discard the staged import without committing.
 
-#### Review.beginSelected
+#### Import.confirm
 
 `unstable` · since v0.12.0
 
 ```ts
-Review.beginSelected(): Promise<void>
+Import.confirm(
+  droppedFields: string[],
+  tagNames?: string[],
+  droppedTags?: string[],
+): Promise<EditorImportResult | null>
 ```
 
-Review the selected locations. With one active selection, the review belongs to it and
-resumes with it.
+Import the staged file, dropping chosen fields and tags and applying bulk tags.
 
-#### Review.cancel
+#### Import.fromPath
 
 `unstable` · since v0.12.0
 
 ```ts
-Review.cancel(): void
+Import.fromPath(path: string): Promise<void>
 ```
 
-Exit the review UI but keep the session resumable (persisted as active).
+Import from a file path.
 
-#### Review.deleteCurrent
+#### Import.paste
 
 `unstable` · since v0.12.0
 
 ```ts
-Review.deleteCurrent(): Promise<void>
+Import.paste(text: string): Promise<void>
 ```
 
-Delete the current location and advance to the next one. Exits the pass if it
-was the last item.
+Stage pasted text for preview. Throws if no locations are found.
 
-#### Review.ids
+#### Import.previewPositions
 
 `unstable` · since v0.12.0
 
 ```ts
-Review.ids(s: ReviewSession, mode: ReviewMode): number[]
+Import.previewPositions(): Float32Array<ArrayBufferLike>
 ```
 
-The session's locations in `mode`: those reviewed, or those still to review.
+The preview marker positions for the staged import.
 
-#### Review.index
+#### Import.reset
 
 `unstable` · since v0.12.0
 
 ```ts
-Review.index(s: ReviewSession): number
+Import.reset(): void
 ```
 
-Position of the session cursor within its review order.
+Discard the staged import and its pending layer.
 
-#### Review.isAtEnd
+#### Import.staging
 
 `unstable` · since v0.12.0
 
 ```ts
-Review.isAtEnd(s: ReviewSession): boolean
+Import.staging(): ImportStaging | null
 ```
 
-True when the cursor is on the session's last location.
+The current staged import, or null if none.
 
-#### Review.isAtStart
+## Jobs
+
+### cancelJobs
+
+`unstable` · since v0.10.7
+
+```ts
+cancelJobs(scope: JobScope): void
+```
+
+Cancel every live job of `scope` that can be cancelled. Owners observe their own
+abort and end their jobs; entries without a cancel are removed outright.
+
+### confirmMapExit
+
+`unstable` · since v0.10.7
+
+```ts
+confirmMapExit(kind: MapExitKind): Promise<boolean>
+```
+
+Gate a user action that would end every map-scoped job. Resolves true immediately when
+none are live; otherwise raises the confirm dialog, and true means the jobs were
+cancelled and the action should proceed.
+
+### getExitRequest
+
+`unstable` · since v0.10.7
+
+```ts
+getExitRequest(): {
+  kind: MapExitKind;
+} | null
+```
+
+The pending map-exit confirmation, for the dialog.
+
+### getJobs
+
+`unstable` · since v0.10.7
+
+```ts
+getJobs(): JobEntry[]
+```
+
+Live jobs, for the tray. Reference changes on every update.
+
+### registerJob
+
+`unstable` · since v0.10.7
+
+```ts
+registerJob(label: string, opts?: JobOpts): JobHandle
+```
+
+Register a long-running operation with the global job tray. The caller owns the
+work; the registry owns only its presentation and the cancel/reveal controls.
+
+### resolveMapExit
+
+`unstable` · since v0.10.7
+
+```ts
+resolveMapExit(ok: boolean): void
+```
+
+Answer the pending map-exit confirmation.
+
+### runJob
+
+`unstable` · since v0.10.7
+
+```ts
+runJob<R>(
+  label: string,
+  fn: (ctx: JobRunContext) => Promise<R>,
+  opts?: Omit<JobOpts, "cancel">,
+): Promise<Settled<R>>
+```
+
+Sugar for promise-shaped work: registers a job wired to an AbortController, reports
+through the handle, ends the job however `fn` settles, and resolves to how it settled.
+A failure also toasts.
+
+## Layer
+
+### Layer
+
+`unstable` · since v0.12.0
+
+A pending layer. Operations run in order; work still writing to a landed layer outlives close.
+
+#### Layer.open
 
 `unstable` · since v0.12.0
 
 ```ts
-Review.isAtStart(s: ReviewSession): boolean
+Layer.open(edits?: LocationEdits): Promise<Layer>
 ```
 
-True when the cursor is on the session's first location.
+Create a layer and stage its first edits.
 
-#### Review.isCurrentReviewed
+## Marketplace
 
-`unstable` · since v0.12.0
+### autoUpdatePlugin
+
+`unstable` · since v0.10.3
 
 ```ts
-Review.isCurrentReviewed(s: ReviewSession): boolean
+autoUpdatePlugin(
+  m: PluginManifest,
+  latest: PluginManifest | undefined,
+  appVersion: string,
+): Promise<PluginManifest>
 ```
 
-Current cursor location is in the reviewed set.
+Auto-update a plugin to the newest compatible build before loading it. Falls back
+to what is on disk on failure.
 
-#### Review.next
+### fetchPluginRegistry
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Review.next(): Promise<void>
+fetchPluginRegistry(): Promise<PluginManifest[]>
 ```
 
-Mark the current location reviewed and step to the next one.
+Fetch the marketplace plugin registry. Later calls return the first result until restart.
 
-#### Review.positionOf
+### isPluginCompatible
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Review.positionOf(s: ReviewSession, id: number): number
+isPluginCompatible(
+  minAppVersion: string | null | undefined,
+  appVersion: string,
+): boolean
 ```
 
-Position of `id` in the session's worklist, or -1. O(1) per step.
+True when `appVersion` meets the plugin's minimum version requirement.
 
-#### Review.prev
+### isPluginUpdatable
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Review.prev(): Promise<void>
+isPluginUpdatable(
+  installedVersion: string | undefined,
+  latestVersion: string | undefined,
+): boolean
 ```
 
-Step back to the previous location in the session.
+True when a newer version is published and the installed version is known.
 
-#### Review.prune
+### needsBuildUpdate
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Review.prune(s: ReviewSession, removed: Set<number>): PruneResult
+needsBuildUpdate(
+  installedVersion: string | undefined,
+  target: ResolvedBuild,
+  installedSidecarVersion: string | null | undefined,
+): boolean
 ```
 
-Remove `removed` ids from a session's worklist and reviewed set. Advances the
-cursor when the cursor id itself was removed.
+True when the installed plugin or its sidecar should be refreshed to `target`.
 
-#### Review.removeSession
+### needsUpdate
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Review.removeSession(id: string): Promise<void>
+needsUpdate(
+  installedVersion: string | undefined,
+  latestVersion: string | undefined,
+  installedSidecarVersion: string | null | undefined,
+  latestSidecarVersion: string | undefined,
+): boolean
 ```
 
-Delete a review session (its progress, not the locations).
+True when either the plugin or its sidecar has a newer published version.
 
-#### Review.rename
+### resolveBuild
 
-`unstable` · since v0.12.0
+`unstable` · since v0.10.3
 
 ```ts
-Review.rename(id: string, name: string): Promise<void>
+resolveBuild(
+  entry: PluginManifest,
+  appVersion: string,
+): ResolvedBuild | null
 ```
 
-Rename a review session.
-
-#### Review.resume
-
-`unstable` · since v0.12.0
-
-```ts
-Review.resume(s: ReviewSession, currentMatches?: number[]): Promise<void>
-```
-
-Make a saved session the active one, dropping locations that no longer exist. Given
-the selection's current matches, any its worklist lacks are offered as new matches.
-
-#### Review.retreat
-
-`unstable` · since v0.12.0
-
-```ts
-Review.retreat(s: ReviewSession): ReviewSession | null
-```
-
-Step backward without marking anything reviewed. Null when already at the start.
-
-#### Review.reviewedIds
-
-`unstable` · since v0.12.0
-
-```ts
-Review.reviewedIds(sessions: ReviewSession[]): number[]
-```
-
-Union of reviewed ids across sessions, de-duplicated.
-
-#### Review.selector
-
-`unstable` · since v0.12.0
-
-```ts
-Review.selector(s: ReviewSession, mode: ReviewMode): Selector
-```
-
-The locations of review session `s` that are reviewed, or still to review.
-
-#### Review.selectReviewed
-
-`unstable` · since v0.12.0
-
-```ts
-Review.selectReviewed(): Promise<void>
-```
-
-Select every location marked reviewed across all sessions on this map.
-
-#### Review.session
-
-`unstable` · since v0.12.0
-
-```ts
-Review.session(): ReviewSession | null
-```
-
-The active review session, or null.
-
-#### Review.sessions
-
-`unstable` · since v0.12.0
-
-```ts
-Review.sessions(status?: "active" | "done"): Promise<ReviewSession[]>
-```
-
-Review sessions for the open map, optionally filtered by status.
-
-#### Review.useNewMatches
-
-`unstable` · since v0.12.2
-
-```ts
-Review.useNewMatches(): number[]
-```
-
-Reactive new matches of the active session's selection, not yet in its worklist.
-
-#### Review.useSession
-
-`unstable` · since v0.12.0
-
-```ts
-Review.useSession(): ReviewSession | null
-```
-
-Reactive active review session, or null.
-
-## Seen
-
-### Seen
-
-`unstable` · since v0.12.0
-
-The seen-location history and how panorama visits are recorded into it.
-
-#### Seen.clear
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.clear(): Promise<void>
-```
-
-Delete the entire seen history. Not undoable.
-
-#### Seen.countries
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.countries(): Promise<string[]>
-```
-
-Distinct country codes that appear in the seen history.
-
-#### Seen.flush
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.flush(viewer: PanoViewer): void
-```
-
-Write the pending seen entry to disk, if any.
-
-#### Seen.list
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.list(
-  limit?: number,
-  offset?: number,
-  filter?: SeenFilter,
-  thumbnails?: boolean,
-): Promise<SeenPage>
-```
-
-A page of the seen (visited-panorama) history and how many entries match the filter.
-
-#### Seen.loadPano
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.loadPano(entry: SeenPano, viewer: PanoViewer): Promise<void>
-```
-
-Open a seen entry's panorama in the Street View viewer.
-
-#### Seen.maps
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.maps(): Promise<SeenMapInfo[]>
-```
-
-Maps that have seen-history entries.
-
-#### Seen.onMap
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.onMap(
-  list: readonly Pick<SeenPano, "locationId" | "panoId">[],
-): Promise<(Location | null)[]>
-```
-
-The map location each entry was seen at, while it still shows the entry's pano; null otherwise.
-
-#### Seen.panoChanged
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.panoChanged(
-  location: PendingEntryLocation,
-  geo: GeoDisplay | null,
-  viewer: PanoViewer,
-): void
-```
-
-Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
-
-#### Seen.record
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.record(
-  location: PendingEntryLocation & LocationPOV,
-  viewer: PanoViewer,
-): Promise<void>
-```
-
-Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives.
-
-#### Seen.skipNext
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.skipNext(panoId: string): void
-```
-
-Suppress the next seen-history entry for `panoId`.
-
-#### Seen.updateGeo
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.updateGeo(geo: GeoDisplay): void
-```
-
-Update the pending seen entry's geocode info (country, address).
+The newest build of a plugin this app version can run. Falls back through older
+pinned builds when the latest is incompatible. Null when none fit.
 
 ## Pano
 
@@ -9333,7 +6950,8 @@ Update the pending seen entry's geocode info (country, address).
 
 `unstable` · since v0.12.0
 
-The shared panorama viewer.
+A decoded Street View panorama: flat data with no live objects.
+The app's default pano viewer.
 
 #### Pano.canvas
 
@@ -9699,3 +7317,2360 @@ Pano.zoomOut(): void
 ```
 
 Step the zoom out.
+
+## Pin pano
+
+### bulkPinToPano
+
+`unstable` · since v0.4.0
+
+```ts
+bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>
+```
+
+Pin every location in the selector to its pano id, resolving pano ids first when asked.
+
+## Plugin host
+
+### activatePlugin
+
+`unstable` · since v0.10.3
+
+```ts
+activatePlugin(id: string): void
+```
+
+Activate a single plugin by id.
+
+### activatePlugins
+
+`unstable` · since v0.10.3
+
+```ts
+activatePlugins(): void
+```
+
+Activate all enabled plugins. Called when a map opens.
+
+### deactivatePlugin
+
+`unstable` · since v0.10.3
+
+```ts
+deactivatePlugin(id: string): void
+```
+
+Deactivate a single plugin and stop its sidecar.
+
+### deactivatePlugins
+
+`unstable` · since v0.10.3
+
+```ts
+deactivatePlugins(): void
+```
+
+Deactivate all plugins and stop their sidecars. Called when a map closes.
+
+### getEnabledPlugins
+
+`unstable` · since v0.10.3
+
+```ts
+getEnabledPlugins(): Plugin[]
+```
+
+All registered plugins the user has enabled.
+
+### isPluginEnabled
+
+`unstable` · since v0.10.3
+
+```ts
+isPluginEnabled(id: string): boolean
+```
+
+True when the plugin is enabled by the user.
+
+### isReady
+
+`unstable` · since v0.10.3
+
+```ts
+isReady(): boolean
+```
+
+True once the MMA surface is installed and plugins are safe to call it.
+
+### markReady
+
+`unstable` · since v0.10.3
+
+```ts
+markReady(): void
+```
+
+Mark the plugin surface as ready.
+
+### setPluginEnabled
+
+`unstable` · since v0.10.3
+
+```ts
+setPluginEnabled(id: string, enabled: boolean): void
+```
+
+Enable or disable a plugin.
+
+## Providers
+
+### BUILTIN_PROVIDERS
+
+`unstable` · since v0.12.0
+
+```ts
+BUILTIN_PROVIDERS: readonly Provider<unknown, unknown>[]
+```
+
+The providers the app registers at startup.
+
+### enrichRuns
+
+`unstable` · since v0.10.3
+
+```ts
+enrichRuns(
+  enrichFields: string[] | null,
+  exclude?: string[],
+): ProviderRun[]
+```
+
+Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
+read. Fields not offered in the enrichment settings are always included.
+
+### exactDateProvider
+
+`unstable` · since v0.10.3
+
+```ts
+exactDateProvider: {
+  id: string;
+  /** Name shown in enrichment progress and results. */
+  label: string;
+  /** The procedure that computes this provider's fields. */
+  procedure: ProcedureSpec<unknown, unknown>;
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
+  fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
+  /** Core columns this provider writes (e.g. `panoId`). */
+  provides: string[] | undefined;
+  /** Fields this provider reads; it runs after their producers finish. */
+  requires: string[] | undefined;
+}
+```
+
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+
+### headingRoadProvider
+
+`unstable` · since v0.12.0
+
+```ts
+headingRoadProvider: {
+  id: string;
+  /** Name shown in enrichment progress and results. */
+  label: string;
+  /** The procedure that computes this provider's fields. */
+  procedure: ProcedureSpec<unknown, HeadingRoadConfig>;
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
+  fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
+  /** Core columns this provider writes (e.g. `panoId`). */
+  provides: string[] | undefined;
+  /** Fields this provider reads; it runs after their producers finish. */
+  requires: string[] | undefined;
+}
+```
+
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+
+### panoResolveProvider
+
+`unstable` · since v0.10.3
+
+```ts
+panoResolveProvider: {
+  id: string;
+  /** Name shown in enrichment progress and results. */
+  label: string;
+  /** The procedure that computes this provider's fields. */
+  procedure: ProcedureSpec<{ panoId: string }, PanoResolveConfig>;
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
+  fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
+  /** Core columns this provider writes (e.g. `panoId`). */
+  provides: string[] | undefined;
+  /** Fields this provider reads; it runs after their producers finish. */
+  requires: string[] | undefined;
+}
+```
+
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+
+### subdivisionProvider
+
+`unstable` · since v0.10.3
+
+```ts
+subdivisionProvider: {
+  id: string;
+  /** Name shown in enrichment progress and results. */
+  label: string;
+  /** The procedure that computes this provider's fields. */
+  procedure: ProcedureSpec<unknown, unknown>;
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
+  fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
+  /** Core columns this provider writes (e.g. `panoId`). */
+  provides: string[] | undefined;
+  /** Fields this provider reads; it runs after their producers finish. */
+  requires: string[] | undefined;
+}
+```
+
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+
+### svMetaProvider
+
+`unstable` · since v0.10.3
+
+```ts
+svMetaProvider: {
+  id: string;
+  /** Name shown in enrichment progress and results. */
+  label: string;
+  /** The procedure that computes this provider's fields. */
+  procedure: ProcedureSpec<unknown, unknown>;
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
+  fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
+  /** Core columns this provider writes (e.g. `panoId`). */
+  provides: string[] | undefined;
+  /** Fields this provider reads; it runs after their producers finish. */
+  requires: string[] | undefined;
+}
+```
+
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+
+### timezoneProvider
+
+`unstable` · since v0.10.3
+
+```ts
+timezoneProvider: {
+  id: string;
+  /** Name shown in enrichment progress and results. */
+  label: string;
+  /** The procedure that computes this provider's fields. */
+  procedure: ProcedureSpec<unknown, unknown>;
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
+  fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
+  /** Core columns this provider writes (e.g. `panoId`). */
+  provides: string[] | undefined;
+  /** Fields this provider reads; it runs after their producers finish. */
+  requires: string[] | undefined;
+}
+```
+
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+
+## Review
+
+### Review
+
+`unstable` · since v0.12.0
+
+Review sessions and their history.
+
+#### Review.advance
+
+`unstable` · since v0.12.0
+
+```ts
+Review.advance(s: ReviewSession): {
+  session: ReviewSession;
+  done: boolean;
+}
+```
+
+Mark the current cursor reviewed and step forward. `done` is true when the
+session has no remaining items.
+
+#### Review.appendNewMatches
+
+`unstable` · since v0.12.2
+
+```ts
+Review.appendNewMatches(): Promise<void>
+```
+
+Append the new matches to the end of the worklist, in the map's review order.
+
+#### Review.begin
+
+`unstable` · since v0.12.0
+
+```ts
+Review.begin(ids: number[], source?: Selection): Promise<void>
+```
+
+Start or resume a review over `ids`. When `source` is a selection, re-reviewing
+that selection resumes any in-progress session for it.
+
+#### Review.beginSelected
+
+`unstable` · since v0.12.0
+
+```ts
+Review.beginSelected(): Promise<void>
+```
+
+Review the selected locations. With one active selection, the review belongs to it and
+resumes with it.
+
+#### Review.cancel
+
+`unstable` · since v0.12.0
+
+```ts
+Review.cancel(): void
+```
+
+Exit the review UI but keep the session resumable (persisted as active).
+
+#### Review.deleteCurrent
+
+`unstable` · since v0.12.0
+
+```ts
+Review.deleteCurrent(): Promise<void>
+```
+
+Delete the current location and advance to the next one. Exits the pass if it
+was the last item.
+
+#### Review.ids
+
+`unstable` · since v0.12.0
+
+```ts
+Review.ids(s: ReviewSession, mode: ReviewMode): number[]
+```
+
+The session's locations in `mode`: those reviewed, or those still to review.
+
+#### Review.index
+
+`unstable` · since v0.12.0
+
+```ts
+Review.index(s: ReviewSession): number
+```
+
+Position of the session cursor within its review order.
+
+#### Review.isAtEnd
+
+`unstable` · since v0.12.0
+
+```ts
+Review.isAtEnd(s: ReviewSession): boolean
+```
+
+True when the cursor is on the session's last location.
+
+#### Review.isAtStart
+
+`unstable` · since v0.12.0
+
+```ts
+Review.isAtStart(s: ReviewSession): boolean
+```
+
+True when the cursor is on the session's first location.
+
+#### Review.isCurrentReviewed
+
+`unstable` · since v0.12.0
+
+```ts
+Review.isCurrentReviewed(s: ReviewSession): boolean
+```
+
+Current cursor location is in the reviewed set.
+
+#### Review.next
+
+`unstable` · since v0.12.0
+
+```ts
+Review.next(): Promise<void>
+```
+
+Mark the current location reviewed and step to the next one.
+
+#### Review.positionOf
+
+`unstable` · since v0.12.0
+
+```ts
+Review.positionOf(s: ReviewSession, id: number): number
+```
+
+Position of `id` in the session's worklist, or -1. O(1) per step.
+
+#### Review.prev
+
+`unstable` · since v0.12.0
+
+```ts
+Review.prev(): Promise<void>
+```
+
+Step back to the previous location in the session.
+
+#### Review.prune
+
+`unstable` · since v0.12.0
+
+```ts
+Review.prune(s: ReviewSession, removed: Set<number>): PruneResult
+```
+
+Remove `removed` ids from a session's worklist and reviewed set. Advances the
+cursor when the cursor id itself was removed.
+
+#### Review.removeSession
+
+`unstable` · since v0.12.0
+
+```ts
+Review.removeSession(id: string): Promise<void>
+```
+
+Delete a review session (its progress, not the locations).
+
+#### Review.rename
+
+`unstable` · since v0.12.0
+
+```ts
+Review.rename(id: string, name: string): Promise<void>
+```
+
+Rename a review session.
+
+#### Review.resume
+
+`unstable` · since v0.12.0
+
+```ts
+Review.resume(s: ReviewSession, currentMatches?: number[]): Promise<void>
+```
+
+Make a saved session the active one, dropping locations that no longer exist. Given
+the selection's current matches, any its worklist lacks are offered as new matches.
+
+#### Review.retreat
+
+`unstable` · since v0.12.0
+
+```ts
+Review.retreat(s: ReviewSession): ReviewSession | null
+```
+
+Step backward without marking anything reviewed. Null when already at the start.
+
+#### Review.reviewedIds
+
+`unstable` · since v0.12.0
+
+```ts
+Review.reviewedIds(sessions: ReviewSession[]): number[]
+```
+
+Union of reviewed ids across sessions, de-duplicated.
+
+#### Review.selector
+
+`unstable` · since v0.12.0
+
+```ts
+Review.selector(s: ReviewSession, mode: ReviewMode): Selector
+```
+
+The locations of review session `s` that are reviewed, or still to review.
+
+#### Review.selectReviewed
+
+`unstable` · since v0.12.0
+
+```ts
+Review.selectReviewed(): Promise<void>
+```
+
+Select every location marked reviewed across all sessions on this map.
+
+#### Review.session
+
+`unstable` · since v0.12.0
+
+```ts
+Review.session(): ReviewSession | null
+```
+
+The active review session, or null.
+
+#### Review.sessions
+
+`unstable` · since v0.12.0
+
+```ts
+Review.sessions(status?: "active" | "done"): Promise<ReviewSession[]>
+```
+
+Review sessions for the open map, optionally filtered by status.
+
+#### Review.useNewMatches
+
+`unstable` · since v0.12.2
+
+```ts
+Review.useNewMatches(): number[]
+```
+
+Reactive new matches of the active session's selection, not yet in its worklist.
+
+#### Review.useSession
+
+`unstable` · since v0.12.0
+
+```ts
+Review.useSession(): ReviewSession | null
+```
+
+Reactive active review session, or null.
+
+## Saved selection
+
+### SavedSelection
+
+`unstable` · since v0.12.0
+
+Saved selection rules.
+
+#### SavedSelection.apply
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.apply(saved: SavedSelection): number
+```
+
+Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
+were added.
+
+#### SavedSelection.index
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.index(): SavedSelectionInfo[]
+```
+
+The rules that exist, as identity only. Empty until the index loads: the first
+call starts the read and `saved-selections:changed` announces it.
+
+#### SavedSelection.isSaveable
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.isSaveable(selector: Selector): boolean
+```
+
+Whether the selector tree contains only portable types (no map-local leaves).
+
+#### SavedSelection.load
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.load(ids: string[]): Promise<SavedSelection[]>
+```
+
+Load the full rule bodies for the given `ids`.
+
+#### SavedSelection.loadAll
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.loadAll(): Promise<SavedSelection[]>
+```
+
+Every rule with its body.
+
+#### SavedSelection.MAP_LOCAL_TYPES
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.MAP_LOCAL_TYPES: readonly [
+  "Locations",
+  "Manual",
+  "Validation",
+  "Reviewed",
+  "Selected",
+]
+```
+
+Selection types that cannot be saved as rules because they are bound to the open map.
+
+#### SavedSelection.parts
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.parts(saved: SavedSelection): SavedPart[]
+```
+
+A rule's parts: its top-level `Union` is the list it was saved from, anything else is
+a single part.
+
+#### SavedSelection.remove
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.remove(id: string): Promise<void>
+```
+
+Permanently delete a saved selection rule.
+
+#### SavedSelection.save
+
+`unstable` · since v0.12.0
+
+```ts
+SavedSelection.save(name: string, selections: Selection[]): Promise<boolean>
+```
+
+Persists the saveable selections as one rule. False when none of them are saveable.
+
+## Scene
+
+### Scene
+
+`unstable` · since v0.12.0
+
+The marker scene the map surfaces render from, and its load lifecycle.
+
+#### Scene.clear
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.clear(): void
+```
+
+Clear all marker data from the scene and stop following the map.
+
+#### Scene.defaultColor
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.defaultColor(): RGBA
+```
+
+Current default marker color as RGBA.
+
+#### Scene.get
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.get(): CellManager
+```
+
+The shared scene that all map surfaces render from.
+
+#### Scene.load
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.load(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>
+```
+
+Load the whole scene again and follow every change to it from there.
+
+#### Scene.reached
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.reached(version: number): Promise<FrameSummary>
+```
+
+Resolves once the scene has applied the frame for map version `version`, with what that
+frame did. Resolves at once, with nothing applied, when the scene follows no map.
+
+#### Scene.recolor
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.recolor(mc: RGB): void
+```
+
+Change the default marker color and repaint.
+
+#### Scene.selected
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.selected(): SelectedIds
+```
+
+The ids of the locations the listed selections select.
+
+#### Scene.setDefaultColor
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.setDefaultColor(r: number, g: number, b: number): void
+```
+
+Set the default marker color (RGB bytes).
+
+#### Scene.settled
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.settled(): Promise<void>
+```
+
+Resolves when the most recently started full scene load has finished (or immediately if none is in flight).
+
+#### Scene.useSelected
+
+`unstable` · since v0.12.0
+
+```ts
+Scene.useSelected(): SelectedIds
+```
+
+Reactive Scene.selected.
+
+## Scene positions
+
+### getScenePositions
+
+`unstable` · since v0.9.0
+
+```ts
+getScenePositions(): {
+  ids: Uint32Array;
+  positions: Float32Array;
+}
+```
+
+Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
+
+## Scope
+
+### disposePlugin
+
+`unstable` · since v0.10.3
+
+```ts
+disposePlugin(id: string): void
+```
+
+Run all teardowns a plugin registered (in reverse order) and clear them.
+
+### resolvePluginPath
+
+`unstable` · since v0.10.3
+
+```ts
+resolvePluginPath(path: string): string
+```
+
+Resolve a relative path against the current plugin's base directory. Absolute
+paths and `res://` URLs pass through unchanged.
+
+### runAsPlugin
+
+`unstable` · since v0.10.3
+
+```ts
+runAsPlugin<T>(id: string, fn: () => T): T
+```
+
+Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown.
+
+### setPluginBaseDir
+
+`unstable` · since v0.10.3
+
+```ts
+setPluginBaseDir(id: string, dir: string): void
+```
+
+Set the base directory for a plugin's assets on disk.
+
+### trackDisposable
+
+`unstable` · since v0.10.3
+
+```ts
+trackDisposable(dispose: Disposable): void
+```
+
+Enroll a teardown callback under the current plugin. No-op outside activation.
+
+## Seen
+
+### Seen
+
+`unstable` · since v0.12.0
+
+The seen-location history and how panorama visits are recorded into it.
+
+#### Seen.clear
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.clear(): Promise<void>
+```
+
+Delete the entire seen history. Not undoable.
+
+#### Seen.countries
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.countries(): Promise<string[]>
+```
+
+Distinct country codes that appear in the seen history.
+
+#### Seen.flush
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.flush(viewer: PanoViewer): void
+```
+
+Write the pending seen entry to disk, if any.
+
+#### Seen.list
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.list(
+  limit?: number,
+  offset?: number,
+  filter?: SeenFilter,
+  thumbnails?: boolean,
+): Promise<SeenPage>
+```
+
+A page of the seen (visited-panorama) history and how many entries match the filter.
+
+#### Seen.loadPano
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.loadPano(entry: SeenPano, viewer: PanoViewer): Promise<void>
+```
+
+Open a seen entry's panorama in the Street View viewer.
+
+#### Seen.maps
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.maps(): Promise<SeenMapInfo[]>
+```
+
+Maps that have seen-history entries.
+
+#### Seen.onMap
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.onMap(
+  list: readonly Pick<SeenPano, "locationId" | "panoId">[],
+): Promise<(Location | null)[]>
+```
+
+The map location each entry was seen at, while it still shows the entry's pano; null otherwise.
+
+#### Seen.panoChanged
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.panoChanged(
+  location: PendingEntryLocation,
+  geo: GeoDisplay | null,
+  viewer: PanoViewer,
+): void
+```
+
+Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
+
+#### Seen.record
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.record(
+  location: PendingEntryLocation & LocationPOV,
+  viewer: PanoViewer,
+): Promise<void>
+```
+
+Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives.
+
+#### Seen.skipNext
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.skipNext(panoId: string): void
+```
+
+Suppress the next seen-history entry for `panoId`.
+
+#### Seen.updateGeo
+
+`unstable` · since v0.12.0
+
+```ts
+Seen.updateGeo(geo: GeoDisplay): void
+```
+
+Update the pending seen entry's geocode info (country, address).
+
+## Selection list
+
+### SelectionList
+
+`unstable` · since v0.12.0
+
+Change the listed selections and inspect their active members.
+
+#### SelectionList.active
+
+`unstable` · since v0.12.0
+
+```ts
+SelectionList.active(): Selection[]
+```
+
+Listed selections that are not ghosted.
+
+#### SelectionList.listed
+
+`unstable` · since v0.12.1
+
+```ts
+SelectionList.listed(): ListedSelection[]
+```
+
+The listed selections, in list order.
+
+#### SelectionList.run
+
+`unstable` · since v0.12.0
+
+```ts
+SelectionList.run(write: () => Promise<Mutation>): Promise<void>
+```
+
+Run a mutation that may change the listed selections, and announce the change when it
+does.
+
+#### SelectionList.select
+
+`unstable` · since v0.12.0
+
+```ts
+SelectionList.select<
+  R extends
+    | number[]
+    | {
+        ids: number[];
+      },
+>(
+  pick: (selector: Selector) => Promise<R>,
+  perSelection?: boolean,
+): Promise<{
+  picked: number;
+  results: R[];
+}>
+```
+
+#### SelectionList.tagIds
+
+`unstable` · since v0.12.0
+
+```ts
+SelectionList.tagIds(): ReadonlySet<number>
+```
+
+Tag ids with a top-level listed tag selection, including ghosted selections.
+
+#### SelectionList.tagIdsDeep
+
+`unstable` · since v0.12.0
+
+```ts
+SelectionList.tagIdsDeep(): readonly number[]
+```
+
+Tag ids from active selection leaves, including repeated ids and composite children.
+
+#### SelectionList.update
+
+`unstable` · since v0.12.0
+
+```ts
+SelectionList.update(op: SelectionOp): Promise<void>
+```
+
+Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections.
+
+## Selections
+
+### addSelection
+
+`unstable` · since v0.4.0
+
+```ts
+addSelection(...selectors: Selector[]): SelectionOp
+```
+
+### all
+
+`unstable` · since v0.11.0
+
+```ts
+all(...selectors: Selector[]): Selector
+```
+
+Locations matching every one of `selectors`; with none, every location.
+
+### any
+
+`unstable` · since v0.11.0
+
+```ts
+any(...selectors: Selector[]): Selector
+```
+
+Locations matching any of `selectors`; with none, no location.
+
+### buildSelection
+
+`unstable` · since v0.10.3
+
+```ts
+buildSelection(selector: Selector): Promise<Selection>
+```
+
+### childSelections
+
+`unstable` · since v0.10.5
+
+```ts
+childSelections<S>(selector: Selector$1<S>): S[]
+```
+
+Every child selection a selector wraps, whatever shape it wraps them in.
+
+### filterIsLocalTime
+
+`unstable` · since v0.10.3
+
+```ts
+filterIsLocalTime(test: FilterOp): boolean
+```
+
+Whether a predicate reads the location's clock in its own timezone. Only a range can.
+
+### has
+
+`unstable` · since v0.11.0
+
+```ts
+has(field: string): Selector
+```
+
+Locations holding a value for `field`.
+
+### lacks
+
+`unstable` · since v0.11.0
+
+```ts
+lacks(field: string): Selector
+```
+
+Locations holding no value for `field`.
+
+### memberOf
+
+`unstable` · since v0.12.2
+
+```ts
+memberOf(selector: Selector): {
+  field: string;
+  id: number;
+} | null
+```
+
+The interned value a selector tests membership of, or null when it tests something else.
+The single place that recognises value membership, so nothing else has to know its shape.
+
+### not
+
+`unstable` · since v0.11.0
+
+```ts
+not(selector: Selector): Selector
+```
+
+Locations not matching `selector`.
+
+### OP_LABELS
+
+`unstable` · since v0.10.3
+
+```ts
+OP_LABELS: Record<
+  | "between"
+  | "between_anytime"
+  | "between_anyyear"
+  | "contains"
+  | "eq"
+  | "gt"
+  | "gte"
+  | "has"
+  | "lt"
+  | "lte"
+  | "neq"
+  | "notcontains"
+  | "nothas",
+  string
+>
+```
+
+Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
+operators are marked for translation.
+
+### panoIdSelector
+
+`unstable` · since v0.11.1
+
+```ts
+panoIdSelector(on: boolean): Selector
+```
+
+Locations pinned to one exact pano (the flag plus a pano id), or the locations not
+pinned.
+
+### replaceSelection
+
+`unstable` · since v0.10.3
+
+```ts
+replaceSelection(path: SelectionPath, selector: Selector): SelectionOp
+```
+
+### selection
+
+`unstable` · since v0.12.0
+
+```ts
+selection(selector: Selector, color?: RGB): SelectionInput
+```
+
+An unaddressed selection input; the store supplies its key and default color.
+
+### selectionAt
+
+`unstable` · since v0.11.3
+
+```ts
+selectionAt(
+  rows: ListedSelection[],
+  path: SelectionPath,
+): Selection | undefined
+```
+
+### selectionDisplayName
+
+`unstable` · since v0.10.3
+
+```ts
+selectionDisplayName(sel: SelectionInput, valueNames?: ValueNames): string
+```
+
+Human-readable label for a selection. Pass `valueNames` to resolve interned values by
+saved name rather than the open map's records.
+
+### SELECTIONS
+
+`unstable` · since v0.10.3
+
+```ts
+SELECTIONS: {
+  Duplicates: SelectionDescriptor<"Duplicates">;
+  EvenlySpaced: SelectionDescriptor<"EvenlySpaced">;
+  Everything: SelectionDescriptor<"Everything">;
+  Filter: SelectionDescriptor<"Filter">;
+  Intersection: SelectionDescriptor<"Intersection">;
+  Invert: SelectionDescriptor<"Invert">;
+  Locations: SelectionDescriptor<"Locations">;
+  Manual: SelectionDescriptor<"Manual">;
+  Nearby: SelectionDescriptor<"Nearby">;
+  Nearest: SelectionDescriptor<"Nearest">;
+  Polygon: SelectionDescriptor<"Polygon">;
+  Ranked: SelectionDescriptor<"Ranked">;
+  Reviewed: SelectionDescriptor<"Reviewed">;
+  Sample: SelectionDescriptor<"Sample">;
+  Selected: SelectionDescriptor<"Selected">;
+  Spaced: SelectionDescriptor<"Spaced">;
+  Uncommitted: SelectionDescriptor<"Uncommitted">;
+  Union: SelectionDescriptor<"Union">;
+  Validation: SelectionDescriptor<"Validation">;
+}
+```
+
+The display label of each selector variant.
+
+### tagIdOf
+
+`unstable` · since v0.11.1
+
+```ts
+tagIdOf(selector: Selector): number | null
+```
+
+The tag a selector names, or null when it names something else.
+
+### tagSelector
+
+`unstable` · since v0.11.1
+
+```ts
+tagSelector(tagId: number): Selector
+```
+
+Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
+else, so there is no tag selector to build.
+
+### toggleSelection
+
+`unstable` · since v0.11.3
+
+```ts
+toggleSelection(...selectors: Selector[]): SelectionOp
+```
+
+### UNARY_TYPES
+
+`unstable` · since v0.10.3
+
+```ts
+UNARY_TYPES: readonly ["Invert"]
+```
+
+### unpannedSelector
+
+`unstable` · since v0.11.1
+
+```ts
+unpannedSelector(): Selector
+```
+
+Locations whose heading was never set.
+
+### untaggedSelector
+
+`unstable` · since v0.11.1
+
+```ts
+untaggedSelector(): Selector
+```
+
+Locations with no tags: `tags` resolves to nothing on an untagged location.
+
+### withChildren
+
+`unstable` · since v0.10.5
+
+```ts
+withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>
+```
+
+`selector` with its children replaced, keeping the shape it wraps them in.
+
+## Selector pick
+
+### selectorForPick
+
+`unstable` · since v0.10.0
+
+```ts
+selectorForPick(choice: SelectorPick): Selector
+```
+
+Convert a picker choice into the corresponding `Selector`.
+
+### useSelectorPick
+
+`unstable` · since v0.10.0
+
+```ts
+useSelectorPick(initial?: SelectorPick): SelectorPickController
+```
+
+React hook: selector state with live counts. Defaults to the current selection when one
+exists, else all locations.
+
+## Settings
+
+### APP_SETTINGS
+
+`unstable` · since v0.10.3
+
+```ts
+APP_SETTINGS: PersistedStore<{
+  showCameraBadges: boolean;
+  showLinksControl: boolean;
+  clickToGo: boolean;
+  showRoadLabels: boolean;
+  defaultMovementMode: MovementMode;
+  showCar: boolean;
+  showCrosshair: boolean;
+  showCompass: boolean;
+  showCompassTape: boolean;
+  showZoom: boolean;
+  showReturnToSpawn: boolean;
+  showJumpButtons: boolean;
+  showMapLinks: boolean;
+  showCoordinateDisplay: boolean;
+  showFullscreenButton: boolean;
+  showScreenshotButton: boolean;
+  showPanoMetadata: boolean;
+  exactDateFormat: ExactDateFormat;
+  dateTimezone: DateTimezone;
+  showNavArrow: boolean;
+  showGroundArrow: boolean;
+  hidePanoUI: boolean;
+  hideNavWithUI: boolean;
+  fullscreenMap: boolean;
+  showFullscreenMapMeta: boolean;
+  showFullscreenMiniLocationPreview: boolean;
+  fullscreenMiniLocationScale: number;
+  showFullscreenMinimap: boolean;
+  fullscreenMinimapScale: number;
+  fullscreenMinimapCloseDelay: number;
+  showFullscreenTagbar: boolean;
+  showFullscreenDatePicker: boolean;
+  showFullscreenReviewBar: boolean;
+  showFullscreenGeocode: boolean;
+  customCss: string;
+  enableSeen: boolean;
+  enableSeenThumbnails: boolean;
+  seenResolution: SeenResolution;
+  mapPanSpeed: number;
+  panoLookSpeed: number;
+  slowModifier: number;
+  showFps: boolean;
+  mapListFields: MapListField[];
+  hiddenMapBadges: string[];
+  language: Language;
+  units: UnitSystem;
+  restoreSession: boolean;
+  appZoom: number;
+  prereleaseUpdates: boolean;
+  discordPresence: DiscordPresenceMode;
+  labelColors: Record<string, string>;
+  geocodeProvider: GeocodeProvider;
+  nominatimApiKey: string;
+  panToImported: boolean;
+  enterOpensCenter: boolean;
+  pastePadding: number;
+  followOpenInReview: boolean;
+  markerColor: RGB;
+  openLocationColor: RGB;
+  importPreviewColor: RGB;
+  svTrail: boolean;
+  svTrailColor: RGB;
+  svTrailPosition: boolean;
+  panoDotColor: RGB;
+  opacityToggleMode: OpacityToggleMode;
+  polygonColorMode: PolygonColorMode;
+  polygonColor: RGB;
+  panoDotScaled: boolean;
+  tagViewMode: TagViewMode;
+  truncateTagPaths: boolean;
+  tagFolderColorMode: TagFolderColorMode;
+  tagFolderColor: RGB;
+  tagSortMode: TagSortMode;
+  tagGap: number;
+  animateTagReorder: boolean;
+  borderDetail: BorderDetail;
+  subdivisionDetail: SubdivisionDetail;
+  previewAspectRatio: PreviewAspectRatio;
+  tagSuggestionLimit: number;
+  remoteApi: boolean;
+  remoteApiKey: string;
+  pinnedCommands: PinnedEntry[];
+}>
+```
+
+A value saved in local storage: its key and its defaults.
+
+### BORDER_ARCHIVE_BYTES
+
+`unstable` · since v0.10.3
+
+```ts
+BORDER_ARCHIVE_BYTES: {
+  readonly medium: 7460312;
+  readonly heavy: 21514464;
+  readonly adm1: 56891952;
+}
+```
+
+Download size of each border detail level, in bytes.
+
+### BORDER_DETAILS
+
+`unstable` · since v0.10.3
+
+```ts
+BORDER_DETAILS: {
+  readonly light: "Standard (bundled)";
+  readonly medium: "High ({size})";
+  readonly heavy: "Ultra ({size})";
+}
+```
+
+### CSS_VAR_SETTINGS
+
+`unstable` · since v0.10.3
+
+```ts
+CSS_VAR_SETTINGS: readonly (readonly [
+  cssVar: string,
+  value: (s: AppSettings) => string,
+])[]
+```
+
+App settings exposed as CSS custom properties on `:root`.
+
+### DATE_TIMEZONES
+
+`unstable` · since v0.10.3
+
+```ts
+DATE_TIMEZONES: { readonly location: "Location timezone"; readonly utc: "UTC" }
+```
+
+### DEFAULTS
+
+`unstable` · since v0.10.3
+
+```ts
+DEFAULTS: {
+  showCameraBadges: boolean;
+  showLinksControl: boolean;
+  clickToGo: boolean;
+  showRoadLabels: boolean;
+  defaultMovementMode: "moving" | "nmpz" | "no-move";
+  showCar: boolean;
+  showCrosshair: boolean;
+  showCompass: boolean;
+  showCompassTape: boolean;
+  showZoom: boolean;
+  showReturnToSpawn: boolean;
+  showJumpButtons: boolean;
+  showMapLinks: boolean;
+  showCoordinateDisplay: boolean;
+  showFullscreenButton: boolean;
+  showScreenshotButton: boolean;
+  showPanoMetadata: boolean;
+  exactDateFormat: "date" | "datetime";
+  dateTimezone: "location" | "utc";
+  showNavArrow: boolean;
+  showGroundArrow: boolean;
+  hidePanoUI: boolean;
+  /** Hiding the pano UI also hides navigation: link arrows, ground arrow, click-to-go X. */
+  hideNavWithUI: boolean;
+  fullscreenMap: boolean;
+  showFullscreenMapMeta: boolean;
+  showFullscreenMiniLocationPreview: boolean;
+  fullscreenMiniLocationScale: number;
+  showFullscreenMinimap: boolean;
+  fullscreenMinimapScale: number;
+  /** Milliseconds the fullscreen minimap stays expanded after the pointer leaves it. */
+  fullscreenMinimapCloseDelay: number;
+  showFullscreenTagbar: boolean;
+  showFullscreenDatePicker: boolean;
+  showFullscreenReviewBar: boolean;
+  showFullscreenGeocode: boolean;
+  customCss: string;
+  enableSeen: boolean;
+  enableSeenThumbnails: boolean;
+  seenResolution: "high" | "low" | "medium";
+  mapPanSpeed: number;
+  panoLookSpeed: number;
+  slowModifier: number;
+  showFps: boolean;
+  mapListFields: ("created" | "lastOpened" | "locationCount")[];
+  /** Ids of map-row badge sources that are hidden. */
+  hiddenMapBadges: string[];
+  /** Read once at boot; changing it relaunches the app rather than re-rendering. */
+  language: "de" | "en" | "en-XA" | "es" | "fr" | "ja" | "pl" | "ru" | "zh-Hans";
+  /** Every distance the UI shows or accepts; stored values stay metric. */
+  units: "auto" | "imperial" | "metric";
+  /** Reopen the maps that were open when the session last ended (main window closed). */
+  restoreSession: boolean;
+  /** Zoom factor of every window's UI, set by the app zoom hotkeys. */
+  appZoom: number;
+  /** Offer pre-release builds to the updater as well as full releases. */
+  prereleaseUpdates: boolean;
+  /** Discord Rich Presence: off, generic (no map name), or full (map name + count). */
+  discordPresence: "full" | "generic" | "off";
+  /** Per-label color overrides (hex), keyed by lowercased label name. Shared across all maps. */
+  labelColors: Record<string, string>;
+  geocodeProvider: "google" | "local" | "nominatim";
+  nominatimApiKey: string;
+  panToImported: boolean;
+  /** With no location open, Enter shows a center crosshair and opens the location under it. */
+  enterOpensCenter: boolean;
+  /** Smallest half-width, in degrees, the map frames around a single pasted or imported point. */
+  pastePadding: number;
+  followOpenInReview: boolean;
+  markerColor: RGB;
+  openLocationColor: RGB;
+  importPreviewColor: RGB;
+  svTrail: boolean;
+  svTrailColor: RGB;
+  svTrailPosition: boolean;
+  panoDotColor: RGB;
+  /** What the layer opacity hotkeys restore a layer to when toggling it back on. */
+  opacityToggleMode: "full" | "previous";
+  /** Initial color mode for newly drawn polygon selections. Recoloring by hand overrides either mode. */
+  polygonColorMode: "fixed" | "random";
+  polygonColor: RGB;
+  panoDotScaled: boolean;
+  tagViewMode: "flat" | "tree";
+  /** Tree view only: render each tag as the shortest path suffix that's still unique. */
+  truncateTagPaths: boolean;
+  /** Tree view: how a colorless folder row gets its color. `direct` uses tagFolderColor; `firstChild` inherits the first own-colored descendant in display order, with tagFolderColor as the fallback for colorless subtrees. */
+  tagFolderColorMode: "direct" | "firstChild";
+  tagFolderColor: RGB;
+  tagSortMode: TagSortMode;
+  /** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. */
+  tagGap: number;
+  animateTagReorder: boolean;
+  borderDetail: "heavy" | "light" | "medium";
+  subdivisionDetail: "adm1" | "off";
+  previewAspectRatio: "16 / 10" | "16 / 9" | "21 / 9" | "32 / 9" | "4 / 3" | "free";
+  tagSuggestionLimit: number;
+  /** Local REST transport for window.MMA (Settings > Advanced). */
+  remoteApi: boolean;
+  remoteApiKey: string;
+  pinnedCommands: PinnedEntry[];
+}
+```
+
+Default values for every app setting.
+
+### DISCORD_PRESENCE_MODES
+
+`unstable` · since v0.10.3
+
+```ts
+DISCORD_PRESENCE_MODES: {
+  readonly off: "Off";
+  readonly generic: "Generic (no map name)";
+  readonly full: "Full (map name + count)";
+}
+```
+
+### EXACT_DATE_FORMATS
+
+`unstable` · since v0.10.3
+
+```ts
+EXACT_DATE_FORMATS: {
+  readonly date: "Date only";
+  readonly datetime: "Date + time";
+}
+```
+
+### GEOCODE_PROVIDER_LABELS
+
+`unstable` · since v0.10.3
+
+```ts
+GEOCODE_PROVIDER_LABELS: Record<"google" | "local" | "nominatim", string>
+```
+
+### GEOCODE_PROVIDERS
+
+`unstable` · since v0.10.3
+
+```ts
+GEOCODE_PROVIDERS: {
+  readonly local: "Local (offline)";
+  readonly nominatim: "Nominatim";
+  readonly google: "Google (from panorama)";
+}
+```
+
+### getSettings
+
+`unstable` · since v0.4.0
+
+```ts
+getSettings(): AppSettings
+```
+
+The current app settings snapshot.
+
+### LANGUAGES
+
+`unstable` · since v0.10.3
+
+```ts
+LANGUAGES: {
+  en: "English";
+  de: "Deutsch";
+  es: "Español";
+  fr: "Français";
+  ja: "日本語";
+  pl: "Polski";
+  ru: "Русский";
+  "zh-Hans": "简体中文";
+  "en-XA": "Pseudolocale";
+}
+```
+
+Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale.
+
+### MAP_LIST_FIELDS
+
+`unstable` · since v0.10.3
+
+```ts
+MAP_LIST_FIELDS: {
+  readonly locationCount: "Location count";
+  readonly lastOpened: "Last opened";
+  readonly created: "Date created";
+}
+```
+
+### MOVEMENT_CYCLE
+
+`unstable` · since v0.10.3
+
+```ts
+MOVEMENT_CYCLE: ("moving" | "nmpz" | "no-move")[]
+```
+
+### MOVEMENT_MODES
+
+`unstable` · since v0.10.3
+
+```ts
+MOVEMENT_MODES: {
+  readonly moving: "Moving";
+  readonly "no-move": "No Move";
+  readonly nmpz: "NMPZ";
+}
+```
+
+### navHiddenWithUI
+
+`unstable` · since v0.10.3
+
+```ts
+navHiddenWithUI(s: AppSettings): boolean
+```
+
+True while the pano-UI toggle covers the navigation visuals too.
+
+### OPACITY_TOGGLE_MODES
+
+`unstable` · since v0.10.3
+
+```ts
+OPACITY_TOGGLE_MODES: {
+  readonly previous: "Last used opacity";
+  readonly full: "Full opacity";
+}
+```
+
+### panoDisplayOptions
+
+`unstable` · since v0.10.3
+
+```ts
+panoDisplayOptions(s: AppSettings): {
+  linksControl: boolean;
+  clickToGo: boolean;
+  showRoadLabels: boolean;
+  scrollwheel: boolean;
+}
+```
+
+Effective StreetViewPanorama display options derived from the current settings.
+
+### POLYGON_COLOR_MODES
+
+`unstable` · since v0.10.3
+
+```ts
+POLYGON_COLOR_MODES: { readonly random: "Random"; readonly fixed: "Fixed color" }
+```
+
+### PREVIEW_ASPECT_RATIOS
+
+`unstable` · since v0.10.3
+
+```ts
+PREVIEW_ASPECT_RATIOS: {
+  "4 / 3": "4:3";
+  "16 / 10": "16:10";
+  "16 / 9": "16:9";
+  "21 / 9": "21:9";
+  "32 / 9": "32:9";
+  free: "Free";
+}
+```
+
+### PRIVATE_SETTINGS
+
+`unstable` · since v0.10.3
+
+```ts
+PRIVATE_SETTINGS: ReadonlySet<
+  | "animateTagReorder"
+  | "appZoom"
+  | "borderDetail"
+  | "clickToGo"
+  | "customCss"
+  | "dateTimezone"
+  | "defaultMovementMode"
+  | "discordPresence"
+  | "enableSeen"
+  | "enableSeenThumbnails"
+  | "enterOpensCenter"
+  | "exactDateFormat"
+  | "followOpenInReview"
+  | "fullscreenMap"
+  | "fullscreenMiniLocationScale"
+  | "fullscreenMinimapCloseDelay"
+  | "fullscreenMinimapScale"
+  | "geocodeProvider"
+  | "hiddenMapBadges"
+  | "hideNavWithUI"
+  | "hidePanoUI"
+  | "importPreviewColor"
+  | "labelColors"
+  | "language"
+  | "mapListFields"
+  | "mapPanSpeed"
+  | "markerColor"
+  | "nominatimApiKey"
+  | "opacityToggleMode"
+  | "openLocationColor"
+  | "panToImported"
+  | "panoDotColor"
+  | "panoDotScaled"
+  | "panoLookSpeed"
+  | "pastePadding"
+  | "pinnedCommands"
+  | "polygonColor"
+  | "polygonColorMode"
+  | "prereleaseUpdates"
+  | "previewAspectRatio"
+  | "remoteApi"
+  | "remoteApiKey"
+  | "restoreSession"
+  | "seenResolution"
+  | "showCameraBadges"
+  | "showCar"
+  | "showCompass"
+  | "showCompassTape"
+  | "showCoordinateDisplay"
+  | "showCrosshair"
+  | "showFps"
+  | "showFullscreenButton"
+  | "showFullscreenDatePicker"
+  | "showFullscreenGeocode"
+  | "showFullscreenMapMeta"
+  | "showFullscreenMiniLocationPreview"
+  | "showFullscreenMinimap"
+  | "showFullscreenReviewBar"
+  | "showFullscreenTagbar"
+  | "showGroundArrow"
+  | "showJumpButtons"
+  | "showLinksControl"
+  | "showMapLinks"
+  | "showNavArrow"
+  | "showPanoMetadata"
+  | "showReturnToSpawn"
+  | "showRoadLabels"
+  | "showScreenshotButton"
+  | "showZoom"
+  | "slowModifier"
+  | "subdivisionDetail"
+  | "svTrail"
+  | "svTrailColor"
+  | "svTrailPosition"
+  | "tagFolderColor"
+  | "tagFolderColorMode"
+  | "tagGap"
+  | "tagSortMode"
+  | "tagSuggestionLimit"
+  | "tagViewMode"
+  | "truncateTagPaths"
+  | "units"
+>
+```
+
+Settings holding private information that should not be exfiltrated.
+
+### resetSettings
+
+`unstable` · since v0.10.3
+
+```ts
+resetSettings(): void
+```
+
+Reset all settings to defaults.
+
+### SEEN_RESOLUTIONS
+
+`unstable` · since v0.10.3
+
+```ts
+SEEN_RESOLUTIONS: {
+  readonly low: "Low (160x90)";
+  readonly medium: "Medium (320x180)";
+  readonly high: "High (640x360)";
+}
+```
+
+### setSetting
+
+`unstable` · since v0.4.0
+
+```ts
+setSetting<K extends keyof AppSettings>(
+  key: K,
+  value: AppSettings[K],
+): void
+```
+
+Update one setting and persist. Emits `settings:changed`.
+
+### SUBDIVISION_DETAILS
+
+`unstable` · since v0.10.3
+
+```ts
+SUBDIVISION_DETAILS: { readonly off: "Off"; readonly adm1: "States / provinces" }
+```
+
+### TAG_FOLDER_COLOR_MODES
+
+`unstable` · since v0.10.3
+
+```ts
+TAG_FOLDER_COLOR_MODES: {
+  readonly direct: "Fixed color";
+  readonly firstChild: "Inherit first child";
+}
+```
+
+### TAG_SUGGESTION_LIMITS
+
+`unstable` · since v0.10.3
+
+```ts
+TAG_SUGGESTION_LIMITS: readonly [5, 10, 25, 50, 0]
+```
+
+Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All").
+
+### TAG_VIEW_MODES
+
+`unstable` · since v0.10.3
+
+```ts
+TAG_VIEW_MODES: { readonly flat: "Flat"; readonly tree: "Tree" }
+```
+
+### UNIT_SYSTEMS
+
+`unstable` · since v0.10.3
+
+```ts
+UNIT_SYSTEMS: {
+  readonly auto: "Automatic";
+  readonly metric: "Metric (m / km)";
+  readonly imperial: "Imperial (ft / mi)";
+}
+```
+
+Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles.
+
+### useSetting
+
+`unstable` · since v0.10.3
+
+```ts
+useSetting<K extends keyof AppSettings>(key: K): AppSettings[K]
+```
+
+React hook: one setting value, re-rendering only when that key changes.
+
+### useSettings
+
+`unstable` · since v0.10.3
+
+```ts
+useSettings(): AppSettings
+```
+
+React hook: all settings, re-rendering on any change.
+
+## Tauri
+
+### dialog
+
+`unstable` · since v0.3.1
+
+#### dialog.open
+
+`unstable` · since v0.3.1
+
+```ts
+dialog.open<T extends OpenDialogOptions>(
+  options?: T,
+): Promise<OpenDialogReturn<T>>
+```
+
+Open a file/directory selection dialog.
+
+The selected paths are added to the filesystem and asset protocol scopes.
+When security is more important than the easy of use of this API,
+prefer writing a dedicated command instead.
+
+Note that the scope change is not persisted, so the values are cleared when the application is restarted.
+You can save it to the filesystem using [tauri-plugin-persisted-scope](https://github.com/tauri-apps/tauri-plugin-persisted-scope).
+
+#### dialog.save
+
+`unstable` · since v0.3.1
+
+```ts
+dialog.save(options?: SaveDialogOptions): Promise<string | null>
+```
+
+Open a file/directory save dialog.
+
+The selected path is added to the filesystem and asset protocol scopes.
+When security is more important than the easy of use of this API,
+prefer writing a dedicated command instead.
+
+Note that the scope change is not persisted, so the values are cleared when the application is restarted.
+You can save it to the filesystem using [tauri-plugin-persisted-scope](https://github.com/tauri-apps/tauri-plugin-persisted-scope).
+
+### invoke
+
+`unstable` · since v0.3.1
+
+```ts
+invoke<T>(
+  cmd: string,
+  args?: InvokeArgs,
+  options?: InvokeOptions,
+): Promise<T>
+```
+
+Sends a message to the backend.
+
+### shell
+
+`unstable` · since v0.3.1
+
+```ts
+shell: { Command: typeof Command }
+```
+
+## Test surface
+
+### _test
+
+`unstable` · since v0.6.1
+
+The nested `_test` namespace on the plugin surface.
+
+#### _test.closeMap
+
+`unstable` · since v0.6.1
+
+```ts
+_test.closeMap(): Promise<void>
+```
+
+Close the current map and return to the map list.
+
+#### _test.deleteMap
+
+`unstable` · since v0.6.1
+
+```ts
+_test.deleteMap(id: string): Promise<void>
+```
+
+Delete a map by id.
+
+#### _test.importFile
+
+`unstable` · since v0.6.1
+
+```ts
+_test.importFile(
+  droppedFields: string[],
+  tagNames?: string[],
+): Promise<EditorImportResult>
+```
+
+Import a previewed file, optionally assigning tags.
+
+#### _test.importPaste
+
+`unstable` · since v0.6.1
+
+```ts
+_test.importPaste(text: string): Promise<EditorImportResult[]>
+```
+
+Import locations from pasted text and commit them to the map.
+
+#### _test.mapOpen
+
+`unstable` · since v0.11.0
+
+```ts
+_test.mapOpen: {
+  start: number;
+  seen: Set<string>;
+  begin(): void;
+  mark(phase: string): void;
+}
+```
+
+Cross-module stopwatch for map-open latency.
+
+#### _test.openMap
+
+`unstable` · since v0.6.1
+
+```ts
+_test.openMap(id: string): Promise<void>
+```
+
+Open a map by id and navigate to it.
+
+#### _test.syncSelections
+
+`unstable` · since v0.8.2
+
+```ts
+_test.syncSelections(): Promise<{
+  ids: number[];
+}>
+```
+
+Force a full selection re-resolve and return the selected IDs.
+
+## Util
+
+### bestBy
+
+`unstable` · since v0.10.3
+
+```ts
+bestBy<T>(
+  items: Iterable<T>,
+  isBetter: (a: T, b: T) => boolean,
+): T | null
+```
+
+The item `isBetter` prefers over every other, or null when there are none.
+
+### chunk
+
+`unstable` · since v0.10.3
+
+```ts
+chunk<T>(arr: readonly T[], n: number): T[][]
+```
+
+Split `arr` into sub-arrays of at most `n` elements.
+
+### cmpVersion
+
+`unstable` · since v0.10.3
+
+```ts
+cmpVersion(a: string, b: string): number
+```
+
+Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
+Build metadata is ignored; a pre-release sorts below the release it precedes.
+
+### compareNatural
+
+`unstable` · since v0.10.3
+
+```ts
+compareNatural(a: string, b: string): number
+```
+
+Compare strings with natural (numeric-aware) ordering.
+
+### copyImageToClipboard
+
+`unstable` · since v0.10.3
+
+```ts
+copyImageToClipboard(blob: Blob): Promise<boolean>
+```
+
+Copy an image Blob to the clipboard. False when the platform refuses it.
+
+### downloadBlob
+
+`unstable` · since v0.10.3
+
+```ts
+downloadBlob(blob: Blob, fileName: string): void
+```
+
+Trigger a browser download from an in-memory Blob.
+
+### isPrereleaseVersion
+
+`unstable` · since v0.10.3
+
+```ts
+isPrereleaseVersion(v: string): boolean
+```
+
+True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1".
+
+### isWeb
+
+`unstable` · since v0.10.3
+
+```ts
+isWeb(): boolean
+```
+
+True when the app runs in a browser instead of the desktop app.
+
+### mmaBufUrl
+
+`unstable` · since v0.5.0
+
+```ts
+mmaBufUrl(path: string): string
+```
+
+URL that serves a local file over the `mma-buf://` protocol.
+
+### nowUnix
+
+`unstable` · since v0.10.3
+
+```ts
+nowUnix(): number
+```
+
+Current time as Unix seconds, the form Location timestamps use.
+
+### phaseRate
+
+`unstable` · since v0.10.4
+
+```ts
+phaseRate(
+  prev: PhaseRate | null,
+  done: number,
+  total: number,
+  now: number,
+): {
+  state: PhaseRate;
+  rate: number | null;
+}
+```
+
+Compute a locations/second rate for the current progress phase. Re-anchors when a
+new phase is detected (done went backward or total grew). Null until a quarter second
+of work has elapsed.
+
+### pickFiles
+
+`unstable` · since v0.11.4
+
+```ts
+pickFiles(
+  accept: string,
+  opts?: {
+    multiple?: boolean;
+  },
+): Promise<File[]>
+```
+
+Prompt for files; resolves empty when the picker is dismissed.
+
+### schemeBase
+
+`unstable` · since v0.10.3
+
+```ts
+schemeBase(scheme: string): string
+```
+
+Base URL for a custom URI scheme, platform-adjusted.
+
+### shuffle
+
+`unstable` · since v0.11.0
+
+```ts
+shuffle<T>(items: T[]): T[]
+```
+
+Shuffle `items` in place (Fisher-Yates) and return them.
+
+### splitVersion
+
+`unstable` · since v0.10.3
+
+```ts
+splitVersion(v: string): [core: string, pre: string]
+```
+
+`["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent.
+
+### toggleInSet
+
+`unstable` · since v0.10.3
+
+```ts
+toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>
+```
+
+Copy of `set` with `value` toggled, or forced on/off by `on`.
+
+## Validate
+
+### validateLocations
+
+`unstable` · since v0.4.0
+
+```ts
+validateLocations(
+  selector: Selector,
+  opts?: BulkOpts & {
+    config?: Partial<ValidateConfig>;
+    categories?: readonly string[];
+  },
+): Promise<ValidationOutcome>
+```
+
+Check that each location's Street View coverage still exists, grouping the locations
+into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted).
+
+## Validation categories
+
+### STANDARD_VALIDATION_CATEGORIES
+
+`unstable` · since v0.11.4
+
+```ts
+STANDARD_VALIDATION_CATEGORIES: string[]
+```
+
+### VALIDATION_CATEGORIES
+
+`unstable` · since v0.11.4
+
+```ts
+VALIDATION_CATEGORIES: readonly ValidationCategory[]
+```
+
+### validationCategory
+
+`unstable` · since v0.11.4
+
+```ts
+validationCategory(key: string): ValidationCategory | null
+```
+
+The category a key names, or null for one this version does not know.

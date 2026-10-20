@@ -14,12 +14,12 @@ function saveEnabled(set: Set<string>) {
 
 const enabledSet = new Set(getLocal<string[]>(ENABLED_KEY, []));
 
-/** True when the plugin is enabled by the user. */
+/** True when the plugin is enabled by the user. @api @unstable */
 export function isPluginEnabled(id: string): boolean {
 	return enabledSet.has(id);
 }
 
-/** Enable or disable a plugin. */
+/** Enable or disable a plugin. @api @unstable */
 export function setPluginEnabled(id: string, enabled: boolean) {
 	if (enabled) enabledSet.add(id);
 	else enabledSet.delete(id);
@@ -27,18 +27,18 @@ export function setPluginEnabled(id: string, enabled: boolean) {
 	emitEvent("plugins:changed");
 }
 
-/** All registered plugins the user has enabled. */
+/** All registered plugins the user has enabled. @api @unstable */
 export function getEnabledPlugins(): Plugin[] {
 	return getPlugins().filter((p) => enabledSet.has(p.id));
 }
 
-/** Activate all enabled plugins. Called when a map opens. */
+/** Activate all enabled plugins. Called when a map opens. @api @unstable */
 export function activatePlugins() {
 	for (const plugin of getEnabledPlugins()) activate(plugin);
 	emitEvent("plugins:changed");
 }
 
-/** Deactivate all plugins and stop their sidecars. Called when a map closes. */
+/** Deactivate all plugins and stop their sidecars. Called when a map closes. @api @unstable */
 export function deactivatePlugins() {
 	for (const id of new Set([...getPlugins().map((p) => p.id), ...cleanups.keys()])) teardown(id);
 	// Nothing is active any more, so nothing should still be running. Covers plugins
@@ -46,7 +46,7 @@ export function deactivatePlugins() {
 	cmd.sidecarStop(null).catch(() => {});
 }
 
-/** Activate a single plugin by id. */
+/** Activate a single plugin by id. @api @unstable */
 export function activatePlugin(id: string) {
 	const plugin = getPlugin(id);
 	if (plugin) activate(plugin);
@@ -64,7 +64,7 @@ function activate(plugin: Plugin) {
 	}
 }
 
-/** Deactivate a single plugin and stop its sidecar. */
+/** Deactivate a single plugin and stop its sidecar. @api @unstable */
 export function deactivatePlugin(id: string) {
 	teardown(id);
 	// A disabled plugin keeps no processes, whether or not it cleaned up after itself.
@@ -85,12 +85,12 @@ function teardown(id: string) {
 
 let surfaceReady = false;
 
-/** True once the MMA surface is installed and plugins are safe to call it. */
+/** True once the MMA surface is installed and plugins are safe to call it. @api @unstable */
 export function isReady(): boolean {
 	return surfaceReady;
 }
 
-/** Mark the plugin surface as ready. */
+/** Mark the plugin surface as ready. @api @unstable */
 export function markReady(): void {
 	surfaceReady = true;
 }

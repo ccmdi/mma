@@ -42,13 +42,14 @@ const INITIAL_STATE: MapState = {
 
 let state: MapState = INITIAL_STATE;
 
+/** Read and update the open map state. @api */
 export const Store = {
-	/** Replace state fields and notify subscribers. @unstable */
+	/** Replace state fields and notify subscribers. @internal */
 	patch: (patch: Partial<MapState>) => {
 		state = { ...state, ...patch };
 		emitEvent("snapshot:changed");
 	},
-	/** Apply a change's JSON Patch over the derived state, as of `version`. @unstable */
+	/** Apply a change's JSON Patch over the derived state, as of `version`. @internal */
 	apply: (patch: PatchOp[], version: number) => {
 		state = { ...applyPatch(state, patch), version };
 		emitEvent("snapshot:changed");
@@ -64,7 +65,7 @@ export const Store = {
 		track("snapshot:changed");
 		return state;
 	},
-	/** Clear derived state when the map closes. @unstable */
+	/** Clear derived state when the map closes. @internal */
 	resetDerived: () => {
 		Store.patch(ENGINE_INITIAL);
 	},

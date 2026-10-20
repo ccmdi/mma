@@ -28,7 +28,7 @@ const FIELDS: Record<string, RegistryFieldDef> = Object.fromEntries(
 	Object.entries(BUILTIN_FIELDS).map(([key, f]) => [key, { ...f, kind: f.kind ?? undefined }]),
 );
 
-/** True when `key` is a built-in Location field (stored top-level, not under `extra`). */
+/** True when `key` is a built-in Location field (stored top-level, not under `extra`). @api */
 export function isBuiltinField(key: string): boolean {
 	return key in FIELDS && !isDerived(FIELDS[key].kind);
 }
@@ -38,34 +38,34 @@ function isDerived(kind: FieldKind | undefined): boolean {
 	return kind === "virtual";
 }
 
-/** True when the field can be bulk-edited. @unstable */
+/** True when the field can be bulk-edited. @api @unstable */
 export function isWritableField(key: string): boolean {
 	return key in FIELDS ? FIELDS[key].kind === "writable" : true;
 }
 
-/** True when the field can be bulk-cleared. @unstable */
+/** True when the field can be bulk-cleared. @api @unstable */
 export function isClearableField(key: string): boolean {
 	return key in FIELDS ? FIELDS[key].clearable === true : true;
 }
 
-/** True when the field should appear in field pickers. @unstable */
+/** True when the field should appear in field pickers. @api @unstable */
 export function isListableField(key: string): boolean {
 	return key in FIELDS ? FIELDS[key].kind !== "identity" : true;
 }
 
-/** All built-in field keys (excluding virtual). @unstable */
+/** All built-in field keys (excluding virtual). @api @unstable */
 export function getBuiltinKeys(): string[] {
 	return Object.keys(FIELDS).filter(isBuiltinField);
 }
 
 let pluginDefs: Record<string, FieldDef> = {};
-/** Register field definitions from an enrichment provider (called at activation). */
+/** Register field definitions from an enrichment provider (called at activation). @api */
 export function registerPluginFieldDefs(defs: Record<string, FieldDef>) {
 	pluginDefs = { ...pluginDefs, ...defs };
 	emit("fields:changed");
 }
 
-/** Remove plugin field definitions by key (called when a plugin is deactivated). */
+/** Remove plugin field definitions by key (called when a plugin is deactivated). @api */
 export function unregisterPluginFieldDefs(keys: string[]) {
 	if (keys.length === 0) return;
 	const next = { ...pluginDefs };
@@ -74,12 +74,12 @@ export function unregisterPluginFieldDefs(keys: string[]) {
 	emit("fields:changed");
 }
 
-/** Every listable built-in, and every field this map defines. @unstable */
+/** Every listable built-in, and every field this map defines. @api @unstable */
 export function getFieldKeys(): string[] {
 	return [...new Set([...Object.keys(FIELDS), ...getKnownFieldKeys()])].filter(isListableField);
 }
 
-/** Keys this map defines a field for. Same reference until the user layer moves. */
+/** Keys this map defines a field for. Same reference until the user layer moves. @api */
 export const getKnownFieldKeys: () => ReadonlySet<string> = memoOnRefs(
 	() => [Store.get().fieldDefs] as const,
 	(defs) => new Set(Object.keys(defs)),
@@ -98,12 +98,12 @@ function mergeDef(user: FieldDef | undefined, plugin: FieldDef | undefined): Fie
 	};
 }
 
-/** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
+/** Look up metadata for a field key. Returns `undefined` if no layer declares it. @api */
 export function getFieldDef(key: string): FieldDef | undefined {
 	return mergeDef(mergeDef(Store.get().fieldDefs[key], pluginDefs[key]), FIELDS[key]);
 }
 
-/** Translated display label for a field key, falling back to a sentence-cased version of the key. */
+/** Translated display label for a field key, falling back to a sentence-cased version of the key. @api */
 export function fieldLabel(key: string): string {
 	const label = getFieldDef(key)?.label;
 	return label
@@ -114,7 +114,7 @@ export function fieldLabel(key: string): string {
 				.replace(/^./, (c) => c.toUpperCase());
 }
 
-/** Display label for a field value. Enum values use their translated display name. */
+/** Display label for a field value. Enum values use their translated display name. @api */
 export function fieldValueLabel(def: FieldDef | undefined, value: unknown): string {
 	const raw = String(value);
 	const label = def?.values?.find((v) => v.value === raw)?.label;
@@ -122,12 +122,12 @@ export function fieldValueLabel(def: FieldDef | undefined, value: unknown): stri
 }
 
 /** The value space a field declares, as bare strings. Distinct from the store's
- *  `fieldValues`, which reports the values actually present in the data. */
+ *  `fieldValues`, which reports the values actually present in the data. @api */
 export function declaredValues(def: FieldDef | undefined): string[] | null {
 	return def?.values?.map((v) => v.value) ?? null;
 }
 
-/** Merged view of all field definitions across all layers. */
+/** Merged view of all field definitions across all layers. @api */
 export function getAllFieldDefs(): Record<string, FieldDef> {
 	const out: Record<string, FieldDef> = {};
 	const allKeys = new Set([

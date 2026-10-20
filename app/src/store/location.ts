@@ -36,6 +36,7 @@ async function addViaUpload(locs: Location[]): Promise<EditResult> {
 	return cmd.storeEditUploaded(MAP, session);
 }
 
+/** Add, update, remove, and inspect map locations. @api */
 export const Location = {
 	/** Add locations to the map and return their new ids, in order. Undoable. */
 	add: async (locs: Location[]): Promise<number[]> => {

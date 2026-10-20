@@ -654,5 +654,5 @@ export function createPano() {
 	};
 }
 
-/** The app's default pano viewer. */
+/** The app's default pano viewer. @api @unstable */
 export const Pano = createPano();

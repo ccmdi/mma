@@ -4,7 +4,6 @@ import noDuplicateCommandIcons from "./no-duplicate-command-icons.js";
 import noEffectEventInMemo from "./no-effect-event-in-memo.js";
 import noHandrolledDialogParts from "./no-handrolled-dialog-parts.js";
 import noHandrolledWidgets from "./no-handrolled-widgets.js";
-import noHandwrittenApiSurface from "./no-handwritten-api-surface.js";
 import noIpcInLoop from "./no-ipc-in-loop.js";
 import noLabelWrappedGroup from "./no-label-wrapped-group.js";
 import noNativeDialog from "./no-native-dialog.js";
@@ -23,7 +22,6 @@ export default {
 		"no-effect-event-in-memo": noEffectEventInMemo,
 		"no-handrolled-dialog-parts": noHandrolledDialogParts,
 		"no-handrolled-widgets": noHandrolledWidgets,
-		"no-handwritten-api-surface": noHandwrittenApiSurface,
 		"no-ipc-in-loop": noIpcInLoop,
 		"no-label-wrapped-group": noLabelWrappedGroup,
 		"no-native-dialog": noNativeDialog,

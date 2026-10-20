@@ -22,7 +22,7 @@ export interface PinOutcome extends BatchOutcome {
 	resolved: number;
 }
 
-/** Pin every location in the selector to its pano id, resolving pano ids first when asked. */
+/** Pin every location in the selector to its pano id, resolving pano ids first when asked. @api @unstable */
 export async function bulkPinToPano(selector: Selector, opts: PinOpts = {}): Promise<PinOutcome> {
 	const { resolve = true, capture = null, force = false, ...runOpts } = opts;
 	let resolved = 0;

@@ -18,7 +18,7 @@ export type Job<R, P = never> = JobState<R, P> & {
 	cancel: () => void;
 };
 
-/** User-triggered async work that reports progress and can be cancelled. Unmounting cancels. */
+/** User-triggered async work that reports progress and can be cancelled. Unmounting cancels. @api */
 export function useJob<R = unknown, P = never>(): Job<R, P> {
 	const [runs] = useState(() => latest<unknown>());
 	const running = useRef(false);

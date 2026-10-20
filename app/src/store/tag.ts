@@ -11,6 +11,7 @@ type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "visible"
 
 const NO_VALUES: Record<string, HeldValue | null> = {};
 
+/** Manage tag records and their assignment to locations. @api */
 export const Tag = {
 	/** Per-tag location counts, keyed by numeric id. */
 	counts: memoOnRefs(

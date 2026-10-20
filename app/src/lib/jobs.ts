@@ -40,7 +40,7 @@ export interface JobHandle {
 let jobs: JobEntry[] = [];
 let nextId = 0;
 
-/** Live jobs, for the tray. Reference changes on every update. */
+/** Live jobs, for the tray. Reference changes on every update. @api @unstable */
 export function getJobs(): JobEntry[] {
 	return jobs;
 }
@@ -60,7 +60,7 @@ function remove(id: number): boolean {
 }
 
 /** Register a long-running operation with the global job tray. The caller owns the
- *  work; the registry owns only its presentation and the cancel/reveal controls. */
+ *  work; the registry owns only its presentation and the cancel/reveal controls. @api @unstable */
 export function registerJob(label: string, opts: JobOpts = {}): JobHandle {
 	const id = nextId++;
 	jobs = [
@@ -99,7 +99,7 @@ export interface JobRunContext {
 
 /** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
  *  through the handle, ends the job however `fn` settles, and resolves to how it settled.
- *  A failure also toasts. */
+ *  A failure also toasts. @api @unstable */
 export async function runJob<R>(
 	label: string,
 	fn: (ctx: JobRunContext) => Promise<R>,
@@ -123,7 +123,7 @@ export async function runJob<R>(
 }
 
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
- *  abort and end their jobs; entries without a cancel are removed outright. */
+ *  abort and end their jobs; entries without a cancel are removed outright. @api @unstable */
 export function cancelJobs(scope: JobScope): void {
 	for (const j of [...jobs]) {
 		if (j.scope !== scope) continue;
@@ -136,14 +136,14 @@ export type MapExitKind = "leave" | "quit";
 
 let exitRequest: { kind: MapExitKind; resolve: (ok: boolean) => void } | null = null;
 
-/** The pending map-exit confirmation, for the dialog. */
+/** The pending map-exit confirmation, for the dialog. @api @unstable */
 export function getExitRequest(): { kind: MapExitKind } | null {
 	return exitRequest;
 }
 
 /** Gate a user action that would end every map-scoped job. Resolves true immediately when
  *  none are live; otherwise raises the confirm dialog, and true means the jobs were
- *  cancelled and the action should proceed. */
+ *  cancelled and the action should proceed. @api @unstable */
 export function confirmMapExit(kind: MapExitKind): Promise<boolean> {
 	if (!jobs.some((j) => j.scope === "map")) return Promise.resolve(true);
 	if (exitRequest) return Promise.resolve(false);
@@ -153,7 +153,7 @@ export function confirmMapExit(kind: MapExitKind): Promise<boolean> {
 	return promise;
 }
 
-/** Answer the pending map-exit confirmation. */
+/** Answer the pending map-exit confirmation. @api @unstable */
 export function resolveMapExit(ok: boolean): void {
 	const req = exitRequest;
 	if (!req) return;

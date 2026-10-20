@@ -28,16 +28,17 @@ export type UnaryType = "Invert";
 /** Composite variants that are flat n-ary groups. */
 export type GroupType = Exclude<CompositeType, UnaryType>;
 
+/** @api @unstable */
 export const UNARY_TYPES = unionTuple<UnaryType>()(["Invert"]);
 
 export type FilterOpKind = FilterOp["op"];
 
-/** Whether a predicate reads the location's clock in its own timezone. Only a range can. */
+/** Whether a predicate reads the location's clock in its own timezone. Only a range can. @api @unstable */
 export const filterIsLocalTime = (test: FilterOp): boolean =>
 	"tzLocal" in test && test.tzLocal === true;
 
 /** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
- *  operators are marked for translation. */
+ *  operators are marked for translation. @api @unstable */
 export const OP_LABELS: Record<FilterOpKind, string> = {
 	eq: "=",
 	neq: "!=",
@@ -55,21 +56,21 @@ export const OP_LABELS: Record<FilterOpKind, string> = {
 };
 
 /** Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
- *  else, so there is no tag selector to build. */
+ *  else, so there is no tag selector to build. @api @unstable */
 export const tagSelector = (tagId: number): Selector => ({
 	type: "Filter",
 	field: "tags",
 	test: { op: "contains", value: tagId },
 });
 
-/** Locations with no tags: `tags` resolves to nothing on an untagged location. */
+/** Locations with no tags: `tags` resolves to nothing on an untagged location. @api @unstable */
 export const untaggedSelector = (): Selector => ({
 	type: "Filter",
 	field: "tags",
 	test: { op: "nothas" },
 });
 
-/** Locations whose heading was never set. */
+/** Locations whose heading was never set. @api @unstable */
 export const unpannedSelector = (): Selector => ({
 	type: "Filter",
 	field: "heading",
@@ -77,7 +78,7 @@ export const unpannedSelector = (): Selector => ({
 });
 
 /** Locations pinned to one exact pano (the flag plus a pano id), or the locations not
- *  pinned. */
+ *  pinned. @api @unstable */
 export function panoIdSelector(on: boolean): Selector {
 	const pinned: Selector = {
 		type: "Intersection",
@@ -89,10 +90,10 @@ export function panoIdSelector(on: boolean): Selector {
 	return on ? pinned : { type: "Invert", selections: [selection(pinned)] };
 }
 
-/** Locations holding a value for `field`. */
+/** Locations holding a value for `field`. @api @unstable */
 export const has = (field: string): Selector => ({ type: "Filter", field, test: { op: "has" } });
 
-/** Locations holding no value for `field`. */
+/** Locations holding no value for `field`. @api @unstable */
 export const lacks = (field: string): Selector => ({
 	type: "Filter",
 	field,
@@ -110,10 +111,10 @@ function compose(type: GroupType, selectors: Selector[]): Selector {
 	return { type, selections: parts };
 }
 
-/** Locations matching every one of `selectors`; with none, every location. */
+/** Locations matching every one of `selectors`; with none, every location. @api @unstable */
 export const all = (...selectors: Selector[]): Selector => compose("Intersection", selectors);
 
-/** Locations matching any of `selectors`; with none, no location. */
+/** Locations matching any of `selectors`; with none, no location. @api @unstable */
 export const any = (...selectors: Selector[]): Selector => compose("Union", selectors);
 
 const inverted = (s: SelectionInput): SelectionInput =>
@@ -121,11 +122,11 @@ const inverted = (s: SelectionInput): SelectionInput =>
 		? s.selector.selections[0]
 		: selection({ type: "Invert", selections: [s] });
 
-/** Locations not matching `selector`. */
+/** Locations not matching `selector`. @api @unstable */
 export const not = (selector: Selector): Selector => inverted(selection(selector)).selector;
 
 /** The interned value a selector tests membership of, or null when it tests something else.
- *  The single place that recognises value membership, so nothing else has to know its shape. */
+ *  The single place that recognises value membership, so nothing else has to know its shape. @api @unstable */
 export function memberOf(selector: Selector): { field: string; id: number } | null {
 	return selector.type === "Filter" &&
 		selector.test.op === "contains" &&
@@ -135,7 +136,7 @@ export function memberOf(selector: Selector): { field: string; id: number } | nu
 		: null;
 }
 
-/** The tag a selector names, or null when it names something else. */
+/** The tag a selector names, or null when it names something else. @api @unstable */
 export function tagIdOf(selector: Selector): number | null {
 	const member = memberOf(selector);
 	return member?.field === "tags" ? member.id : null;
@@ -171,7 +172,7 @@ interface SelectionDescriptor<K extends Selector["type"]> {
 	label(selector: Variant<Selector, K>, valueNames?: ValueNames): string;
 }
 
-/** The display label of each selector variant. */
+/** The display label of each selector variant. @api @unstable */
 export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	Locations: {
 		label: (s) => s.name ?? t("Selection"),
@@ -290,21 +291,21 @@ function descriptorFor(selector: Selector) {
 	return { label: (valueNames?: ValueNames) => d.label(selector, valueNames) };
 }
 
-/** Every child selection a selector wraps, whatever shape it wraps them in. */
+/** Every child selection a selector wraps, whatever shape it wraps them in. @api @unstable */
 export function childSelections<S>(selector: SelectorTree<S>): S[] {
 	if ("selections" in selector) return selector.selections;
 	if ("selection" in selector) return selector.selection ? [selector.selection] : [];
 	return [];
 }
 
-/** `selector` with its children replaced, keeping the shape it wraps them in. */
+/** `selector` with its children replaced, keeping the shape it wraps them in. @api @unstable */
 export function withChildren<S>(selector: SelectorTree<S>, children: S[]): SelectorTree<S> {
 	if ("selections" in selector) return { ...selector, selections: children };
 	if ("selection" in selector) return { ...selector, selection: children[0] ?? null };
 	return selector;
 }
 
-/** An unaddressed selection input; the store supplies its key and default color. */
+/** An unaddressed selection input; the store supplies its key and default color. @api @unstable */
 export function selection(selector: Selector, color?: RGB): SelectionInput {
 	if (color === undefined && selector.type === "Polygon") {
 		const settings = getSettings();
@@ -313,25 +314,30 @@ export function selection(selector: Selector, color?: RGB): SelectionInput {
 	return { selector, ...(color ? { color } : {}) };
 }
 
+/** @api @unstable */
 export async function buildSelection(selector: Selector): Promise<Selection> {
 	return (await cmd.selectionBuild([selection(selector)]))[0];
 }
 
 export type SelectionPath = number[];
+/** @api @unstable */
 export function selectionAt(rows: ListedSelection[], path: SelectionPath): Selection | undefined {
 	let node: Selection | undefined = rows[path[0]]?.selection;
 	for (const i of path.slice(1)) node = node && childSelections(node.selector)[i];
 	return node;
 }
 
+/** @api @unstable */
 export const addSelection = (...selectors: Selector[]): SelectionOp => ({
 	kind: "add",
 	selections: selectors.map((s) => selection(s)),
 });
+/** @api @unstable */
 export const toggleSelection = (...selectors: Selector[]): SelectionOp => ({
 	kind: "toggle",
 	selections: selectors.map((s) => selection(s)),
 });
+/** @api @unstable */
 export const replaceSelection = (path: SelectionPath, selector: Selector): SelectionOp => ({
 	kind: "replace",
 	path,
@@ -339,7 +345,7 @@ export const replaceSelection = (path: SelectionPath, selector: Selector): Selec
 });
 
 /** Human-readable label for a selection. Pass `valueNames` to resolve interned values by
- *  saved name rather than the open map's records. */
+ *  saved name rather than the open map's records. @api @unstable */
 export function selectionDisplayName(sel: SelectionInput, valueNames?: ValueNames): string {
 	return namedLabel(sel.selector) ?? descriptorFor(sel.selector).label(valueNames);
 }

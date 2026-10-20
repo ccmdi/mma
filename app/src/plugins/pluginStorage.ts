@@ -47,7 +47,7 @@ function writePluginStore(id: string, data: Record<string, unknown>) {
 	setLocal(pluginStoreKey(id), data);
 }
 
-/** Persistent key-value storage namespaced to a plugin. Survives restarts. */
+/** Persistent key-value storage namespaced to a plugin. Survives restarts. @api */
 export function storage(id: string): PluginStorage {
 	return keyValue(
 		() => readPluginStore(id),
@@ -79,7 +79,7 @@ function writeMapPluginKey(id: string, key: string, change: KeyChange): Promise<
 }
 
 /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
- *  Each write changes only one key, patched onto the current map settings. */
+ *  Each write changes only one key, patched onto the current map settings. @api */
 export function mapStorage(id: string): MapPluginStorage {
 	return keyValue(
 		() => readMapPluginStore(id),
@@ -87,13 +87,13 @@ export function mapStorage(id: string): MapPluginStorage {
 	);
 }
 
-/** Re-read a plugin's store after another window wrote it. @unstable */
+/** Re-read a plugin's store after another window wrote it. @api @unstable */
 export function reloadStorage(id: string) {
 	reloadLocal(pluginStoreKey(id), {});
 }
 
 /** React state hook backed by the plugin's persistent store. Survives sidebar
- *  unmount and app restart. Values are global, not per-map. */
+ *  unmount and app restart. Values are global, not per-map. @api */
 export function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)) {
 	const [value, setValue] = useState<T>(() => {
 		const data = readPluginStore(pluginId);

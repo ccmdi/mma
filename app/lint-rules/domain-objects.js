@@ -2,8 +2,7 @@ import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), "../src");
-/** Every companion object, by the module under `src` that owns it. Each one is on the `MMA`
- *  object plugins see, except those in `INTERNAL`. */
+/** Every companion object, by the module under `src` that owns it. */
 const COMPANIONS = {
 	"store/store": "Store",
 	"store/maps": "Maps",
@@ -31,8 +30,6 @@ const COMPANIONS = {
 	"lib/data/procedure": "Procedure",
 	"lib/data/provider": "Provider",
 };
-const INTERNAL = new Set(["Feed"]);
-const EXPOSED = Object.values(COMPANIONS).filter((name) => !INTERNAL.has(name));
 
 const objects = new Map(
 	Object.entries(COMPANIONS).map(([module, name]) => [resolve(srcDir, module), name]),
@@ -52,7 +49,6 @@ const companionNameOf = (filename) => {
 	const base = basename(filename, ".ts");
 	return base[0].toUpperCase() + base.slice(1);
 };
-const isCompanionName = (name) => /^[A-Z][a-z]/.test(name);
 
 /** Names of the objects a declaration exports, built as a literal or by a factory call. */
 function exportedObjects(declaration) {
@@ -65,15 +61,6 @@ function exportedObjects(declaration) {
 	);
 }
 
-function compareSurface(context, node, members, where) {
-	const names = new Set(members.filter(isCompanionName));
-	for (const name of EXPOSED)
-		if (!names.has(name)) context.report({ node, messageId: "missing", data: { name, where } });
-	for (const name of names)
-		if (!EXPOSED.includes(name))
-			context.report({ node, messageId: "unlisted", data: { name, where } });
-}
-
 export default {
 	meta: {
 		type: "problem",
@@ -83,8 +70,6 @@ export default {
 			barrel: "Import domain objects directly from their owning modules; do not re-export them.",
 			unrostered:
 				"{{name}} is a companion object; add its module to COMPANIONS in lint-rules/domain-objects.js.",
-			missing: "The companion {{name}} is missing from the {{where}}.",
-			unlisted: "{{name}} is in the {{where}} but is not a plugin-facing companion in COMPANIONS.",
 		},
 	},
 	create(context) {
@@ -121,25 +106,6 @@ export default {
 					if (domainSource || (!node.source && imported.has(specifier.local.name)))
 						context.report({ node: specifier, messageId: "barrel" });
 				}
-			},
-			TSInterfaceDeclaration(node) {
-				if (node.id.name !== "MMA") return;
-				const members = node.body.body.flatMap((m) =>
-					m.type === "TSPropertySignature" && m.key.type === "Identifier" ? [m.key.name] : [],
-				);
-				compareSurface(context, node, members, "MMA interface");
-			},
-			VariableDeclarator(node) {
-				if (
-					node.id.type !== "Identifier" ||
-					node.id.typeAnnotation?.typeAnnotation?.typeName?.name !== "MMA" ||
-					node.init?.type !== "ObjectExpression"
-				)
-					return;
-				const members = node.init.properties.flatMap((p) =>
-					p.type === "Property" && p.key.type === "Identifier" ? [p.key.name] : [],
-				);
-				compareSurface(context, node, members, "MMA object");
 			},
 		};
 	},

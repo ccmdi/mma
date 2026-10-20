@@ -7,6 +7,7 @@ import { SelectionList } from "./selectionList";
 
 export type History = bindings.History;
 
+/** Navigate undo and redo history. @api */
 export const History = {
 	/** Whether `timeline` can step back (undo) or forward (redo). @unstable */
 	available: (history: MapState["history"], stack: Stack, timeline: Timeline): boolean => {

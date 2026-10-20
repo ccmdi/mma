@@ -1,6 +1,6 @@
 import { Scene } from "@/lib/render/scene";
 
-/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). */
+/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). @api @unstable */
 export function getScenePositions(): { ids: Uint32Array; positions: Float32Array } {
 	const scene = Scene.get();
 	const ids = new Uint32Array(scene.totalCount);

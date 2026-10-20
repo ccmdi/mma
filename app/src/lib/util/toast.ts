@@ -8,7 +8,7 @@ interface ToastEntry {
 let toasts: ToastEntry[] = [];
 let nextId = 0;
 
-/** Show a brief toast notification. Optionally scoped to a `container` element. */
+/** Show a brief toast notification. Optionally scoped to a `container` element. @api */
 export function toast(message: string, duration = 2500, container?: HTMLElement) {
 	if (container) {
 		const el = document.createElement("div");
@@ -27,7 +27,7 @@ export function toast(message: string, duration = 2500, container?: HTMLElement)
 	}, duration);
 }
 
-/** Current list of visible toasts. @unstable */
+/** Current list of visible toasts. @api @unstable */
 export function getToasts() {
 	return toasts;
 }

@@ -6,7 +6,7 @@ import type { PinnedEntry } from "./commandDefs";
 import type { RGB } from "@/bindings.gen";
 import { DEFAULT_MARKER_COLOR } from "@/bindings.consts";
 
-/** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. */
+/** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. @api @unstable */
 export const LANGUAGES = {
 	en: "English",
 	de: "Deutsch",
@@ -19,83 +19,98 @@ export const LANGUAGES = {
 	"en-XA": msg("Pseudolocale"),
 } as const;
 
+/** @api @unstable */
 export const MOVEMENT_MODES = {
 	moving: msg("Moving"),
 	"no-move": msg("No Move"),
 	nmpz: "NMPZ",
 } as const;
+/** @api @unstable */
 export const SEEN_RESOLUTIONS = {
 	low: msg("Low (160x90)"),
 	medium: msg("Medium (320x180)"),
 	high: msg("High (640x360)"),
 } as const;
+/** @api @unstable */
 export const EXACT_DATE_FORMATS = {
 	date: msg("Date only"),
 	datetime: msg("Date + time"),
 } as const;
+/** @api @unstable */
 export const DATE_TIMEZONES = {
 	location: msg("Location timezone"),
 	utc: "UTC",
 } as const;
+/** @api @unstable */
 export const MAP_LIST_FIELDS = {
 	locationCount: msg("Location count"),
 	lastOpened: msg("Last opened"),
 	created: msg("Date created"),
 } as const;
+/** @api @unstable */
 export const DISCORD_PRESENCE_MODES = {
 	off: msg("Off"),
 	generic: msg("Generic (no map name)"),
 	full: msg("Full (map name + count)"),
 } as const;
+/** @api @unstable */
 export const GEOCODE_PROVIDERS = {
 	local: msg("Local (offline)"),
 	nominatim: "Nominatim",
 	google: msg("Google (from panorama)"),
 } as const;
+/** @api @unstable */
 export const GEOCODE_PROVIDER_LABELS: Record<keyof typeof GEOCODE_PROVIDERS, string> = {
 	local: msg("Local reverse geocode"),
 	nominatim: msg("OpenStreetMap (Nominatim)"),
 	google: msg("Google Street View"),
 };
-/** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. */
+/** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. @api @unstable */
 export const UNIT_SYSTEMS = {
 	auto: msg("Automatic"),
 	metric: msg("Metric (m / km)"),
 	imperial: msg("Imperial (ft / mi)"),
 } as const;
+/** @api @unstable */
 export const TAG_VIEW_MODES = {
 	flat: msg("Flat"),
 	tree: msg("Tree"),
 } as const;
+/** @api @unstable */
 export const TAG_FOLDER_COLOR_MODES = {
 	direct: msg("Fixed color"),
 	firstChild: msg("Inherit first child"),
 } as const;
+/** @api @unstable */
 export const OPACITY_TOGGLE_MODES = {
 	previous: msg("Last used opacity"),
 	full: msg("Full opacity"),
 } as const;
+/** @api @unstable */
 export const POLYGON_COLOR_MODES = {
 	random: msg("Random"),
 	fixed: msg("Fixed color"),
 } as const;
+/** @api @unstable */
 export const BORDER_DETAILS = {
 	light: msg("Standard (bundled)"),
 	medium: msg("High ({size})"),
 	heavy: msg("Ultra ({size})"),
 } as const;
-/** Download size of each border detail level, in bytes. */
+/** Download size of each border detail level, in bytes. @api @unstable */
 export const BORDER_ARCHIVE_BYTES = {
 	medium: 7_460_312,
 	heavy: 21_514_464,
 	adm1: 56_891_952,
 } as const;
+/** @api @unstable */
 export const SUBDIVISION_DETAILS = {
 	off: msg("Off"),
 	adm1: msg("States / provinces"),
 } as const;
-/** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). */
+/** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). @api @unstable */
 export const TAG_SUGGESTION_LIMITS = [5, 10, 25, 50, 0] as const;
+/** @api @unstable */
 export const PREVIEW_ASPECT_RATIOS = {
 	"4 / 3": "4:3",
 	"16 / 10": "16:10",
@@ -107,6 +122,7 @@ export const PREVIEW_ASPECT_RATIOS = {
 
 export type Language = keyof typeof LANGUAGES;
 export type MovementMode = keyof typeof MOVEMENT_MODES;
+/** @api @unstable */
 export const MOVEMENT_CYCLE = Object.keys(MOVEMENT_MODES) as MovementMode[];
 export type ExactDateFormat = keyof typeof EXACT_DATE_FORMATS;
 export type DateTimezone = keyof typeof DATE_TIMEZONES;
@@ -124,7 +140,7 @@ export type BorderDetail = keyof typeof BORDER_DETAILS;
 export type SubdivisionDetail = keyof typeof SUBDIVISION_DETAILS;
 export type PreviewAspectRatio = keyof typeof PREVIEW_ASPECT_RATIOS;
 
-/** Default values for every app setting. */
+/** Default values for every app setting. @api @unstable */
 export const DEFAULTS = {
 	showCameraBadges: true,
 	showLinksControl: true,
@@ -244,18 +260,18 @@ export const DEFAULTS = {
 };
 export type AppSettings = typeof DEFAULTS;
 
-/** Settings holding private information that should not be exfiltrated. */
+/** Settings holding private information that should not be exfiltrated. @api @unstable */
 export const PRIVATE_SETTINGS: ReadonlySet<keyof AppSettings> = new Set([
 	"nominatimApiKey",
 	"remoteApiKey",
 ]);
 
-/** App settings exposed as CSS custom properties on `:root`. */
+/** App settings exposed as CSS custom properties on `:root`. @api @unstable */
 export const CSS_VAR_SETTINGS: ReadonlyArray<
 	readonly [cssVar: string, value: (s: AppSettings) => string]
 > = [["--tag-gap", (s) => `${s.tagGap}px`]];
 
-/** localStorage descriptor for the persisted settings object. */
+/** localStorage descriptor for the persisted settings object. @api @unstable */
 export const APP_SETTINGS = persisted("appSettings", DEFAULTS);
 
 let settings: AppSettings = { ...getLocal(APP_SETTINGS) };
@@ -265,17 +281,17 @@ bridgeAcrossWindows("settings:changed", () => {
 	settings = { ...reloadLocal(APP_SETTINGS) };
 });
 
-/** The current app settings snapshot. */
+/** The current app settings snapshot. @api @unstable */
 export function getSettings(): AppSettings {
 	return settings;
 }
 
-/** True while the pano-UI toggle covers the navigation visuals too. */
+/** True while the pano-UI toggle covers the navigation visuals too. @api @unstable */
 export function navHiddenWithUI(s: AppSettings): boolean {
 	return s.hidePanoUI && s.hideNavWithUI;
 }
 
-/** Effective StreetViewPanorama display options derived from the current settings. */
+/** Effective StreetViewPanorama display options derived from the current settings. @api @unstable */
 export function panoDisplayOptions(s: AppSettings) {
 	const noMove = s.defaultMovementMode !== "moving";
 	return {
@@ -286,26 +302,26 @@ export function panoDisplayOptions(s: AppSettings) {
 	};
 }
 
-/** Update one setting and persist. Emits `settings:changed`. */
+/** Update one setting and persist. Emits `settings:changed`. @api @unstable */
 export function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
 	settings = { ...settings, [key]: value };
 	setLocal(APP_SETTINGS, settings);
 	emitEvent("settings:changed");
 }
 
-/** Reset all settings to defaults. */
+/** Reset all settings to defaults. @api @unstable */
 export function resetSettings(): void {
 	settings = { ...DEFAULTS };
 	setLocal(APP_SETTINGS, settings);
 	emitEvent("settings:changed");
 }
 
-/** React hook: all settings, re-rendering on any change. */
+/** React hook: all settings, re-rendering on any change. @api @unstable */
 export function useSettings(): AppSettings {
 	return useEventValue("settings:changed", getSettings);
 }
 
-/** React hook: one setting value, re-rendering only when that key changes. */
+/** React hook: one setting value, re-rendering only when that key changes. @api @unstable */
 export function useSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {
 	return useEventValue("settings:changed", () => getSettings()[key]);
 }

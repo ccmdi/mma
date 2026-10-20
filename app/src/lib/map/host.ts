@@ -112,6 +112,7 @@ const clickInterceptors = new Set<ClickInterceptor>();
 type DrawInterceptor = (rings: number[][][]) => boolean;
 let drawInterceptor: DrawInterceptor | null = null;
 
+/** The embedded map host, its preferences, and click interceptors. @api @unstable */
 export const MapHost = {
 	/** Set or clear the main editor map host. @unstable */
 	set: (host: MapHost | null) => {

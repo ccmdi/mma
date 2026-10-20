@@ -5,6 +5,7 @@ import type { Selector } from "@/types";
 import type { Target, Work, WorkResult } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 
+/** Edit map locations, metadata, value records, and selections. @api */
 export const Edit = {
 	/** Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
 	 *  by their ids in `records`, matched to the map's by name. Map changes are undoable in that

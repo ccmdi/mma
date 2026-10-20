@@ -274,6 +274,35 @@ fn unstable_const_carries_the_tag_whatever_its_docs() {
     assert!(!TsConst::value(1).render("A").contains("@unstable"));
 }
 
+#[test]
+fn api_const_carries_the_tag_before_unstable() {
+    let bare = TsConst::value(1).api().render("A");
+    assert!(bare.contains(
+        "/** @api */
+export const A"
+    ));
+    let one = TsConst::value(1)
+        .with_doc(&["One."])
+        .api()
+        .unstable()
+        .render("A");
+    assert!(one.contains(
+        "/** One. @api @unstable */
+export const A"
+    ));
+    let many = TsConst::value(1)
+        .with_doc(&["One.", "Two."])
+        .api()
+        .render("A");
+    assert!(many.contains(
+        " * Two.
+ * @api
+ */
+export const A"
+    ));
+    assert!(!TsConst::value(1).render("A").contains("@api"));
+}
+
 // The wire strings are the contract `src/lib/util/format.ts` maps to messages; whatever follows
 // ": " is data the TS side parses.
 #[test]

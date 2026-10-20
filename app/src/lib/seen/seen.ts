@@ -89,6 +89,7 @@ async function writeEntry(entry: PendingEntry, pov: LocationPOV, thumbnail: stri
 	}
 }
 
+/** The seen-location history and how panorama visits are recorded into it. @api @unstable */
 export const Seen = {
 	/** The map location each entry was seen at, while it still shows the entry's pano; null otherwise. @unstable */
 	onMap: async (

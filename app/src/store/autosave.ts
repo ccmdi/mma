@@ -27,6 +27,7 @@ function save(): Promise<void> {
 	});
 }
 
+/** Debounced persistence of the open map: schedule, hold, cancel, or flush it. @api */
 export const Autosave = {
 	/** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
 	hold: (): (() => void) => {

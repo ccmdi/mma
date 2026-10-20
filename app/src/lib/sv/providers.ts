@@ -14,7 +14,7 @@ import { toast } from "@/lib/util/toast";
 import { msg, t } from "@/lib/i18n";
 
 /** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
- *  read. Fields not offered in the enrichment settings are always included. */
+ *  read. Fields not offered in the enrichment settings are always included. @api @unstable */
 export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []): ProviderRun[] {
 	const selectable = new Set(getAllEnrichKeys());
 	const chosen = new Set(enrichFields ?? getDefaultEnrichKeys());
@@ -42,7 +42,7 @@ export interface PanoResolveConfig {
 
 /** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
  *  provider that depends on it. Rows that already have a pano id are skipped unless the
- *  run is forced. */
+ *  run is forced. @api @unstable */
 export const panoResolveProvider: Provider<{ panoId: string }, PanoResolveConfig> = {
 	id: "panoResolve",
 	label: msg("Resolving panoramas"),
@@ -54,7 +54,7 @@ export const panoResolveProvider: Provider<{ panoId: string }, PanoResolveConfig
 	},
 };
 
-/** Exact capture timestamp, narrowed from the `imageDate` month via binary search. */
+/** Exact capture timestamp, narrowed from the `imageDate` month via binary search. @api @unstable */
 export const exactDateProvider: Provider = {
 	id: "exactDate",
 	label: msg("Exact dates"),
@@ -66,7 +66,7 @@ export const exactDateProvider: Provider = {
 	},
 };
 
-/** Timezone at the location's coordinates. Requires `datetime` to be present. */
+/** Timezone at the location's coordinates. Requires `datetime` to be present. @api @unstable */
 export const timezoneProvider: Provider = {
 	id: "timezone",
 	label: msg("Timezone"),
@@ -96,7 +96,7 @@ function ensureAdm1(): Promise<boolean> {
 }
 
 /** Subdivision (adm1) via offline point-in-polygon against the local border dataset.
- *  No Google dependency; downloads the adm1 archive on first use. */
+ *  No Google dependency; downloads the adm1 archive on first use. @api @unstable */
 export const subdivisionProvider: Provider = {
 	id: "subdivision",
 	label: msg("Subdivision"),
@@ -111,7 +111,7 @@ export const subdivisionProvider: Provider = {
 	},
 };
 
-/** Core panorama metadata via Google's GetMetadata RPC. */
+/** Core panorama metadata via Google's GetMetadata RPC. @api @unstable */
 export const svMetaProvider: Provider = {
 	id: "svMeta",
 	label: msg("Metadata"),
@@ -130,7 +130,7 @@ export interface HeadingRoadConfig {
 }
 
 /** Pan a location's heading along the road. The driving direction is the pano's
- *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. */
+ *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. @api @unstable */
 export const headingRoadProvider: Provider<unknown, HeadingRoadConfig> = {
 	id: "headingRoad",
 	label: msg("Pan heading along road"),
@@ -141,7 +141,7 @@ export const headingRoadProvider: Provider<unknown, HeadingRoadConfig> = {
 	},
 };
 
-/** The providers the app registers at startup. */
+/** The providers the app registers at startup. @api @unstable */
 export const BUILTIN_PROVIDERS: readonly Provider[] = [
 	panoResolveProvider,
 	svMetaProvider,

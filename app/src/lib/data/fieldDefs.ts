@@ -17,7 +17,7 @@ const coreFieldOptions: EnrichFieldOption[] = KNOWN_FIELDS.map((f) => ({
 
 const coreFieldKeys = new Set(coreFieldOptions.map((f) => f.key));
 
-/** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). */
+/** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). @api */
 export function knownFieldDefs(...keys: string[]): Record<string, FieldDef> {
 	const out: Record<string, FieldDef> = {};
 	for (const key of keys) {
@@ -39,7 +39,7 @@ export function knownFieldDefs(...keys: string[]): Record<string, FieldDef> {
 	return out;
 }
 
-/** All enrichment field options: the core fields, then every registered provider's own fields. @unstable */
+/** All enrichment field options: the core fields, then every registered provider's own fields. @api @unstable */
 export function getEnrichFieldOptions(): EnrichFieldOption[] {
 	const providerOptions = Provider.list().flatMap((p) =>
 		Object.entries(p.fieldDefs ?? {})
@@ -49,26 +49,26 @@ export function getEnrichFieldOptions(): EnrichFieldOption[] {
 	return [...coreFieldOptions, ...providerOptions];
 }
 
-/** All enrichment field keys (core and plugin-registered). @unstable */
+/** All enrichment field keys (core and plugin-registered). @api @unstable */
 export function getAllEnrichKeys(): string[] {
 	return getEnrichFieldOptions().map((f) => f.key);
 }
 
-/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
+/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @api @unstable */
 export function getDefaultEnrichKeys(): string[] {
 	return getEnrichFieldOptions()
 		.filter((f) => !f.defaultOff)
 		.map((f) => f.key);
 }
 
-/** The enrichment fields `key`'s provider reads. @unstable */
+/** The enrichment fields `key`'s provider reads. @api @unstable */
 export function enrichInputs(key: string): string[] {
 	const selectable = new Set(getAllEnrichKeys());
 	return (Provider.forField(key)?.requires ?? []).filter((input) => selectable.has(input));
 }
 
 /** The fields enrichment fetches for `enrichFields` (the default set when null): the chosen
- *  ones and every field they read, so no field runs without its inputs. @unstable */
+ *  ones and every field they read, so no field runs without its inputs. @api @unstable */
 export function enabledEnrichKeys(enrichFields?: string[] | null): string[] {
 	const enabled = new Set<string>();
 	const visit = (key: string) => {
@@ -80,7 +80,7 @@ export function enabledEnrichKeys(enrichFields?: string[] | null): string[] {
 	return [...enabled];
 }
 
-/** True when enrichment fetches `key` for the given enrichment set. @unstable */
+/** True when enrichment fetches `key` for the given enrichment set. @api @unstable */
 export function isFieldEnabled(enrichFields: string[] | null, key: string): boolean {
 	return enabledEnrichKeys(enrichFields).includes(key);
 }

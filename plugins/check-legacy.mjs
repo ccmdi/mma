@@ -76,9 +76,10 @@ export function surfaceOf(dtsPath, files) {
 			if (!root) throw new Error(`no MMA interface in ${dtsPath}`);
 
 			const isUnstable = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
+			const unstable = unstableIn(checker);
 
-			// A whole surface can be tagged at its declaration (`@unstable type ReviewApi = ...`),
-			// which covers everything it contributes. Per-member tags are for mixed modules.
+			// Older releases tag a whole surface at its alias (`@unstable type ReviewApi = ...`),
+			// which covers everything it contributes.
 			const fromUnstableSurface = new Set();
 			for (const clause of root.heritageClauses ?? []) {
 				for (const node of clause.types) {
@@ -95,22 +96,22 @@ export function surfaceOf(dtsPath, files) {
 				for (const prop of checker.getPropertiesOfType(type)) {
 					if (prop.name.startsWith("__@")) continue;
 					const path = prefix ? `${prefix}.${prop.name}` : prop.name;
-					// Members spread from a module land as `name: typeof name`, which carries no
-					// JSDoc of its own -- the tag is on what it points at.
+					// A member picked from a module carries no JSDoc of its own -- the tag is on
+					// what it points at.
 					const target = checker.getTypeOfSymbolAtLocation(prop, root).getSymbol();
-					const unstable =
+					const tagged =
 						inherited ||
 						fromUnstableSurface.has(path) ||
-						isUnstable(prop) ||
+						unstable(prop) ||
 						(!!target && isUnstable(target));
-					surface.set(path, unstable);
+					surface.set(path, tagged);
 					if (depth === 0) continue;
 					const propType = checker.getTypeOfSymbolAtLocation(prop, root);
 					if (
 						checker.getSignaturesOfType(propType, ts.SignatureKind.Call).length === 0 &&
 						checker.getPropertiesOfType(propType).length
 					) {
-						walk(propType, path, depth - 1, unstable);
+						walk(propType, path, depth - 1, tagged);
 					}
 				}
 			};
@@ -132,7 +133,13 @@ export const prepare = (text) =>
 /** Whether a symbol is `@unstable`, reading through the hops a bundled d.ts puts between a
  *  member and its declaration: an alias, or a `declare const x: typeof y`. */
 function unstableIn(checker) {
-	const tagged = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
+	// A value and a type can share a name; the value's tag is its own declaration's.
+	const tagged = (sym) => {
+		const value = sym.valueDeclaration?.resolve();
+		if (!value) return sym.getJsDocTags(checker).some((t) => t.name === "unstable");
+		const docs = (ts.isVariableDeclaration(value) ? value.parent.parent : value).jsDoc ?? [];
+		return docs.some((doc) => (doc.tags ?? []).some((t) => t.tagName.text === "unstable"));
+	};
 	return function unstable(sym, hops = 4) {
 		if (!sym || hops === 0) return false;
 		if (tagged(sym)) return true;

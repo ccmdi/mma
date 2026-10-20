@@ -110,6 +110,7 @@ function parseAnswer(id: string, json: string): unknown {
 	}
 }
 
+/** Procedure modules: ask one a question, or run one over locations. @api */
 export const Procedure = {
 	/** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
 	entry: (name: string): string => `res://procedures/${name}.js`,

@@ -17,7 +17,7 @@ export interface SelectorPickController {
 	selectionCount: number;
 }
 
-/** Convert a picker choice into the corresponding `Selector`. */
+/** Convert a picker choice into the corresponding `Selector`. @api @unstable */
 export function selectorForPick(choice: SelectorPick): Selector {
 	switch (choice.pick) {
 		case "all":
@@ -28,7 +28,7 @@ export function selectorForPick(choice: SelectorPick): Selector {
 }
 
 /** React hook: selector state with live counts. Defaults to the current selection when one
- *  exists, else all locations. */
+ *  exists, else all locations. @api @unstable */
 export function useSelectorPick(initial?: SelectorPick): SelectorPickController {
 	const selectedIds = Scene.useSelected();
 	const allCount = Store.use((s) => s.locationCount);

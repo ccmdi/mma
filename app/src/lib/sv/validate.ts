@@ -39,7 +39,7 @@ export interface ValidationOutcome extends BatchOutcome {
 }
 
 /** Check that each location's Street View coverage still exists, grouping the locations
- *  into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted). */
+ *  into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted). @api @unstable */
 export async function validateLocations(
 	selector: Selector,
 	opts: BulkOpts & { config?: Partial<ValidateConfig>; categories?: readonly string[] } = {},

@@ -157,6 +157,7 @@ onEvent("map:open", () => {
 	setSession(null);
 });
 
+/** Review sessions and their history. @api @unstable */
 export const Review = {
 	/** Position of `id` in the session's worklist, or -1. O(1) per step. */
 	positionOf: (s: ReviewSession, id: number): number => {

@@ -303,26 +303,35 @@ pub fn export_bindings() -> Result<(), String> {
 
 fn wire_string_enums() -> [(&'static str, TsConst); 17] {
     [
-        ("CameraType", store::maps::CameraType::ts_const()),
-        ("CapturePick", store::maps::CapturePick::ts_const()),
-        ("DatePart", selections::DatePart::ts_const()),
-        ("FieldType", store::maps::FieldType::ts_const()),
-        ("Group", selections::tree::Group::ts_const()),
-        ("FirstSyncMode", sync::FirstSyncMode::ts_const().unstable()),
-        ("IssueState", net::github::IssueState::ts_const().unstable()),
-        ("MapShape", types::shape::MapShape::ts_const()),
-        ("MergeWinner", store::engine::MergeWinner::ts_const()),
-        ("Place", selections::tree::Place::ts_const()),
-        ("RateCost", net::fetch::RateCost::ts_const()),
-        ("ReviewMode", selections::ReviewMode::ts_const()),
+        ("CameraType", store::maps::CameraType::ts_const().api()),
+        ("CapturePick", store::maps::CapturePick::ts_const().api()),
+        ("DatePart", selections::DatePart::ts_const().api()),
+        ("FieldType", store::maps::FieldType::ts_const().api()),
+        ("Group", selections::tree::Group::ts_const().api()),
+        (
+            "FirstSyncMode",
+            sync::FirstSyncMode::ts_const().api().unstable(),
+        ),
+        (
+            "IssueState",
+            net::github::IssueState::ts_const().api().unstable(),
+        ),
+        ("MapShape", types::shape::MapShape::ts_const().api()),
+        ("MergeWinner", store::engine::MergeWinner::ts_const().api()),
+        ("Place", selections::tree::Place::ts_const().api()),
+        ("RateCost", net::fetch::RateCost::ts_const().api()),
+        ("ReviewMode", selections::ReviewMode::ts_const().api()),
         (
             "ResolutionSide",
-            sync::engine::ResolutionSide::ts_const().unstable(),
+            sync::engine::ResolutionSide::ts_const().api().unstable(),
         ),
-        ("Sink", procedure::engine::Sink::ts_const()),
-        ("Stack", store::engine::Stack::ts_const()),
-        ("Timeline", store::engine::Timeline::ts_const()),
-        ("SyncTrigger", sync::log::SyncTrigger::ts_const().unstable()),
+        ("Sink", procedure::engine::Sink::ts_const().api()),
+        ("Stack", store::engine::Stack::ts_const().api()),
+        ("Timeline", store::engine::Timeline::ts_const().api()),
+        (
+            "SyncTrigger",
+            sync::log::SyncTrigger::ts_const().api().unstable(),
+        ),
     ]
 }
 
@@ -380,44 +389,64 @@ fn export_consts() -> Result<(), String> {
 ",
     );
     for (name, konst) in wire_string_enums().into_iter().chain([
-        ("LocationFlag", types::LocationFlags::ts_const()),
-        ("PanoType", sv::schema::PanoType::ts_const()),
-        ("RankingStrategy", sv::schema::RankingStrategy::ts_const()),
-        ("ValidationFlag", types::ValidationFlag::ts_const()),
-        ("SyncDirection", sync::SyncDirection::ts_const().unstable()),
+        ("LocationFlag", types::LocationFlags::ts_const().api()),
+        ("PanoType", sv::schema::PanoType::ts_const().api()),
+        (
+            "RankingStrategy",
+            sv::schema::RankingStrategy::ts_const().api(),
+        ),
+        ("ValidationFlag", types::ValidationFlag::ts_const().api()),
+        (
+            "SyncDirection",
+            sync::SyncDirection::ts_const().api().unstable(),
+        ),
         (
             "BUILTIN_FIELDS",
-            TsConst::value(selections::FieldRegistry::builtins()),
+            TsConst::value(selections::FieldRegistry::builtins()).api(),
         ),
-        ("FrameKind", store::engine::FrameKind::ts_const().unstable()),
+        (
+            "FrameKind",
+            store::engine::FrameKind::ts_const().api().unstable(),
+        ),
         (
             "NO_SEL",
-            TsConst::value(store::engine::PaletteIdx::NONE.0).unstable(),
+            TsConst::value(store::engine::PaletteIdx::NONE.0)
+                .api()
+                .unstable(),
         ),
         (
             "OFFICIAL_ID_PATTERN",
-            TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN),
+            TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN).api(),
         ),
         (
             "EFFECT_CALLS",
-            TsConst::value(procedure::quickjs::EFFECT_CALLS).unstable(),
+            TsConst::value(procedure::quickjs::EFFECT_CALLS)
+                .api()
+                .unstable(),
         ),
         (
             "PLAIN_CALLS",
-            TsConst::value(procedure::quickjs::PLAIN_CALLS).unstable(),
+            TsConst::value(procedure::quickjs::PLAIN_CALLS)
+                .api()
+                .unstable(),
         ),
         (
             "DEFAULT_DUPLICATE_SCORE",
-            TsConst::value(selections::DEFAULT_DUPLICATE_SCORE).unstable(),
+            TsConst::value(selections::DEFAULT_DUPLICATE_SCORE)
+                .api()
+                .unstable(),
         ),
-        ("KNOWN_FIELDS", TsConst::value(store::maps::KNOWN_FIELDS)),
+        (
+            "KNOWN_FIELDS",
+            TsConst::value(store::maps::KNOWN_FIELDS).api(),
+        ),
         (
             "DEFAULT_MARKER_COLOR",
-            TsConst::value(store::engine::DEFAULT_MARKER_COLOR),
+            TsConst::value(store::engine::DEFAULT_MARKER_COLOR).api(),
         ),
         (
             "PROJECTIONS",
-            TsConst::value(selections::PROJECTIONS).unstable(),
+            TsConst::value(selections::PROJECTIONS).api().unstable(),
         ),
         (
             "SYNC_PROVIDERS",
@@ -430,11 +459,12 @@ fn export_consts() -> Result<(), String> {
             .with_doc(&[
                 "Every sync provider: which way it carries changes, and what it keeps of a map.",
             ])
+            .api()
             .unstable(),
         ),
         (
             "SCRATCH_MAP_ID",
-            TsConst::value(store::maps::SCRATCH_MAP_ID).unstable(),
+            TsConst::value(store::maps::SCRATCH_MAP_ID).api().unstable(),
         ),
         (
             "ERROR_CODES",
@@ -444,6 +474,7 @@ fn export_consts() -> Result<(), String> {
                     .map(|c| c.wire())
                     .collect::<Vec<_>>(),
             )
+            .api()
             .unstable(),
         ),
         (
@@ -455,6 +486,7 @@ fn export_consts() -> Result<(), String> {
                     .collect::<Vec<_>>(),
             )
             .with_doc(&["Country codes Vali has coverage data for."])
+            .api()
             .unstable(),
         ),
     ]) {

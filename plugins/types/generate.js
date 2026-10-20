@@ -1,6 +1,6 @@
-// Bundle the plugin type surface (mma.d.ts) from the app's source.
-// Two stages: tsc emits real .d.ts files (JSDoc survives declaration emit),
-// then rollup-plugin-dts rolls them into one file.
+// Assemble the plugin surface (api.ts) from the app's `@api` tags, then bundle its types
+// (mma.d.ts): tsc emits real .d.ts files (JSDoc survives declaration emit), then
+// rollup-plugin-dts rolls them into one file.
 const { execFileSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -11,8 +11,12 @@ const { generateAndPublish } = require("./generated-output.js");
 const repoRoot = path.resolve(__dirname, "../..");
 const appDir = path.join(repoRoot, "app");
 const out = path.resolve(__dirname, "mma.d.ts");
+const apiPath = path.join(appDir, "src", "api.ts");
 
 async function main() {
+  const native = await import(pathToFileURL(path.join(appDir, "scripts", "native-ts.mjs")).href);
+  const api = await assembleApi(native, path.join(appDir, "src"));
+  await generateAndPublish(async () => ({ api }), [{ key: "api", path: apiPath }]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mma-dts-"));
   try {
     const tsc = path.join(appDir, "node_modules", "@typescript", "native", "bin", "tsc");
@@ -76,17 +80,6 @@ async function main() {
     // `MMA`.
     content = content.replace(/^export \{ /m, "export type { ");
 
-    for (const [line, alias, target] of [...content.matchAll(/^(?:export )?type (\w+) = (\w+);$/gm)]) {
-      if (!new RegExp(`^declare const ${target}:`, "m").test(content)) continue;
-      content = content.replace(line, `declare const ${alias}: typeof ${target};
-${line}`);
-    }
-    content = content.replace(/^([ 	]+)export type \{([^}]*)\};$/gm, (whole, indent, list) =>
-      list.split(",").every((part) => new RegExp(`^declare const ${part.trim().split(/\s+/)[0]}:`, "m").test(content))
-        ? `${indent}export {${list}};`
-        : whole,
-    );
-
     // rollup-plugin-dts appends $1 to names that collide across modules.
     for (const name of ["Selection", "Plugin", "MMA"]) {
       content = content.replace(new RegExp(`\\b${name}\\$1\\b`, "g"), name);
@@ -110,20 +103,131 @@ ${line}`);
     // api.ts's `declare global` (window.MMA + bare MMA) survives the bundle,
     // so no appended global block is needed.
     content = `/// <reference types="google.maps" />\n\n` + content;
+    content = stripInternal(native, content);
     rejectBackendSpelling(content);
-    const native = await import(pathToFileURL(path.join(appDir, "scripts", "native-ts.mjs")).href);
     content = propagateUnstable(native, content);
     content = stampUnpromisedExports(native, content);
     const markdown = await generateApiMarkdown(native, content);
-    const apiPath = path.resolve(__dirname, "API.md");
-    await generateAndPublish(async () => ({ [out]: content, [apiPath]: markdown }), [
+    const markdownPath = path.resolve(__dirname, "API.md");
+    await generateAndPublish(async () => ({ [out]: content, [markdownPath]: markdown }), [
       { key: out, path: out },
-      { key: apiPath, path: apiPath },
+      { key: markdownPath, path: markdownPath },
     ]);
     console.log("Generated plugins/types/mma.d.ts");
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+// Every exported declaration whose doc carries `@api`, by the module that declares it. A value
+// lands on `MMA` under its own name; a type is exported beside it.
+function apiDeclarations({ ts, withProgram }, srcDir) {
+  const files = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(e.name) && !e.name.endsWith(".d.ts") && p !== apiPath) files.push(p);
+    }
+  };
+  walk(srcDir);
+  const options = { noResolve: true, noLib: true, types: [], jsx: "preserve" };
+  return withProgram(files, options, ({ program }) => files.flatMap((file) => {
+    const source = program.getSourceFile(file);
+    const types = [];
+    const values = [];
+    for (const node of source.statements) {
+      if (!node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
+      if (!jsDocTagNames(ts, node).includes("api")) continue;
+      if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) types.push(node.name.text);
+      else if (ts.isVariableStatement(node)) values.push(...node.declarationList.declarations.map((d) => d.name.text));
+      else if (node.name) values.push(node.name.text);
+    }
+    if (values.length === 0 && types.length === 0) return [];
+    const module = path.relative(srcDir, file).replace(/\\/g, "/").replace(/\.tsx?$/, "");
+    return [{ module, values: values.sort(), types: types.sort() }];
+  }));
+}
+
+// A module's section is its file name, or its folder's for an index. Two modules that would
+// share a title each take parent folders until they differ.
+function sectionNames(modules) {
+  const parts = modules.map((m) => {
+    const segments = m.split("/");
+    if (segments.length > 1 && segments[segments.length - 1] === "index") segments.pop();
+    return segments;
+  });
+  const depth = parts.map(() => 1);
+  const title = (i) => parts[i].slice(-depth[i]).join("/");
+  for (;;) {
+    const byTitle = new Map();
+    parts.forEach((_, i) => byTitle.set(title(i), [...(byTitle.get(title(i)) ?? []), i]));
+    const clashing = [...byTitle.values()].filter((is) => is.length > 1).flat();
+    if (clashing.length === 0) break;
+    for (const i of clashing) {
+      if (depth[i] === parts[i].length) throw new Error(`api: no folder tells ${modules[i]} apart`);
+      depth[i]++;
+    }
+  }
+  const pascal = (segment) =>
+    segment.split(".").map((w) => w[0].toUpperCase() + w.slice(1)).join("");
+  return parts.map((_, i) => parts[i].slice(-depth[i]).map(pascal).join("_"));
+}
+
+// The module that puts every `@api` value on `MMA` and exports every `@api` type.
+async function assembleApi(native, srcDir) {
+  const declared = apiDeclarations(native, srcDir);
+  for (const kind of ["values", "types"]) {
+    const owner = new Map();
+    for (const d of declared) {
+      for (const name of d[kind]) {
+        if (owner.has(name)) throw new Error(`api: ${name} is declared by both ${owner.get(name)} and ${d.module}`);
+        owner.set(name, d.module);
+      }
+    }
+  }
+  const sections = sectionNames(declared.map((d) => d.module));
+  const modules = declared
+    .map((d, i) => ({ ...d, section: sections[i] }))
+    .sort((a, b) => a.section.localeCompare(b.section));
+  const withValues = modules.filter((m) => m.values.length > 0);
+  const text = [
+    "// Generated by `npm run gen:plugin-types` from the `@api` tags. Do not edit.",
+    'export type * from "@/bindings.gen";',
+    ...modules
+      .filter((m) => m.types.length > 0)
+      .map((m) => `export type { ${m.types.join(", ")} } from "@/${m.module}";`),
+    ...withValues.map((m) => `import { ${m.values.join(", ")} } from "@/${m.module}";`),
+    "",
+    ...withValues.map((m) => `type ${m.section}Api = { ${m.values.map((v) => `${v}: typeof ${v}`).join("; ")} };`),
+    "",
+    "/** The global `MMA` object (also `window.MMA`). */",
+    `export interface MMA extends ${withValues.map((m) => `${m.section}Api`).join(", ")} {}`,
+    "",
+    "export type { MMA as MMAApi };",
+    "",
+    "const mma: MMA = {",
+    ...withValues.flatMap((m) => m.values.map((v) => `${v},`)),
+    "};",
+    "",
+    "declare global {",
+    "interface Window {",
+    "MMA: MMA;",
+    "}",
+    "const MMA: MMA;",
+    "}",
+    "",
+    "window.MMA = mma;",
+    "",
+    "export default mma;",
+    "",
+  ].join("\n");
+  const { format } = await import(pathToFileURL(path.join(appDir, "node_modules", "oxfmt", "dist", "index.js")).href);
+  const { $schema, ignorePatterns, ...config } = JSON.parse(fs.readFileSync(path.join(appDir, ".oxfmtrc.json"), "utf-8"));
+  const { code, errors } = await format("api.ts", text, config);
+  if (errors.length > 0) throw new Error(`api.ts failed to format: ${errors[0].message}`);
+  console.log(`Assembled api.ts (${withValues.reduce((n, m) => n + m.values.length, 0)} values from ${withValues.length} modules)`);
+  return code;
 }
 
 // Doc comments are what a plugin author reads, so they name things the way the SDK spells
@@ -172,7 +276,7 @@ const declarationsIn = (source, sym) =>
 
 const callSignatures = (ts, checker, type) => checker.getSignaturesOfType(type, ts.SignatureKind.Call);
 
-// A member spread from a module reaches its const through an export alias and, when the
+// A member reaches its const through `name: typeof name`, an export alias and, when the
 // bundler renamed it, a `typeof` const. Every hop is a declaration a reader can hover.
 function declarationHops(ts, checker) {
   return (sym) => {
@@ -180,7 +284,7 @@ function declarationHops(ts, checker) {
     for (let s = sym, i = 0; s && i < 4; i++) {
       const next = s.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(s) : null;
       const decl = (next || s).declarations?.[0]?.resolve();
-      const query = decl && ts.isVariableDeclaration(decl) && decl.type && ts.isTypeQueryNode(decl.type)
+      const query = decl && (ts.isVariableDeclaration(decl) || ts.isPropertySignatureDeclaration(decl)) && decl.type && ts.isTypeQueryNode(decl.type)
         ? checker.getSymbolAtLocation(decl.type.exprName)
         : null;
       if (next) hops.push(next);
@@ -202,13 +306,13 @@ function memberUnstable(ts, checker) {
   return (prop, target) => [prop, target, ...hopsOf(prop)].some((s) => s && tagged(s));
 }
 
-// `@unstable` is declared once -- on a surface (`type ReviewApi`) or a namespace (`cmd`) --
-// but a plugin author hovers the member, not the surface. Stamp it onto every member the
-// tag covers so the warning is visible where the call is written.
+// `@unstable` is declared once -- on a declaration or a namespace (`cmd`) -- but a plugin
+// author hovers the member, not where it was declared. Stamp it onto every member the tag
+// covers so the warning is visible where the call is written.
 function propagateUnstable(native, text) {
   const { ts } = native;
   const edits = withBundle(native, text, ({ checker, source, root }) => {
-    const tagged = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
+    const unstableMember = memberUnstable(ts, checker);
 
     // Where a doc comment can actually go. A symbol's declaration is sometimes the type
     // node (`() => void`), which is not a place a reader would ever look.
@@ -230,27 +334,11 @@ function propagateUnstable(native, text) {
     const targets = new Set();
     const declaredThrough = declarationHops(ts, checker);
 
-    // Every member a tagged surface contributes.
-    const fromUnstableSurface = new Set();
-    for (const clause of root.heritageClauses || []) {
-      for (const node of clause.types) {
-        const alias = checker.getSymbolAtLocation(node.expression);
-        if (!alias || !tagged(alias)) continue;
-        for (const prop of checker.getPropertiesOfType(checker.getTypeAtLocation(node))) {
-          fromUnstableSurface.add(prop.name);
-        }
-      }
-    }
-
     const collect = (type, depth, inherited) => {
       for (const prop of checker.getPropertiesOfType(type)) {
         const propType = checker.getTypeOfSymbolAtLocation(prop, root);
         const target = propType.getSymbol();
-        const unstable =
-          inherited ||
-          (depth === 1 && fromUnstableSurface.has(prop.name)) ||
-          tagged(prop) ||
-          (!!target && tagged(target));
+        const unstable = inherited || unstableMember(prop, target);
         if (unstable) {
           for (const sym of [prop, target, ...declaredThrough(prop)]) {
             for (const d of declarationsIn(source, sym)) {
@@ -271,6 +359,28 @@ function propagateUnstable(native, text) {
   const result = applyEdits(edits, text);
   console.log(`Propagated @unstable to ${result.count} members`);
   return result.text;
+}
+
+// A member tagged `@internal` is the app's own plumbing on an object plugins can reach. It is
+// left out of the plugin types, so no plugin is written against it.
+function stripInternal(native, text) {
+  const { ts } = native;
+  const ranges = withBundle(native, text, ({ source }) => {
+    const found = [];
+    const visit = (node) => {
+      if ((ts.isPropertySignatureDeclaration(node) || ts.isMethodSignatureDeclaration(node)) && jsDocTagNames(ts, node).includes("internal")) {
+        found.push({ start: node.pos, end: node.end });
+        return;
+      }
+      node.forEachChild(visit);
+    };
+    visit(source);
+    return found;
+  });
+  ranges.sort((a, b) => b.start - a.start);
+  for (const { start, end } of ranges) text = text.slice(0, start) + text.slice(end);
+  console.log(`Stripped ${ranges.length} @internal members`);
+  return text;
 }
 
 // The edits that add `@unstable` to the doc comment of each node, or give it one.
@@ -455,8 +565,8 @@ function memberNames({ ts, withProgram }, files) {
   }), files);
 }
 
-// The human-readable companion to mma.d.ts: one section per API surface on the MMA
-// interface, each member with its badges, signature and doc. Stable surfaces come first.
+// The human-readable companion to mma.d.ts: one section per module on the MMA interface,
+// each member with its badges, signature and doc. Stable sections come first.
 // Output-only -- regenerated with the d.ts, never hand-edited.
 async function generateApiMarkdown(native, text, since = firstReleases(native, text)) {
   const { ts } = native;
@@ -581,25 +691,18 @@ async function generateApiMarkdown(native, text, since = firstReleases(native, t
       };
     };
 
+    // One section per module: api.ts names its alias after the module's file (`PluginStorageApi`),
+    // with an underscore where a folder tells two files apart (`Store_QueryApi`).
+    const sentence = (word) => word.split(/(?=[A-Z])/).map((w, i) => (i ? w.toLowerCase() : w)).join(" ");
     const groups = [];
     for (const clause of root.heritageClauses || []) {
       for (const node of clause.types) {
         const alias = checker.getSymbolAtLocation(node.expression);
         if (alias) groups.push({
-          name: alias.name.replace(/Api$/, ""),
-          doc: alias.getDocumentationComment(checker).trim(),
-          unstable: alias.getJsDocTags(checker).some((tag) => tag.name === "unstable"),
+          name: alias.name.replace(/Api$/, "").split("_").map(sentence).join(" / "),
           props: [...checker.getPropertiesOfType(checker.getTypeAtLocation(node))],
         });
       }
-    }
-    for (const node of root.members) {
-      const prop = node.name && checker.getSymbolAtLocation(node.name);
-      if (prop) groups.push({
-        name: prop.name[0].toUpperCase() + prop.name.slice(1),
-        doc: "",
-        props: [prop],
-      });
     }
     const surfaces = [];
     for (const group of groups) {
@@ -617,7 +720,6 @@ async function generateApiMarkdown(native, text, since = firstReleases(native, t
         }
         const innerType = (p) => checker.getTypeOfSymbolAtLocation(p, root);
         const info = describe(prop, propType);
-        info.unstable ||= group.unstable;
         if (inner.length > 0 && inner.some((p) => callSignatures(ts, checker, innerType(p)).length > 0)) {
           members.push({ lines: [...header(3, prop.name, info), ...prose(info)], unstable: info.unstable });
           for (const p of inner.sort((a, b) => a.name.localeCompare(b.name))) {
@@ -629,13 +731,12 @@ async function generateApiMarkdown(native, text, since = firstReleases(native, t
             unstable: info.unstable,
           });
         } else {
-          members.push(entry(prop.name, prop, propType, 3, group.unstable));
+          members.push(entry(prop.name, prop, propType, 3));
         }
       }
       if (members.length === 0) continue;
       surfaces.push({
         name: group.name,
-        doc: group.doc,
         members,
         unstable: members.every((m) => m.unstable),
       });
@@ -652,13 +753,12 @@ async function generateApiMarkdown(native, text, since = firstReleases(native, t
   const section = (s) => [
     `## ${s.name}`,
     "",
-    ...(s.doc ? [s.doc, ""] : []),
     ...s.members.flatMap((m) => m.lines.map(render)),
   ];
   const md = [
     "# MMA API reference",
     "",
-    "Every member of the global `MMA` object (also `window.MMA`), grouped by surface.",
+    "Every member of the global `MMA` object (also `window.MMA`), grouped by the file that declares it.",
     "",
     "- `stable` members keep working across releases. A rename or removal ships with a shim.",
     "- `unstable` members are documented but can change or disappear in any release.",
@@ -685,7 +785,7 @@ async function generateApiMarkdown(native, text, since = firstReleases(native, t
   return md;
 }
 
-module.exports = { firstReleases, generateApiMarkdown, propagateUnstable };
+module.exports = { assembleApi, firstReleases, generateApiMarkdown, propagateUnstable, stripInternal };
 if (require.main === module) main().catch((e) => {
   console.error(e);
   process.exit(1);

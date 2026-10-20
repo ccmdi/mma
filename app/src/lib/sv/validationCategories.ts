@@ -20,6 +20,7 @@ export interface ValidationCategory {
 
 const has = (a: ValidationAnswer, flag: ValidationFlag) => (a.flags & flag) !== 0;
 
+/** @api @unstable */
 export const VALIDATION_CATEGORIES: readonly ValidationCategory[] = [
 	{
 		key: "valid",
@@ -83,11 +84,12 @@ export const VALIDATION_CATEGORIES: readonly ValidationCategory[] = [
 	},
 ];
 
+/** @api @unstable */
 export const STANDARD_VALIDATION_CATEGORIES = VALIDATION_CATEGORIES.filter((c) => c.standard).map(
 	(c) => c.key,
 );
 
-/** The category a key names, or null for one this version does not know. */
+/** The category a key names, or null for one this version does not know. @api @unstable */
 export function validationCategory(key: string): ValidationCategory | null {
 	return VALIDATION_CATEGORIES.find((c) => c.key === key) ?? null;
 }

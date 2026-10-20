@@ -14,7 +14,7 @@ type LayerRead = <A extends Ask>(
 	ask: A,
 ) => Promise<ReadResult<AnswerOf<A["kind"]>>>;
 
-/** A pending layer. Operations run in order; work still writing to a landed layer outlives close. */
+/** A pending layer. Operations run in order; work still writing to a landed layer outlives close. @api @unstable */
 export class Layer {
 	readonly target: Extract<Target, { kind: "pending" }>;
 	private readonly queue = serial();

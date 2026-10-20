@@ -22,7 +22,7 @@ export interface FieldProjection {
 	needsTz: boolean;
 }
 
-/** Projections valid for a field type, in display order (first = dialog default). */
+/** Projections valid for a field type, in display order (first = dialog default). @api @unstable */
 export function projectionsForType(type: FieldType): FieldProjection[] {
 	return PROJECTIONS.filter((p) => (p.appliesTo as readonly FieldType[]).includes(type)).map(
 		(p) => ({
@@ -40,10 +40,10 @@ function projectionLabel(id: string): string {
 	return label ?? id;
 }
 
-/** The "Range" partition option (numeric binning). */
+/** The "Range" partition option (numeric binning). @api @unstable */
 export const RANGE_ID = "range";
 
-/** Partition-key dropdown options for a field type. */
+/** Partition-key dropdown options for a field type. @api @unstable */
 export function partitionKeyOptions(
 	type: FieldType,
 	rangeForDates: boolean,

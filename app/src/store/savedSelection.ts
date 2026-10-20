@@ -68,6 +68,7 @@ function loadIndex(): Promise<void> {
 
 bridgeAcrossWindows("saved-selections:changed", () => void reloadIndex());
 
+/** Saved selection rules. @api @unstable */
 export const SavedSelection = {
 	/** Selection types that cannot be saved as rules because they are bound to the open map. */
 	MAP_LOCAL_TYPES,

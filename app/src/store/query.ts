@@ -15,6 +15,7 @@ export type ReadResult<A extends Answer> = A extends Answer
 	? Materialized<Payload<Omit<A, "kind">>>
 	: never;
 
+/** Read locations and summaries for a selector. @api */
 export const Query = {
 	/** Ask one question about the locations `selector` matches. A full-location answer loads any
 	 *  backing file automatically; ask for ids or columns when full locations are unnecessary. */

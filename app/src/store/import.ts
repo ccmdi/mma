@@ -38,6 +38,7 @@ async function setImportStaging(preview: EditorImportPreview) {
 		MapHost.fitToBounds(bboxTupleToBounds(preview.bounds), 100, getSettings().pastePadding);
 }
 
+/** Stage, preview, and confirm an import into the open map. @api @unstable */
 export const Import = {
 	/** The preview marker positions for the staged import. */
 	previewPositions: () => {

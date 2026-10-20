@@ -1,6 +1,7 @@
 import { Edit } from "./edit";
 import type { MergeWinner } from "@/bindings.consts";
 
+/** Rename or remove metadata fields across the map. @api */
 export const Field = {
 	/** Rename extra-field `from` to `to` across all locations, its definition, and the listed
 	 *  selections, in one undoable step. When a location already holds `to`, `winner` decides

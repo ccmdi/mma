@@ -29,7 +29,7 @@ check-tokens      node  -       app            node ../plugins/check-tokens.mjs
 check-sidecars    node  -       .              node --test plugins/check-sidecars.test.mjs && node plugins/check-sidecars.mjs
 check-rust-tests  node  -       .              node --test plugins/check-rust-test-layout.test.mjs && node plugins/check-rust-test-layout.mjs
 image-dims        node  fresh   app            fresh src/components/manual/manual-img-dims.gen.ts -- npm run gen:image-dims
-plugin-types      node  fresh   app            fresh ../plugins/types/mma.d.ts ../plugins/types/API.md -- npm run gen:plugin-types
+plugin-types      node  fresh   app            fresh src/api.ts ../plugins/types/mma.d.ts ../plugins/types/API.md -- npm run gen:plugin-types
 plugin-build      node  fresh   .              fresh_plugins
 cargo-fmt         rust  cargo   app/src-tauri  cargo fmt --all -- --check
 clippy            rust  cargo   app/src-tauri  cargo clippy -- -D clippy::correctness -D dead_code
