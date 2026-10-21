@@ -4,8 +4,7 @@
  */
 
 import { preloadModules, getAvailableExternals } from "./externals";
-import { setPendingManifest, getPlugins } from "@/plugins/registry";
-import { activatePlugin } from "@/plugins/pluginHost";
+import { setPendingManifest, getPlugins, activatePlugin } from "@/plugins/registry";
 import { autoUpdatePlugin, fetchPluginRegistry } from "@/plugins/marketplace";
 import { appVersion } from "@/lib/version";
 import type { PluginManifest } from "@/bindings.gen";

@@ -196,7 +196,6 @@ import { Maps } from "@/store/maps";
 import { Mutation } from "@/store/mutation";
 import { Pano } from "@/lib/sv/pano";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
-import { activatePlugin, isReady, setPluginEnabled } from "@/plugins/pluginHost";
 import { mapStorage, storage, usePluginState } from "@/plugins/pluginStorage";
 import { Procedure } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
@@ -212,10 +211,13 @@ import {
 	timezoneProvider,
 } from "@/lib/sv/providers";
 import {
+	activatePlugin,
 	getPlugin,
 	getPlugins,
 	isBackgroundPlugin,
+	isReady,
 	registerPlugin,
+	setPluginEnabled,
 	unregisterPlugin,
 } from "@/plugins/registry";
 import { Review } from "@/lib/review/review";
@@ -547,11 +549,6 @@ type MapsApi = { Maps: typeof Maps };
 type MutationApi = { Mutation: typeof Mutation };
 type PanoApi = { Pano: typeof Pano };
 type PinPanoApi = { bulkPinToPano: typeof bulkPinToPano };
-type PluginHostApi = {
-	activatePlugin: typeof activatePlugin;
-	isReady: typeof isReady;
-	setPluginEnabled: typeof setPluginEnabled;
-};
 type PluginStorageApi = {
 	mapStorage: typeof mapStorage;
 	storage: typeof storage;
@@ -571,10 +568,13 @@ type ProvidersApi = {
 	timezoneProvider: typeof timezoneProvider;
 };
 type RegistryApi = {
+	activatePlugin: typeof activatePlugin;
 	getPlugin: typeof getPlugin;
 	getPlugins: typeof getPlugins;
 	isBackgroundPlugin: typeof isBackgroundPlugin;
+	isReady: typeof isReady;
 	registerPlugin: typeof registerPlugin;
+	setPluginEnabled: typeof setPluginEnabled;
 	unregisterPlugin: typeof unregisterPlugin;
 };
 type ReviewApi = { Review: typeof Review };
@@ -731,7 +731,6 @@ export interface MMA
 		MutationApi,
 		PanoApi,
 		PinPanoApi,
-		PluginHostApi,
 		PluginStorageApi,
 		ProcedureApi,
 		ProviderApi,
@@ -955,9 +954,6 @@ const mma: MMA = {
 	Mutation,
 	Pano,
 	bulkPinToPano,
-	activatePlugin,
-	isReady,
-	setPluginEnabled,
 	mapStorage,
 	storage,
 	usePluginState,
@@ -972,10 +968,13 @@ const mma: MMA = {
 	subdivisionProvider,
 	svMetaProvider,
 	timezoneProvider,
+	activatePlugin,
 	getPlugin,
 	getPlugins,
 	isBackgroundPlugin,
+	isReady,
 	registerPlugin,
+	setPluginEnabled,
 	unregisterPlugin,
 	Review,
 	SavedSelection,

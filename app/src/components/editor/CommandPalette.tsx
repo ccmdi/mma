@@ -14,7 +14,7 @@ import { useSetting } from "@/store/settings";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { getBinding, useBinding } from "@/lib/util/hotkeys";
 import { confirmMapExit } from "@/lib/jobs";
-import { getEnabledPlugins } from "@/plugins/pluginHost";
+import { getEnabledPlugins } from "@/plugins/registry";
 import { score } from "@/lib/search";
 import { goTo } from "@/store/router";
 import { t, msg } from "@/lib/i18n";

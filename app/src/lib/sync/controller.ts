@@ -1,7 +1,7 @@
 import { Maps } from "@/store/maps";
 import { bridgeAcrossWindows, changedLocations, emit } from "@/lib/events";
 import { reloadStorage } from "@/plugins/pluginStorage";
-import { isPluginEnabled } from "@/plugins/pluginHost";
+import { isPluginEnabled } from "@/plugins/registry";
 import { msg, t } from "@/lib/i18n";
 import { errText } from "@/lib/util/format";
 import { log } from "@/lib/util/log";

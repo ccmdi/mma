@@ -10,7 +10,7 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 Element.prototype.scrollIntoView = () => {};
 
 const { registerPlugin, unregisterPlugin } = await import("@/plugins/registry");
-const { setPluginEnabled } = await import("@/plugins/pluginHost");
+const { setPluginEnabled } = await import("@/plugins/registry");
 const { openDialog, useDialog } = await import("@/store/dialogBus");
 const { Editor } = await import("@/store/editor");
 const { CommandPalette } = await import("@/components/editor/CommandPalette");

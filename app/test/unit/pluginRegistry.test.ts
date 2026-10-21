@@ -9,8 +9,6 @@ import {
 	unregisterPlugin,
 	setPendingManifest,
 	isBackgroundPlugin,
-} from "@/plugins/registry";
-import {
 	isPluginEnabled,
 	setPluginEnabled,
 	getEnabledPlugins,
@@ -18,7 +16,7 @@ import {
 	activatePlugins,
 	deactivatePlugin,
 	deactivatePlugins,
-} from "@/plugins/pluginHost";
+} from "@/plugins/registry";
 import { isPluginCompatible } from "@/plugins/marketplace";
 import { emit, subscribe } from "@/lib/events";
 import { on } from "@/plugins/scope";

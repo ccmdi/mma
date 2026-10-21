@@ -15,8 +15,7 @@ vi.mock("@/store/editor", () => ({
 }));
 
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
-import { registerPlugin, unregisterPlugin } from "@/plugins/registry";
-import { setPluginEnabled } from "@/plugins/pluginHost";
+import { registerPlugin, unregisterPlugin, setPluginEnabled } from "@/plugins/registry";
 
 const normalPlugin = {
 	id: "normal-p",

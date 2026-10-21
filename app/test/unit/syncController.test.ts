@@ -38,7 +38,7 @@ vi.mock("@/store/mutation", () => ({
 	},
 }));
 import { createSyncController } from "@/lib/sync/controller";
-import { setPluginEnabled } from "@/plugins/pluginHost";
+import { setPluginEnabled } from "@/plugins/registry";
 import { subscribe } from "@/lib/events";
 import type { ChangeEvent } from "@/bindings.gen";
 import { add, changeEvent, replace } from "./fixtures/patch";

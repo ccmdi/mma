@@ -8,7 +8,7 @@ import { Import } from "@/store/import";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
 import { goTo, leaveToList } from "@/store/router";
-import { activatePlugins, deactivatePlugins } from "@/plugins/pluginHost";
+import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { MapHost } from "@/lib/map/host";
 import { addParsedLocations } from "@/lib/map/mapClick";
 import { cmd } from "@/lib/commands";

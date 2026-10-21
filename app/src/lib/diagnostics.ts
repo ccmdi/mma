@@ -4,7 +4,7 @@ import type { ProcedureActivity } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { Procedure } from "@/lib/data/procedure";
 import { google } from "@/lib/sv/opensv";
-import { getEnabledPlugins } from "@/plugins/pluginHost";
+import { getEnabledPlugins } from "@/plugins/registry";
 import { DEFAULTS, PRIVATE_SETTINGS, getSettings, type AppSettings } from "@/store/settings";
 import { formatBytes } from "@/lib/util/format";
 import { appVersion } from "@/lib/version";

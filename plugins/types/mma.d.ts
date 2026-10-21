@@ -5737,43 +5737,6 @@ export interface PinOutcome extends BatchOutcome {
 /** Pin every location in the selector to its pano id, resolving pano ids first when asked. @api @unstable */
 declare function bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>;
 
-/** The fields a plugin shows as itself, declared once by its manifest. */
-export type PluginIdentity = Pick<PluginManifest, "id" | "name" | "description" | "icon" | "comingSoon" | "experimental">;
-export interface Plugin extends PluginIdentity {
-    core?: boolean;
-    /** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
-     *  Only for plugins whose state can't be serialized (e.g. an iframe). */
-    keepAlive?: boolean;
-    activate(): void | (() => void);
-    modal?: ComponentType<{
-        onClose: () => void;
-    }>;
-    sidebar?: ComponentType<{
-        onClose: () => void;
-    }>;
-    locationPanel?: ComponentType;
-}
-export type PluginBehavior = Partial<Plugin> & {
-    activate(): void | (() => void);
-};
-/** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. @api */
-declare function registerPlugin(plugin: Plugin | PluginBehavior): void;
-/** All registered plugins, sorted by name. @api */
-declare function getPlugins(): Plugin[];
-/** Look up a registered plugin by id. @api */
-declare function getPlugin(id: string): Plugin | undefined;
-/** True when the plugin contributes data only and has no UI surfaces. @api */
-declare function isBackgroundPlugin(id: string): boolean;
-/** Remove a plugin from the registry. @api @unstable */
-declare function unregisterPlugin(id: string): void;
-
-/** Enable or disable a plugin. @api @unstable */
-declare function setPluginEnabled(id: string, enabled: boolean): void;
-/** Activate a single plugin by id. @api @unstable */
-declare function activatePlugin(id: string): void;
-/** True once the MMA surface is installed and plugins are safe to call it. @api @unstable */
-declare function isReady(): boolean;
-
 /** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
  *  read. Fields not offered in the enrichment settings are always included. @api @unstable */
 declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
@@ -5815,6 +5778,42 @@ declare const BUILTIN_PROVIDERS: readonly Provider[];
 declare function enrich(selector: Selector, { resolve, ...opts }?: RunOpts & {
     resolve?: boolean;
 }): Promise<ProcedureOutcomes>;
+
+/** The fields a plugin shows as itself, declared once by its manifest. */
+export type PluginIdentity = Pick<PluginManifest, "id" | "name" | "description" | "icon" | "comingSoon" | "experimental">;
+export interface Plugin extends PluginIdentity {
+    core?: boolean;
+    /** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
+     *  Only for plugins whose state can't be serialized (e.g. an iframe). */
+    keepAlive?: boolean;
+    activate(): void | (() => void);
+    modal?: ComponentType<{
+        onClose: () => void;
+    }>;
+    sidebar?: ComponentType<{
+        onClose: () => void;
+    }>;
+    locationPanel?: ComponentType;
+}
+export type PluginBehavior = Partial<Plugin> & {
+    activate(): void | (() => void);
+};
+/** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. @api */
+declare function registerPlugin(plugin: Plugin | PluginBehavior): void;
+/** All registered plugins, sorted by name. @api */
+declare function getPlugins(): Plugin[];
+/** Look up a registered plugin by id. @api */
+declare function getPlugin(id: string): Plugin | undefined;
+/** True when the plugin contributes data only and has no UI surfaces. @api */
+declare function isBackgroundPlugin(id: string): boolean;
+/** Remove a plugin from the registry. @api @unstable */
+declare function unregisterPlugin(id: string): void;
+/** Enable or disable a plugin. @api @unstable */
+declare function setPluginEnabled(id: string, enabled: boolean): void;
+/** Activate a single plugin by id. @api @unstable */
+declare function activatePlugin(id: string): void;
+/** True once the MMA surface is installed and plugins are safe to call it. @api @unstable */
+declare function isReady(): boolean;
 
 /** @unstable */
 export interface PruneResult {
@@ -7109,14 +7108,6 @@ export type PinPanoApi = {
     /** @unstable */
     bulkPinToPano: typeof bulkPinToPano;
 };
-export type PluginHostApi = {
-    /** @unstable */
-    activatePlugin: typeof activatePlugin;
-    /** @unstable */
-    isReady: typeof isReady;
-    /** @unstable */
-    setPluginEnabled: typeof setPluginEnabled;
-};
 export type PluginStorageApi = {
     mapStorage: typeof mapStorage;
     storage: typeof storage;
@@ -7149,10 +7140,16 @@ export type ProvidersApi = {
     timezoneProvider: typeof timezoneProvider;
 };
 export type RegistryApi = {
+    /** @unstable */
+    activatePlugin: typeof activatePlugin;
     getPlugin: typeof getPlugin;
     getPlugins: typeof getPlugins;
     isBackgroundPlugin: typeof isBackgroundPlugin;
+    /** @unstable */
+    isReady: typeof isReady;
     registerPlugin: typeof registerPlugin;
+    /** @unstable */
+    setPluginEnabled: typeof setPluginEnabled;
     /** @unstable */
     unregisterPlugin: typeof unregisterPlugin;
 };
@@ -7409,7 +7406,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {

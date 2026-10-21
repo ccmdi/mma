@@ -21,7 +21,10 @@ vi.mock("@/lib/commands", () => ({
 		listUserPlugins: vi.fn(async () => []),
 	},
 }));
-vi.mock("@/plugins/pluginHost", () => ({ getEnabledPlugins: () => [] }));
+vi.mock("@/plugins/registry", async (actual) => ({
+	...(await actual<typeof import("@/plugins/registry")>()),
+	getEnabledPlugins: () => [],
+}));
 vi.mock("@/store/store", () => ({ Store: { get: () => ({ map: null }) } }));
 vi.mock("@/store/tag", () => ({ Tag: { all: () => ({}) } }));
 vi.mock("@/lib/data/procedure", () => ({ Procedure: {} }));

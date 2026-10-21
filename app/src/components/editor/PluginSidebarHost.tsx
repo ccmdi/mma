@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Editor } from "@/store/editor";
-import { getPlugin } from "@/plugins/registry";
-import { isPluginEnabled } from "@/plugins/pluginHost";
+import { getPlugin, isPluginEnabled } from "@/plugins/registry";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useEvent } from "@/lib/events";
 

@@ -12,13 +12,11 @@ import {
 	isBackgroundPlugin,
 	type Plugin,
 	type PluginIdentity,
-} from "@/plugins/registry";
-import {
 	isPluginEnabled,
 	setPluginEnabled,
 	activatePlugin,
 	deactivatePlugin,
-} from "@/plugins/pluginHost";
+} from "@/plugins/registry";
 import { resolveBuild, needsBuildUpdate, fetchPluginRegistry } from "@/plugins/marketplace";
 import { events, type PluginManifest } from "@/bindings.gen";
 import { loadAndActivatePlugin, loadUserPlugin } from "@/plugins/index";

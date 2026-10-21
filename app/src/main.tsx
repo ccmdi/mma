@@ -21,7 +21,7 @@ import { openWindow, openWindows, closeWindows } from "@/lib/window";
 import { cmd } from "@/lib/commands";
 import { isWeb } from "@/lib/util/util";
 import { getJobs, confirmMapExit } from "@/lib/jobs";
-import { markReady } from "@/plugins/pluginHost";
+import { markReady } from "@/plugins/registry";
 import { checkForUpdate } from "@/lib/util/updateCheck";
 import { refreshStoredReports } from "@/lib/feedback/submit";
 import { ownWebviewInput } from "@/lib/hooks/useHotkey";

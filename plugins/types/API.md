@@ -51,7 +51,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Layer](#layer)
 - [Pano](#pano)
 - [Pin pano](#pin-pano)
-- [Plugin host](#plugin-host)
 - [Providers](#providers)
 - [Review](#review)
 - [Saved selection](#saved-selection)
@@ -3583,6 +3582,16 @@ back. Resolves once every provider finishes, or on abort.
 
 ## Registry
 
+### activatePlugin
+
+`unstable` · since v0.10.3
+
+```ts
+activatePlugin(id: string): void
+```
+
+Activate a single plugin by id.
+
 ### getPlugin
 
 `stable` · since v0.10.3
@@ -3613,6 +3622,16 @@ isBackgroundPlugin(id: string): boolean
 
 True when the plugin contributes data only and has no UI surfaces.
 
+### isReady
+
+`unstable` · since v0.10.3
+
+```ts
+isReady(): boolean
+```
+
+True once the MMA surface is installed and plugins are safe to call it.
+
 ### registerPlugin
 
 `stable` · since v0.3.1
@@ -3622,6 +3641,16 @@ registerPlugin(plugin: Plugin | PluginBehavior): void
 ```
 
 Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close.
+
+### setPluginEnabled
+
+`unstable` · since v0.10.3
+
+```ts
+setPluginEnabled(id: string, enabled: boolean): void
+```
+
+Enable or disable a plugin.
 
 ### unregisterPlugin
 
@@ -7099,38 +7128,6 @@ bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>
 ```
 
 Pin every location in the selector to its pano id, resolving pano ids first when asked.
-
-## Plugin host
-
-### activatePlugin
-
-`unstable` · since v0.10.3
-
-```ts
-activatePlugin(id: string): void
-```
-
-Activate a single plugin by id.
-
-### isReady
-
-`unstable` · since v0.10.3
-
-```ts
-isReady(): boolean
-```
-
-True once the MMA surface is installed and plugins are safe to call it.
-
-### setPluginEnabled
-
-`unstable` · since v0.10.3
-
-```ts
-setPluginEnabled(id: string, enabled: boolean): void
-```
-
-Enable or disable a plugin.
 
 ## Providers
 
