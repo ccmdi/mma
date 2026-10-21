@@ -7,7 +7,7 @@ import { Store } from "@/store/store";
 import { SelectionList } from "@/store/selectionList";
 import { google } from "@/lib/sv/opensv";
 import { addSelection } from "@/store/selections";
-import { usePluginEvent } from "@/plugins/pluginEvents";
+import { usePluginEvent } from "@/plugins/scope";
 import type { Selection } from "@/bindings.gen";
 import { mapStorage, storage } from "@/plugins/pluginStorage";
 import { Sidebar, Section } from "@/components/primitives/Sidebar";

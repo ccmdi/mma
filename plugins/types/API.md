@@ -23,11 +23,11 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Location](#location)
 - [Maps](#maps)
 - [Mutation](#mutation)
-- [Plugin events](#plugin-events)
 - [Plugin storage](#plugin-storage)
 - [Procedure](#procedure)
 - [Provider](#provider)
 - [Registry](#registry)
+- [Scope](#scope)
 - [Sidecar](#sidecar)
 - [Store](#store)
 - [Store / Query](#store--query)
@@ -56,7 +56,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Review](#review)
 - [Saved selection](#saved-selection)
 - [Scene](#scene)
-- [Scope](#scope)
 - [Seen](#seen)
 - [Selection list](#selection-list)
 - [Selections](#selections)
@@ -3368,57 +3367,6 @@ Mutation.settle(m: Mutation): Promise<void>
 Resolves once the open map's state and its markers both show `m`. A mutation that reached
 no map (version 0) settles at once.
 
-## Plugin events
-
-### definePluginEvent
-
-`unstable` · since v0.11.0
-
-```ts
-definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>
-```
-
-Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
-whoever raises it and whoever hears it agree on the payload.
-
-### emitPluginEvent
-
-`unstable` · since v0.11.0
-
-```ts
-emitPluginEvent<T>(
-  event: PluginEvent<T>,
-  ...payload: T extends void ? [] : [payload: T]
-): void
-```
-
-Raise one of a plugin's own events, with its payload when it carries one.
-
-### on
-
-`stable` · since v0.3.1
-
-```ts
-on<E extends EditorEvent | PluginEvent<unknown>>(
-  event: E,
-  handler: EventHandler<E>,
-): () => void
-```
-
-Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
-deactivation.
-
-### usePluginEvent
-
-`unstable` · since v0.11.0
-
-```ts
-usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V
-```
-
-React hook: what `read` returns, read again each time `event` is raised. `read` must return
-the same reference while nothing it reads has changed.
-
 ## Plugin storage
 
 ### mapStorage
@@ -3684,6 +3632,78 @@ unregisterPlugin(id: string): void
 ```
 
 Remove a plugin from the registry.
+
+## Scope
+
+### definePluginEvent
+
+`unstable` · since v0.11.0
+
+```ts
+definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>
+```
+
+Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
+whoever raises it and whoever hears it agree on the payload.
+
+### emitPluginEvent
+
+`unstable` · since v0.11.0
+
+```ts
+emitPluginEvent<T>(
+  event: PluginEvent<T>,
+  ...payload: T extends void ? [] : [payload: T]
+): void
+```
+
+Raise one of a plugin's own events, with its payload when it carries one.
+
+### on
+
+`stable` · since v0.3.1
+
+```ts
+on<E extends EditorEvent | PluginEvent<unknown>>(
+  event: E,
+  handler: EventHandler<E>,
+): () => void
+```
+
+Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
+deactivation.
+
+### resolvePluginPath
+
+`unstable` · since v0.10.3
+
+```ts
+resolvePluginPath(path: string): string
+```
+
+Resolve a relative path against the current plugin's base directory. Absolute
+paths and `res://` URLs pass through unchanged.
+
+### trackDisposable
+
+`unstable` · since v0.10.3
+
+```ts
+trackDisposable(dispose: Disposable): void
+```
+
+Enroll a teardown callback under the current plugin. No-op outside activation.
+
+### usePluginEvent
+
+`unstable` · since v0.11.0
+
+```ts
+usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V
+```
+
+React hook: what `read` returns, read again each time `event` is raised. `read` must return
+the same reference while nothing it reads has changed.
 
 ## Sidecar
 
@@ -7809,29 +7829,6 @@ Scene.useSelected(): SelectedIds
 ```
 
 Reactive Scene.selected.
-
-## Scope
-
-### resolvePluginPath
-
-`unstable` · since v0.10.3
-
-```ts
-resolvePluginPath(path: string): string
-```
-
-Resolve a relative path against the current plugin's base directory. Absolute
-paths and `res://` URLs pass through unchanged.
-
-### trackDisposable
-
-`unstable` · since v0.10.3
-
-```ts
-trackDisposable(dispose: Disposable): void
-```
-
-Enroll a teardown callback under the current plugin. No-op outside activation.
 
 ## Seen
 

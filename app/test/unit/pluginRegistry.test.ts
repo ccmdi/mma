@@ -21,7 +21,7 @@ import {
 } from "@/plugins/pluginHost";
 import { isPluginCompatible } from "@/plugins/marketplace";
 import { emit, subscribe } from "@/lib/events";
-import { on } from "@/plugins/pluginEvents";
+import { on } from "@/plugins/scope";
 import { getEnrichFieldOptions } from "@/lib/data/fieldDefs";
 import { Provider } from "@/lib/data/provider";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";

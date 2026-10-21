@@ -196,7 +196,6 @@ import { Maps } from "@/store/maps";
 import { Mutation } from "@/store/mutation";
 import { Pano } from "@/lib/sv/pano";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
-import { definePluginEvent, emitPluginEvent, on, usePluginEvent } from "@/plugins/pluginEvents";
 import { activatePlugin, isReady, setPluginEnabled } from "@/plugins/pluginHost";
 import { mapStorage, storage, usePluginState } from "@/plugins/pluginStorage";
 import { Procedure } from "@/lib/data/procedure";
@@ -222,7 +221,14 @@ import {
 import { Review } from "@/lib/review/review";
 import { SavedSelection } from "@/store/savedSelection";
 import { Scene } from "@/lib/render/scene";
-import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
+import {
+	definePluginEvent,
+	emitPluginEvent,
+	on,
+	resolvePluginPath,
+	trackDisposable,
+	usePluginEvent,
+} from "@/plugins/scope";
 import { Seen } from "@/lib/seen/seen";
 import { SelectionList } from "@/store/selectionList";
 import {
@@ -541,12 +547,6 @@ type MapsApi = { Maps: typeof Maps };
 type MutationApi = { Mutation: typeof Mutation };
 type PanoApi = { Pano: typeof Pano };
 type PinPanoApi = { bulkPinToPano: typeof bulkPinToPano };
-type PluginEventsApi = {
-	definePluginEvent: typeof definePluginEvent;
-	emitPluginEvent: typeof emitPluginEvent;
-	on: typeof on;
-	usePluginEvent: typeof usePluginEvent;
-};
 type PluginHostApi = {
 	activatePlugin: typeof activatePlugin;
 	isReady: typeof isReady;
@@ -581,8 +581,12 @@ type ReviewApi = { Review: typeof Review };
 type SavedSelectionApi = { SavedSelection: typeof SavedSelection };
 type SceneApi = { Scene: typeof Scene };
 type ScopeApi = {
+	definePluginEvent: typeof definePluginEvent;
+	emitPluginEvent: typeof emitPluginEvent;
+	on: typeof on;
 	resolvePluginPath: typeof resolvePluginPath;
 	trackDisposable: typeof trackDisposable;
+	usePluginEvent: typeof usePluginEvent;
 };
 type SeenApi = { Seen: typeof Seen };
 type SelectionListApi = { SelectionList: typeof SelectionList };
@@ -727,7 +731,6 @@ export interface MMA
 		MutationApi,
 		PanoApi,
 		PinPanoApi,
-		PluginEventsApi,
 		PluginHostApi,
 		PluginStorageApi,
 		ProcedureApi,
@@ -952,10 +955,6 @@ const mma: MMA = {
 	Mutation,
 	Pano,
 	bulkPinToPano,
-	definePluginEvent,
-	emitPluginEvent,
-	on,
-	usePluginEvent,
 	activatePlugin,
 	isReady,
 	setPluginEnabled,
@@ -981,8 +980,12 @@ const mma: MMA = {
 	Review,
 	SavedSelection,
 	Scene,
+	definePluginEvent,
+	emitPluginEvent,
+	on,
 	resolvePluginPath,
 	trackDisposable,
+	usePluginEvent,
 	Seen,
 	SelectionList,
 	OP_LABELS,

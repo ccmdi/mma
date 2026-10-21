@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 import { registerJob, type JobHandle } from "@/lib/jobs";
 import { fmt } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
-import { definePluginEvent, emitPluginEvent } from "@/plugins/pluginEvents";
+import { definePluginEvent, emitPluginEvent } from "@/plugins/scope";
 import { createLocation } from "@/types";
 import { GenerationEngine } from "./engine/GenerationEngine";
 import type {

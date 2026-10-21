@@ -5737,18 +5737,6 @@ export interface PinOutcome extends BatchOutcome {
 /** Pin every location in the selector to its pano id, resolving pano ids first when asked. @api @unstable */
 declare function bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>;
 
-/** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
- *  deactivation. @api */
-declare function on<E extends EditorEvent | PluginEvent<unknown>>(event: E, handler: EventHandler<E>): () => void;
-/** Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
- *  whoever raises it and whoever hears it agree on the payload. @api @unstable */
-declare function definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>;
-/** Raise one of a plugin's own events, with its payload when it carries one. @api @unstable */
-declare function emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends void ? [] : [payload: T]): void;
-/** React hook: what `read` returns, read again each time `event` is raised. `read` must return
- *  the same reference while nothing it reads has changed. @api @unstable */
-declare function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;
-
 /** The fields a plugin shows as itself, declared once by its manifest. */
 export type PluginIdentity = Pick<PluginManifest, "id" | "name" | "description" | "icon" | "comingSoon" | "experimental">;
 export interface Plugin extends PluginIdentity {
@@ -5941,6 +5929,17 @@ declare function trackDisposable(dispose: Disposable): void;
 /** Resolve a relative path against the current plugin's base directory. Absolute
  *  paths and `res://` URLs pass through unchanged. @api @unstable */
 declare function resolvePluginPath(path: string): string;
+/** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
+ *  deactivation. @api */
+declare function on<E extends EditorEvent | PluginEvent<unknown>>(event: E, handler: EventHandler<E>): () => void;
+/** Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
+ *  whoever raises it and whoever hears it agree on the payload. @api @unstable */
+declare function definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>;
+/** Raise one of a plugin's own events, with its payload when it carries one. @api @unstable */
+declare function emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends void ? [] : [payload: T]): void;
+/** React hook: what `read` returns, read again each time `event` is raised. `read` must return
+ *  the same reference while nothing it reads has changed. @api @unstable */
+declare function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;
 
 /** @unstable */
 export interface GeoDisplay {
@@ -7110,15 +7109,6 @@ export type PinPanoApi = {
     /** @unstable */
     bulkPinToPano: typeof bulkPinToPano;
 };
-export type PluginEventsApi = {
-    /** @unstable */
-    definePluginEvent: typeof definePluginEvent;
-    /** @unstable */
-    emitPluginEvent: typeof emitPluginEvent;
-    on: typeof on;
-    /** @unstable */
-    usePluginEvent: typeof usePluginEvent;
-};
 export type PluginHostApi = {
     /** @unstable */
     activatePlugin: typeof activatePlugin;
@@ -7180,9 +7170,16 @@ export type SceneApi = {
 };
 export type ScopeApi = {
     /** @unstable */
+    definePluginEvent: typeof definePluginEvent;
+    /** @unstable */
+    emitPluginEvent: typeof emitPluginEvent;
+    on: typeof on;
+    /** @unstable */
     resolvePluginPath: typeof resolvePluginPath;
     /** @unstable */
     trackDisposable: typeof trackDisposable;
+    /** @unstable */
+    usePluginEvent: typeof usePluginEvent;
 };
 export type SeenApi = {
     /** @unstable */
@@ -7412,7 +7409,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginEventsApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginHostApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {
