@@ -38,13 +38,17 @@ beforeAll(async () => {
 	vi.stubGlobal("MMA", {
 		storage,
 		mapStorage,
-		Scene: { selected: () => new Set() },
-		resolveIds: async () => [],
+		Scene: {
+			selected: () => new Set(),
+			positions: () => ({ ids: new Uint32Array(), positions: new Float32Array() }),
+		},
+		Query: { read: async () => [] },
 		selectorForPick: () => ({ type: "Everything" }),
-		getScenePositions: () => ({ ids: new Uint32Array(), positions: new Float32Array() }),
-		getMapHost: () => ({
-			createDeckOverlay: () => ({ setProps: () => {}, finalize: () => {} }),
-		}),
+		MapHost: {
+			get: () => ({
+				createDeckOverlay: () => ({ setProps: () => {}, finalize: () => {} }),
+			}),
+		},
 		on: () => () => {},
 	});
 	heatmap = await import("../../../plugins/heatmap/src/heatmap");

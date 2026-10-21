@@ -10,16 +10,7 @@ import {
   type HeatmapGradient,
 } from "./gradients";
 
-const {
-  storage,
-  mapStorage,
-  Scene,
-  resolveIds,
-  selectorForPick,
-  getScenePositions,
-  getMapHost,
-  on,
-} = MMA;
+const { storage, mapStorage, Scene, Query, MapHost, selectorForPick, on } = MMA;
 
 export interface HeatmapLayerSettings {
   id: string;
@@ -184,8 +175,8 @@ async function sourceData(source: SelectorPick): Promise<LatLng[]> {
   const ids =
     source.pick === "all"
       ? null
-      : new Set(await resolveIds(selectorForPick(source)));
-  const scene = getScenePositions();
+      : new Set(await Query.read(selectorForPick(source), { kind: "ids" }));
+  const scene = Scene.positions();
   const out: LatLng[] = [];
   for (let i = 0; i < scene.ids.length; i++) {
     if (ids && !ids.has(scene.ids[i])) continue;
@@ -226,7 +217,7 @@ async function rebuild() {
 }
 
 export function init(): () => void {
-  const host = getMapHost();
+  const host = MapHost.get();
   if (!host) throw new Error("No map instance");
 
   layers = loadLayers();
