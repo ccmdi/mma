@@ -90,6 +90,27 @@ import { Store } from "@/store/store";
 import { Editor } from "@/store/editor";
 import type { ChangeEvent, Location, MapMeta } from "@/bindings.gen";
 import { emit, subscribe } from "@/lib/events";
+import { buildSceneLayers, LOCATION_LAYER_ID } from "@/lib/render/buildSceneLayers";
+import { CellManager } from "@/lib/render/CellManager";
+
+const SCENE: Parameters<typeof buildSceneLayers>[1] = {
+	markerStyle: "pin",
+	markerOpacity: 1,
+	selectedOpacity: 1,
+	markerSize: 1,
+	showPerfectScoreCircle: false,
+	scoreMaxError: 0,
+	svPanoramas: false,
+	svTrail: false,
+	svTrailColor: [0, 0, 0],
+	svTrailPosition: false,
+	panoDotColor: [0, 0, 0],
+	panoDotScaled: false,
+	openLocationColor: [0, 0, 0],
+	importPreviewColor: [0, 0, 0],
+	freehandPath: null,
+	polygonVertices: null,
+};
 
 beforeEach(() => {
 	Editor.close();
@@ -202,6 +223,18 @@ describe("open location", () => {
 		await Editor.draft().edit({ panoId: "B", lat: 5 });
 		expect(Editor.get().open?.location).toMatchObject({ panoId: "B", lat: 5 });
 		expect(Editor.get().open?.spawn).toMatchObject({ id: 7, panoId: "A", lat: 0 });
+		Editor.close();
+	});
+
+	it("the open-location pin stays where the opening began while the draft walks", async () => {
+		Store.patch({ map: { id: "test-map" } as MapMeta });
+		await Editor.open(7);
+		h.lat = 5;
+		await Editor.draft().edit({ panoId: "B", lat: 5 });
+		const pin = buildSceneLayers(new CellManager(), SCENE).find(
+			(layer) => layer.id === `${LOCATION_LAYER_ID}-current-sdf`,
+		);
+		expect(pin?.props.data).toEqual([expect.objectContaining({ id: 7, lat: 0 })]);
 		Editor.close();
 	});
 
