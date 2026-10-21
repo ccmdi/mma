@@ -44,7 +44,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Color](#color)
 - [Commands](#commands)
 - [Commit diff](#commit-diff)
-- [Field projections](#field-projections)
 - [Host](#host)
 - [Import](#import)
 - [Jobs](#jobs)
@@ -1515,6 +1514,42 @@ isWritableField(key: string): boolean
 ```
 
 True when the field can be bulk-edited.
+
+### partitionKeyOptions
+
+`unstable` · since v0.10.3
+
+```ts
+partitionKeyOptions(
+  type: FieldType,
+  rangeForDates: boolean,
+): {
+  id: string;
+  label: string;
+}[]
+```
+
+Partition-key dropdown options for a field type.
+
+### projectionsForType
+
+`unstable` · since v0.10.3
+
+```ts
+projectionsForType(type: FieldType): FieldProjection[]
+```
+
+Projections valid for a field type, in display order (first = dialog default).
+
+### RANGE_ID
+
+`unstable` · since v0.10.3
+
+```ts
+RANGE_ID: "range"
+```
+
+The "Range" partition option (numeric binning).
 
 ### registerPluginFieldDefs
 
@@ -6427,44 +6462,6 @@ CommitDiff.use(): Counts
 ```
 
 React hook: the uncommitted add/remove/modify counts.
-
-## Field projections
-
-### partitionKeyOptions
-
-`unstable` · since v0.10.3
-
-```ts
-partitionKeyOptions(
-  type: FieldType,
-  rangeForDates: boolean,
-): {
-  id: string;
-  label: string;
-}[]
-```
-
-Partition-key dropdown options for a field type.
-
-### projectionsForType
-
-`unstable` · since v0.10.3
-
-```ts
-projectionsForType(type: FieldType): FieldProjection[]
-```
-
-Projections valid for a field type, in display order (first = dialog default).
-
-### RANGE_ID
-
-`unstable` · since v0.10.3
-
-```ts
-RANGE_ID: "range"
-```
-
-The "Range" partition option (numeric binning).
 
 ## Host
 

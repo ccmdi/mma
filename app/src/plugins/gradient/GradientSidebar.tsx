@@ -10,9 +10,13 @@ import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import type { KeySpec, RGB } from "@/bindings.gen";
 import type { FieldType, DatePart } from "@/bindings.consts";
 import { rgbCss } from "@/lib/util/color";
-import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
+import {
+	getFieldDef,
+	getKnownFieldKeys,
+	partitionKeyOptions,
+	RANGE_ID,
+} from "@/lib/data/fieldDefRegistry";
 import { usePickableFields, type FieldEntry } from "@/components/editor/map/FilterBuilder";
-import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";

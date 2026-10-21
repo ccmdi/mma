@@ -55,6 +55,7 @@ import { Edit } from "@/store/edit";
 import { Editor } from "@/store/editor";
 import { Field } from "@/store/field";
 import {
+	RANGE_ID,
 	declaredValues,
 	fieldLabel,
 	fieldValueLabel,
@@ -67,6 +68,8 @@ import {
 	isClearableField,
 	isListableField,
 	isWritableField,
+	partitionKeyOptions,
+	projectionsForType,
 	registerPluginFieldDefs,
 	unregisterPluginFieldDefs,
 } from "@/lib/data/fieldDefRegistry";
@@ -79,7 +82,6 @@ import {
 	isFieldEnabled,
 	knownFieldDefs,
 } from "@/lib/data/fieldDefs";
-import { RANGE_ID, partitionKeyOptions, projectionsForType } from "@/lib/data/fieldProjections";
 import { History } from "@/store/history";
 import { MapHost } from "@/lib/map/host";
 import { Import } from "@/store/import";
@@ -399,6 +401,7 @@ type EditApi = { Edit: typeof Edit };
 type EditorApi = { Editor: typeof Editor };
 type FieldApi = { Field: typeof Field };
 type FieldDefRegistryApi = {
+	RANGE_ID: typeof RANGE_ID;
 	declaredValues: typeof declaredValues;
 	fieldLabel: typeof fieldLabel;
 	fieldValueLabel: typeof fieldValueLabel;
@@ -411,6 +414,8 @@ type FieldDefRegistryApi = {
 	isClearableField: typeof isClearableField;
 	isListableField: typeof isListableField;
 	isWritableField: typeof isWritableField;
+	partitionKeyOptions: typeof partitionKeyOptions;
+	projectionsForType: typeof projectionsForType;
 	registerPluginFieldDefs: typeof registerPluginFieldDefs;
 	unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
 };
@@ -422,11 +427,6 @@ type FieldDefsApi = {
 	getEnrichFieldOptions: typeof getEnrichFieldOptions;
 	isFieldEnabled: typeof isFieldEnabled;
 	knownFieldDefs: typeof knownFieldDefs;
-};
-type FieldProjectionsApi = {
-	RANGE_ID: typeof RANGE_ID;
-	partitionKeyOptions: typeof partitionKeyOptions;
-	projectionsForType: typeof projectionsForType;
 };
 type HistoryApi = { History: typeof History };
 type HostApi = { MapHost: typeof MapHost };
@@ -719,7 +719,6 @@ export interface MMA
 		FieldApi,
 		FieldDefRegistryApi,
 		FieldDefsApi,
-		FieldProjectionsApi,
 		HistoryApi,
 		HostApi,
 		ImportApi,
@@ -813,6 +812,7 @@ const mma: MMA = {
 	Edit,
 	Editor,
 	Field,
+	RANGE_ID,
 	declaredValues,
 	fieldLabel,
 	fieldValueLabel,
@@ -825,6 +825,8 @@ const mma: MMA = {
 	isClearableField,
 	isListableField,
 	isWritableField,
+	partitionKeyOptions,
+	projectionsForType,
 	registerPluginFieldDefs,
 	unregisterPluginFieldDefs,
 	enabledEnrichKeys,
@@ -834,9 +836,6 @@ const mma: MMA = {
 	getEnrichFieldOptions,
 	isFieldEnabled,
 	knownFieldDefs,
-	RANGE_ID,
-	partitionKeyOptions,
-	projectionsForType,
 	History,
 	MapHost,
 	Import,

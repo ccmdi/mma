@@ -3492,6 +3492,22 @@ declare function fieldValueLabel(def: FieldDef | undefined, value: unknown): str
 declare function declaredValues(def: FieldDef | undefined): string[] | null;
 /** Merged view of all field definitions across all layers. @api */
 declare function getAllFieldDefs(): Record<string, FieldDef>;
+/** @unstable */
+export interface FieldProjection {
+    id: string;
+    label: string;
+    /** True when this projection uses the location's timezone. */
+    needsTz: boolean;
+}
+/** Projections valid for a field type, in display order (first = dialog default). @api @unstable */
+declare function projectionsForType(type: FieldType): FieldProjection[];
+/** The "Range" partition option (numeric binning). @api @unstable */
+declare const RANGE_ID = "range";
+/** Partition-key dropdown options for a field type. @api @unstable */
+declare function partitionKeyOptions(type: FieldType, rangeForDates: boolean): {
+    id: string;
+    label: string;
+}[];
 
 /** @unstable */
 export interface EnrichFieldOption {
@@ -3515,23 +3531,6 @@ declare function enrichInputs(key: string): string[];
 declare function enabledEnrichKeys(enrichFields?: string[] | null): string[];
 /** True when enrichment fetches `key` for the given enrichment set. @api @unstable */
 declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
-
-/** @unstable */
-export interface FieldProjection {
-    id: string;
-    label: string;
-    /** True when this projection uses the location's timezone. */
-    needsTz: boolean;
-}
-/** Projections valid for a field type, in display order (first = dialog default). @api @unstable */
-declare function projectionsForType(type: FieldType): FieldProjection[];
-/** The "Range" partition option (numeric binning). @api @unstable */
-declare const RANGE_ID = "range";
-/** Partition-key dropdown options for a field type. @api @unstable */
-declare function partitionKeyOptions(type: FieldType, rangeForDates: boolean): {
-    id: string;
-    label: string;
-}[];
 
 /** The full local mirror of the store's derived state, as of the map version it reflects. */
 export type EngineState = Omit<Derived, "map"> & {
@@ -6855,6 +6854,8 @@ export type FieldApi = {
     Field: typeof Field$1;
 };
 export type FieldDefRegistryApi = {
+    /** @unstable */
+    RANGE_ID: typeof RANGE_ID;
     declaredValues: typeof declaredValues;
     fieldLabel: typeof fieldLabel;
     fieldValueLabel: typeof fieldValueLabel;
@@ -6872,6 +6873,10 @@ export type FieldDefRegistryApi = {
     isListableField: typeof isListableField;
     /** @unstable */
     isWritableField: typeof isWritableField;
+    /** @unstable */
+    partitionKeyOptions: typeof partitionKeyOptions;
+    /** @unstable */
+    projectionsForType: typeof projectionsForType;
     registerPluginFieldDefs: typeof registerPluginFieldDefs;
     unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
 };
@@ -6889,14 +6894,6 @@ export type FieldDefsApi = {
     /** @unstable */
     isFieldEnabled: typeof isFieldEnabled;
     knownFieldDefs: typeof knownFieldDefs;
-};
-export type FieldProjectionsApi = {
-    /** @unstable */
-    RANGE_ID: typeof RANGE_ID;
-    /** @unstable */
-    partitionKeyOptions: typeof partitionKeyOptions;
-    /** @unstable */
-    projectionsForType: typeof projectionsForType;
 };
 export type HistoryApi = {
     History: typeof History;
@@ -7406,7 +7403,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, FieldProjectionsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {

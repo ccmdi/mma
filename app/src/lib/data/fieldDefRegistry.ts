@@ -10,9 +10,10 @@
 import { Store } from "@/store/store";
 import { emit } from "@/lib/events";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
-import { BUILTIN_FIELDS } from "@/bindings.consts";
+import { BUILTIN_FIELDS, PROJECTIONS, type FieldType } from "@/bindings.consts";
 import type { FieldDef } from "@/bindings.gen";
-import { t } from "@/lib/i18n";
+import { msg, t } from "@/lib/i18n";
+import { log } from "@/lib/util/log";
 
 // Field kind: identity (position), virtual (derived), term (expression-only),
 // writable (bulk-editable), or undefined (read-only, listable).
@@ -140,4 +141,54 @@ export function getAllFieldDefs(): Record<string, FieldDef> {
 		if (merged) out[key] = merged;
 	}
 	return out;
+}
+
+// The catalog (ids, applicability, timezone need) is the Rust `PROJECTIONS` constant;
+// key derivation runs in Rust too (`KeySpec`). Only the labels live here.
+
+const PROJECTION_LABELS: Record<string, string> = {
+	value: msg("Value"),
+	year: msg("Year"),
+	yearMonth: msg("Year-month"),
+	day: msg("Exact day"),
+	monthOfYear: msg("Month of year"),
+	hourOfDay: msg("Hour of day"),
+};
+
+export interface FieldProjection {
+	id: string;
+	label: string;
+	/** True when this projection uses the location's timezone. */
+	needsTz: boolean;
+}
+
+/** Projections valid for a field type, in display order (first = dialog default). @api @unstable */
+export function projectionsForType(type: FieldType): FieldProjection[] {
+	return PROJECTIONS.filter((p) => (p.appliesTo as readonly FieldType[]).includes(type)).map(
+		(p) => ({
+			id: p.id,
+			label: projectionLabel(p.id),
+			needsTz: p.needsTz,
+		}),
+	);
+}
+
+// Render sites translate the returned label, so the raw id is a visible fallback, not a crash.
+function projectionLabel(id: string): string {
+	const label = PROJECTION_LABELS[id];
+	if (!label && import.meta.env.DEV) log.warn(`[fields] projection "${id}" has no label`);
+	return label ?? id;
+}
+
+/** The "Range" partition option (numeric binning). @api @unstable */
+export const RANGE_ID = "range";
+
+/** Partition-key dropdown options for a field type. @api @unstable */
+export function partitionKeyOptions(
+	type: FieldType,
+	rangeForDates: boolean,
+): { id: string; label: string }[] {
+	const projs = projectionsForType(type).map((p) => ({ id: p.id, label: p.label }));
+	const hasRange = type === "number" || (rangeForDates && type === "date");
+	return hasRange ? [{ id: RANGE_ID, label: msg("Range") }, ...projs] : projs;
 }

@@ -6,7 +6,7 @@ import { NSelect } from "@/components/primitives/NSelect";
 import type { CountBy, KeySpec } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { Provider } from "@/lib/data/provider";
-import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
+import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { usePickableFields } from "@/components/editor/map/FilterBuilder";
 import { all, not } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
