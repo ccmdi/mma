@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { mount } from "./fixtures/harness";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
+import { Avatar } from "@/components/primitives/Avatar";
 import { Pill } from "@/components/primitives/Pill";
 import { Section, SegmentedControl } from "@/components/primitives/Sidebar";
 
@@ -123,5 +124,26 @@ describe("Pill", () => {
 	it("defaults to neutral and renders a count", () => {
 		const html = renderToStaticMarkup(<Pill count={3} />);
 		expect(html).toBe('<span class="pill pill--neutral"><span class="pill__count">3</span></span>');
+	});
+});
+
+describe("Avatar", () => {
+	it("shows its fallback when there is no picture or the picture fails to load", () => {
+		const { container } = mount(<Avatar src="https://example.test/a.png" fallback="A" />);
+		const avatar = container.querySelector<HTMLElement>(".avatar")!;
+		expect(avatar.querySelector("img")).not.toBeNull();
+		act(() => {
+			avatar.querySelector("img")!.dispatchEvent(new Event("error"));
+		});
+		expect(avatar.textContent).toBe("A");
+		expect(avatar.querySelector("img")).toBeNull();
+		expect(renderToStaticMarkup(<Avatar />)).toContain("<svg");
+	});
+
+	it("rings itself only when given a ring color", () => {
+		expect(renderToStaticMarkup(<Avatar size={18} />)).not.toContain("avatar--ring");
+		const html = renderToStaticMarkup(<Avatar size={18} ring="red" />);
+		expect(html).toContain("avatar--ring");
+		expect(html).toContain("--avatar-ring:red");
 	});
 });

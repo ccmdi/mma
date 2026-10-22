@@ -1,8 +1,9 @@
 use super::*;
 use crate::store::storage::tests::map_on_disk;
+use crate::util::Lock;
 use mma_algebra::Id;
 use std::string::ToString;
-use std::sync::{Mutex, MutexGuard, Once, PoisonError};
+use std::sync::{Mutex, MutexGuard, Once};
 use tauri::async_runtime::block_on;
 
 /// The seen table on disk, emptied and held for the caller alone: the history is one table
@@ -10,7 +11,7 @@ use tauri::async_runtime::block_on;
 fn history() -> MutexGuard<'static, ()> {
     static HISTORY: Mutex<()> = Mutex::new(());
     static DISK: Once = Once::new();
-    let held = HISTORY.lock().unwrap_or_else(PoisonError::into_inner);
+    let held = HISTORY.locked();
     DISK.call_once(|| {
         map_on_disk("seen-history");
     });

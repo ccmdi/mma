@@ -61,6 +61,7 @@ const FIELD_PREFIX = "field:";
 import type { FieldEntry } from "@/components/editor/map/FilterBuilder";
 import { msg, t } from "@/lib/i18n";
 import { Swatch } from "@/components/primitives/Swatch";
+import { Edit } from "@/store/edit";
 
 async function selectionAxis(kind: "all" | "active", scope: Selector): Promise<ResolvedAxis> {
 	const members: PivotMember[] =
@@ -540,7 +541,7 @@ function PivotTable({
 								}
 								onClick={(e) => {
 									if ((e.ctrlKey || e.metaKey) && col.pick)
-										void SelectionList.update(toggleSelection(col.pick));
+										void Edit.selections(toggleSelection(col.pick));
 									else handleSort(col.key);
 								}}
 							>
@@ -564,7 +565,7 @@ function PivotTable({
 									className={`pivot-sidebar__row-label${isSelected(row) ? " pivot-sidebar__row-label--selected" : ""}`}
 									onClick={(e) => {
 										if ((e.ctrlKey || e.metaKey) && row.pick)
-											void SelectionList.update(toggleSelection(row.pick));
+											void Edit.selections(toggleSelection(row.pick));
 									}}
 								>
 									{row.color && <Swatch color={row.color} size="sm" />}

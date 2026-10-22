@@ -4,18 +4,11 @@
  *  repository the App is installed on, expires on its own, and never has to be rotated by
  *  hand. The cost is the JWT dance below. */
 
+import { Base64url } from "../../shared/base64url";
 import type { Env } from "./index";
 
 const API = "https://api.github.com";
 const UA = "mma-feedback-worker";
-
-function base64url(bytes: ArrayBuffer | Uint8Array): string {
-	const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-	return btoa(String.fromCharCode(...view))
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/, "");
-}
 
 /** PEM (PKCS#8) to the raw DER the WebCrypto importer wants. GitHub hands out PKCS#1 by
  *  default -- convert it with `openssl pkcs8 -topk8 -nocrypt` before storing the secret. */
@@ -32,9 +25,11 @@ function pemToDer(pem: string): ArrayBuffer {
 
 async function appJwt(env: Env): Promise<string> {
 	const now = Math.floor(Date.now() / 1000);
-	const header = base64url(new TextEncoder().encode(JSON.stringify({ alg: "RS256", typ: "JWT" })));
+	const header = Base64url.encode(
+		new TextEncoder().encode(JSON.stringify({ alg: "RS256", typ: "JWT" })),
+	);
 	// 60s back-dated for clock skew, which GitHub explicitly recommends.
-	const payload = base64url(
+	const payload = Base64url.encode(
 		new TextEncoder().encode(
 			JSON.stringify({ iat: now - 60, exp: now + 540, iss: env.GITHUB_APP_ID }),
 		),
@@ -51,7 +46,7 @@ async function appJwt(env: Env): Promise<string> {
 		key,
 		new TextEncoder().encode(`${header}.${payload}`),
 	);
-	return `${header}.${payload}.${base64url(signature)}`;
+	return `${header}.${payload}.${Base64url.encode(signature)}`;
 }
 
 let cached: { token: string; expiresAt: number } | null = null;

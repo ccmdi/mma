@@ -64,8 +64,8 @@ fn row(local_id: u32, remote_id: i64, hash: String) -> RemoteMappingRow {
     }
 }
 
-fn no_tags() -> IncomingRecords {
-    IncomingRecords::from([("tags".to_string(), HashMap::new())])
+fn no_tags() -> HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> {
+    HashMap::from([("tags".to_string(), HashMap::new())])
 }
 
 // --- recording fake provider -----------------------------------------------
@@ -108,7 +108,7 @@ struct Fake {
     items: RefCell<Vec<Raw>>,
     next_rid: Cell<i64>,
     pushes: RefCell<Vec<Recorded>>,
-    catalog: IncomingRecords,
+    catalog: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
 }
 
 impl Fake {
@@ -118,7 +118,7 @@ impl Fake {
             items: RefCell::new(initial),
             next_rid: Cell::new(1000),
             pushes: RefCell::new(Vec::new()),
-            catalog: IncomingRecords::new(),
+            catalog: HashMap::new(),
         }
     }
     fn stable(initial: Vec<Raw>) -> Self {
@@ -331,7 +331,7 @@ fn drive(
     provider: &Fake,
     locs: &[Location],
     mapping: &[RemoteMappingRow],
-    tags: &IncomingRecords,
+    tags: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
     first_sync: Option<FirstSyncMode>,
     resolutions: &[(IdentityKey, ResolutionSide)],
     sink: &mut MemSink,
@@ -356,7 +356,7 @@ fn sync(
     provider: &Fake,
     locs: &[Location],
     mapping: &[RemoteMappingRow],
-    tags: &IncomingRecords,
+    tags: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
     sink: &mut MemSink,
 ) -> ReconcileOutcome {
     drive(provider, locs, mapping, tags, None, &[], sink)
@@ -488,7 +488,7 @@ fn needed_tags_adopt_the_source_catalogs_look() {
         },
         Some(7),
     )]);
-    provider.catalog = IncomingRecords::from([(
+    provider.catalog = HashMap::from([(
         "tags".to_string(),
         HashMap::from([
             (Id::new(1), look("blue", Some("#0000ff"), Some(2))),
@@ -520,7 +520,7 @@ fn a_pull_needs_the_values_of_every_field_the_map_interns() {
             Some(7),
         )],
     );
-    provider.catalog = IncomingRecords::from([(
+    provider.catalog = HashMap::from([(
         "habitat".to_string(),
         HashMap::from([(Id::new(1), look("Wetland", Some("#00ff00"), None))]),
     )]);
@@ -993,7 +993,7 @@ impl SyncProvider for ChunkedFake {
     }
     fn pull(&self, _remote_map_id: &str) -> AppResult<RemoteSnapshot<Raw>> {
         Ok(RemoteSnapshot {
-            records: IncomingRecords::new(),
+            records: HashMap::new(),
             locations: vec![],
             token: None,
         })
@@ -1108,7 +1108,7 @@ impl SyncProvider for PartialPushFake {
     }
     fn pull(&self, _remote_map_id: &str) -> AppResult<RemoteSnapshot<Raw>> {
         Ok(RemoteSnapshot {
-            records: IncomingRecords::new(),
+            records: HashMap::new(),
             locations: self.items.borrow().clone(),
             token: None,
         })
@@ -1780,4 +1780,25 @@ fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
         store.get_loc_by_id(Id::new(2)).unwrap().tags,
         test_util::tag_ids([8])
     );
+}
+
+#[test]
+fn a_pull_into_a_replica_is_refused() {
+    let (_host, mut replica) = test_util::Host::pair("synced", &[test_util::loc(0, 1.0, 1.0)]);
+    let version = replica.version;
+    let out = ReconcileOutcome {
+        pushed: SideCounts::default(),
+        pulled: SideCounts::default(),
+        adopted: 0,
+        conflicts: Vec::new(),
+        needed_records: HashMap::new(),
+        pull_creates: Vec::new(),
+        pull_updates: Vec::new(),
+        pull_delete_ids: vec![Id::new(1)],
+        mirror_local_delete_ids: Vec::new(),
+    };
+
+    assert!(apply_pull(&mut replica, &out).is_err());
+    assert_eq!(replica.version, version);
+    assert!(replica.get_loc_by_id(Id::new(1)).is_some());
 }

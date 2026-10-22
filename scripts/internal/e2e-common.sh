@@ -27,7 +27,7 @@ export_sv_stub() {
 # wait_for_http <url> <what> [tries]
 wait_for_http() {
 	i=0
-	until curl -s -o /dev/null "$1"; do
+	until curl -s -m 2 -o /dev/null "$1"; do
 		i=$((i + 1))
 		if [ "$i" -ge "${3:-60}" ]; then
 			echo "ERROR: $2 not responding at $1"

@@ -74,6 +74,7 @@ const where = (d: Decl) => `${d.file}:${d.line} ${d.selector} { ${d.prop}: ${d.v
 
 /** Custom properties whose value is written from script, so no stylesheet defines them. */
 const SET_INLINE: Record<string, string> = {
+	"--avatar-ring": "Avatar sets its ring color",
 	"--fill": "Slider sets its fill percentage",
 	"--fs-mini-flip": "FullscreenMiniLocationPreview animates its FLIP scale",
 	"--fs-mini-k": "FullscreenMiniLocationPreview sets its collapsed scale",

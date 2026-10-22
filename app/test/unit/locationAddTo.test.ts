@@ -48,7 +48,9 @@ describe("Location.addTo", () => {
 		calls.held = false;
 		expect(await Location.addTo("m2", drop, records)).toBe(true);
 		expect(calls.reads[0][0]).toEqual({ kind: "map", id: "m2" });
-		expect(calls.edits).toEqual([[{ kind: "map", id: "m2" }, [{ add: drop }], records]]);
+		expect(calls.edits).toEqual([
+			[{ locations: { target: { kind: "map", id: "m2" }, edits: [{ add: drop }], records } }],
+		]);
 	});
 
 	it("adds nothing, and so creates no tag, when the other map already holds it", async () => {
@@ -61,7 +63,10 @@ describe("Location.addTo", () => {
 describe("Location.duplicate", () => {
 	it("leaves the creation time for the map to stamp now", async () => {
 		await Location.duplicate(7);
-		const [[, [{ add }]]] = calls.edits as [unknown, [{ add: Record<string, unknown> }]][];
+		const [[{ locations }]] = calls.edits as [
+			{ locations: { edits: [{ add: Record<string, unknown> }] } },
+		][];
+		const [{ add }] = locations.edits;
 		expect(add).toMatchObject({ lat: 1, lng: 2, panoId: "PANO", createdAt: 0 });
 	});
 });

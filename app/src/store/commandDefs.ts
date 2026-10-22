@@ -73,6 +73,7 @@ import { openDialog } from "./dialogBus";
 import { panoIdSelector, unpannedSelector, untaggedSelector } from "@/store/selections";
 import { msg } from "@/lib/i18n";
 import { Editor } from "@/store/editor";
+import { Edit } from "@/store/edit";
 
 const requiresMap = () => Store.get().map !== null;
 const requiresVersioning = () => requiresMap() && !Maps.isReserved(Store.get().mapId);
@@ -209,38 +210,38 @@ const COMMANDS = {
 		icon: mdiSelectAll,
 		group: msg("Selections"),
 		defaultBinding: "Mod+a",
-		execute: () => SelectionList.update(addSelection({ type: "Everything" })),
+		execute: () => Edit.selections(addSelection({ type: "Everything" })),
 	},
 	"select-untagged": {
 		label: msg("Select untagged locations"),
 		icon: mdiTagOffOutline,
 		group: msg("Selections"),
 		aliases: ["find untagged", "missing tags"],
-		execute: () => SelectionList.update(addSelection(untaggedSelector())),
+		execute: () => Edit.selections(addSelection(untaggedSelector())),
 	},
 	"select-unpanned": {
 		label: msg("Select unpanned locations"),
 		icon: mdiCompassOffOutline,
 		group: msg("Selections"),
-		execute: () => SelectionList.update(addSelection(unpannedSelector())),
+		execute: () => Edit.selections(addSelection(unpannedSelector())),
 	},
 	"select-panoid": {
 		label: msg("Select Pano ID locations"),
 		icon: mdiImageOutline,
 		group: msg("Selections"),
-		execute: () => SelectionList.update(addSelection(panoIdSelector(true))),
+		execute: () => Edit.selections(addSelection(panoIdSelector(true))),
 	},
 	"select-no-panoid": {
 		label: msg("Select non-Pano ID locations"),
 		icon: mdiImageOffOutline,
 		group: msg("Selections"),
-		execute: () => SelectionList.update(addSelection(panoIdSelector(false))),
+		execute: () => Edit.selections(addSelection(panoIdSelector(false))),
 	},
 	"select-uncommitted": {
 		label: msg("Select uncommitted locations"),
 		icon: mdiContentSaveAlertOutline,
 		group: msg("Selections"),
-		execute: () => SelectionList.update(addSelection({ type: "Uncommitted" })),
+		execute: () => Edit.selections(addSelection({ type: "Uncommitted" })),
 	},
 	"select-reviewed": {
 		label: msg("Select reviewed locations"),
@@ -253,14 +254,14 @@ const COMMANDS = {
 		label: msg("Invert selection"),
 		icon: mdiSelectInverse,
 		group: msg("Selections"),
-		execute: () => SelectionList.update({ kind: "active", op: { kind: "complement", keys: null } }),
+		execute: () => Edit.selections({ kind: "active", op: { kind: "complement", keys: null } }),
 	},
 	"intersect-selections": {
 		label: msg("Intersect (AND) selections"),
 		icon: mdiSetCenter,
 		group: msg("Selections"),
 		execute: () =>
-			SelectionList.update({
+			Edit.selections({
 				kind: "active",
 				op: { kind: "combine", group: "Intersection", keys: null },
 			}),
@@ -270,7 +271,7 @@ const COMMANDS = {
 		icon: mdiSetAll,
 		group: msg("Selections"),
 		execute: () =>
-			SelectionList.update({ kind: "active", op: { kind: "combine", group: "Union", keys: null } }),
+			Edit.selections({ kind: "active", op: { kind: "combine", group: "Union", keys: null } }),
 	},
 	"load-geojson": {
 		label: msg("Load shapes from GeoJSON as selection"),
@@ -299,7 +300,7 @@ const COMMANDS = {
 		icon: mdiSelectRemove,
 		group: msg("Selections"),
 		defaultBinding: "Mod+d",
-		execute: () => SelectionList.update({ kind: "set", selections: [] }),
+		execute: () => Edit.selections({ kind: "set", selections: [] }),
 		enabled: hasAnySelections,
 	},
 	reselect: {
@@ -388,7 +389,7 @@ const COMMANDS = {
 		icon: mdiGhostOutline,
 		group: msg("Selections"),
 		aliases: ["hide selections", "dim selections"],
-		execute: () => SelectionList.update({ kind: "ghostAll" }),
+		execute: () => Edit.selections({ kind: "ghostAll" }),
 		enabled: hasAnySelections,
 	},
 	"save-selections": {

@@ -1,5 +1,27 @@
 #![allow(clippy::needless_pass_by_value)]
 use super::*;
+use crate::util::Lock;
+use std::sync::MutexGuard;
+
+/// Held by every test that changes the stored session, so they run one at a time.
+static STORED: Mutex<()> = Mutex::new(());
+
+/// Signed in to GitHub with `token` until the guard drops.
+pub(crate) fn signed_in(token: &str) -> MutexGuard<'static, ()> {
+    let held = STORED.locked();
+    switch_account(token);
+    held
+}
+
+/// Signed in to GitHub with `token` instead, by a test already holding the stored session.
+pub(crate) fn switch_account(token: &str) {
+    store_session(Some(&Session {
+        access_token: token.into(),
+        refresh_token: None,
+        expires_at: None,
+    }))
+    .unwrap();
+}
 
 fn poll(json: serde_json::Value) -> Poll {
     parse_token_response(&json)
@@ -58,6 +80,7 @@ fn a_session_stored_before_refresh_existed_still_loads() {
 #[test]
 fn renew_yields_the_stored_token_when_another_caller_already_renewed() {
     // The refresh token is single-use: a renew racing a completed one must not spend it again.
+    let _stored = STORED.locked();
     store_session(Some(&Session {
         access_token: "ghu_new".into(),
         refresh_token: Some("ghr_xyz".into()),

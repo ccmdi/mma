@@ -13,6 +13,7 @@ use vali_generate::names;
 
 mod types;
 
+mod collab;
 #[cfg(feature = "e2e")]
 mod e2e;
 mod env;
@@ -106,12 +107,6 @@ fn startup_check() -> AppResult<()> {
     STARTUP_ERROR.get().cloned().map_or(Ok(()), Err)
 }
 
-macro_rules! register_commands {
-    ([$($extra:tt)*]; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => $( $mode:ident )? |$store:ident $(, $window:ident)?| $body:block; )*) => {
-        tauri_specta::collect_commands![ $(crate::store::commands::$name,)* $($extra)* ]
-    };
-}
-
 /// Single source of truth for the IPC command surface. Used by both the desktop
 /// app (`run`) and the web sidecar (`serve`), so adding a command here wires it
 /// for both transports automatically.
@@ -126,124 +121,132 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .typ::<sv::pano::PanoQuery>()
         .typ::<sv::pano::PanoAnswer>()
         .typ::<procedure::engine::ProcedureConfig<serde_json::Value>>()
-        .commands(store::commands::command_table!(
-            register_commands,
-            [
-                app_ready,
-                startup_check,
-                store::storage::write_temp_file,
-                store::storage::get_data_location,
-                store::storage::set_data_location,
-                store::storage::open_data_folder,
-                store::storage::open_log_file,
-                plugins::user::claim_plugin_update_pass,
-                plugins::user::list_user_plugins,
-                plugins::user::install_plugin,
-                plugins::user::uninstall_plugin,
-                plugins::sidecar::sidecar_installed_version,
-                plugins::sidecar::sidecar_request,
-                plugins::sidecar::sidecar_stop,
-                plugins::borders::check_border_file,
-                plugins::borders::download_border_file,
-                plugins::borders::border_lookup,
-                net::geocoder::reverse_geocode,
-                util::timezone_at,
-                util::reveal_window,
-                net::presence::discord_presence_set,
-                net::github::github_start_login,
-                net::github::github_poll_login,
-                net::github::github_me,
-                net::github::github_logout,
-                net::github::github_has_session,
-                net::feedback::feedback_log_tail,
-                net::feedback::feedback_submit,
-                net::feedback::feedback_upload_attachment,
-                net::feedback::feedback_thread,
-                net::feedback::feedback_reply,
-                net::update::update_check,
-                net::update::update_install,
-                net::remote_api::remote_api_set,
-                net::remote_api::remote_api_respond,
-                store::commands::store_open_map,
-                store::commands::store_close_map,
-                store::commands::store_close_layer,
-                store::commands::store_save_dirty,
-                store::commands::store_copy_locations_to_map,
-                store::commands::store_edit_uploaded,
-                store::commands::honeycomb_points,
-                store::commands::polygon_points,
-                store::commands::polygon_contains_points,
-                store::commands::polygon_bounds,
-                selections::field_expr::field_expr_error,
-                store::commands::store_country_distribution,
-                store::commands::store_step,
-                store::commands::selection_build,
-                store::commands::store_subscribe_frames,
-                store::maps::store_list_maps,
-                store::maps::store_create_map,
-                store::maps::store_delete_map,
-                store::maps::store_duplicate_map,
-                store::maps::store_update_map_meta,
-                store::maps::store_move_folder,
-                store::maps::store_db_stats,
-                store::map_defaults::store_get_map_defaults,
-                store::map_defaults::store_set_map_defaults,
-                io::import::bulk_import_preview,
-                io::import::bulk_import_confirm,
-                io::import::bulk_import_cancel,
-                io::import::store_import_preview,
-                io::import::store_import_file,
-                io::import::store_import_cancel,
-                io::maps_url::parse_maps_url,
-                io::export::store_export,
-                io::export::store_save_export_file,
-                io::export::store_export_bulk_zip,
-                io::export::store_upload_begin,
-                io::export::store_upload_finish,
-                io::export::store_upload_abort,
-                store::vcs::store_commit,
-                store::vcs::store_list_commits,
-                store::vcs::store_checkout_commit,
-                store::vcs::store_get_commit_delta,
-                store::seen::store_seen_write,
-                store::seen::store_seen_list,
-                store::seen::store_seen_countries,
-                store::seen::store_seen_maps,
-                store::seen::store_seen_clear,
-                store::review::store_review_list,
-                store::review::store_review_edit,
-                selections::saved::store_list_saved_selections,
-                selections::saved::store_get_saved_selections,
-                selections::saved::store_save_selection,
-                selections::saved::store_delete_saved_selection,
-                selections::saved::legacy::store_import_legacy_saved_selections,
-                sync::remote_mapping::remote_mapping_clear,
-                sync::engine::sync_reconcile,
-                sync::log::sync_log_append,
-                sync::log::sync_log_list,
-                sync::map_making::map_making_me,
-                sync::map_making::map_making_validate,
-                sync::map_making::map_making_maps,
-                sync::map_making::map_making_create_map,
-                sync::map_making::map_making_set_key,
-                sync::map_making::map_making_has_key,
-                sync::file::file_source_probe,
-                net::geoguessr::geoguessr_login,
-                net::geoguessr::geoguessr_me,
-                net::geoguessr::geoguessr_logout,
-                plugins::vali::vali_generate,
-                plugins::vali::vali_download,
-                plugins::vali::vali_data_status,
-                plugins::vali::vali_download_stale,
-                procedure::engine::procedure_run,
-                procedure::registry::provider_register,
-                procedure::registry::provider_unregister,
-                procedure::engine::procedure_query,
-                runs::run_reserve,
-                runs::run_cancel,
-                procedure::engine::procedure_activity,
-            ]
-        ))
+        .commands(tauri_specta::collect_commands![
+            app_ready,
+            startup_check,
+            store::storage::write_temp_file,
+            store::storage::get_data_location,
+            store::storage::set_data_location,
+            store::storage::open_data_folder,
+            store::storage::open_log_file,
+            plugins::user::claim_plugin_update_pass,
+            plugins::user::list_user_plugins,
+            plugins::user::install_plugin,
+            plugins::user::uninstall_plugin,
+            plugins::sidecar::sidecar_installed_version,
+            plugins::sidecar::sidecar_request,
+            plugins::sidecar::sidecar_stop,
+            plugins::borders::check_border_file,
+            plugins::borders::download_border_file,
+            plugins::borders::border_lookup,
+            net::geocoder::reverse_geocode,
+            util::timezone_at,
+            util::reveal_window,
+            net::presence::discord_presence_set,
+            net::github::github_start_login,
+            net::github::github_poll_login,
+            net::github::github_me,
+            net::github::github_logout,
+            net::github::github_has_session,
+            collab::sessions::collab_sessions,
+            collab::sessions::collab_shares,
+            collab::sessions::collab_share,
+            collab::sessions::collab_host,
+            collab::sessions::collab_join,
+            collab::sessions::collab_leave,
+            collab::sessions::collab_present,
+            collab::sessions::collab_invite,
+            net::feedback::feedback_log_tail,
+            net::feedback::feedback_submit,
+            net::feedback::feedback_upload_attachment,
+            net::feedback::feedback_thread,
+            net::feedback::feedback_reply,
+            net::update::update_check,
+            net::update::update_install,
+            net::remote_api::remote_api_set,
+            net::remote_api::remote_api_respond,
+            store::commands::store_open_map,
+            store::commands::store_close_map,
+            store::commands::store_save_dirty,
+            store::commands::store_edit,
+            store::commands::store_work,
+            store::commands::store_land_layer,
+            store::commands::store_close_layer,
+            store::commands::store_read,
+            store::commands::store_copy_locations_to_map,
+            store::commands::honeycomb_points,
+            store::commands::polygon_points,
+            store::commands::polygon_contains_points,
+            store::commands::polygon_bounds,
+            selections::field_expr::field_expr_error,
+            store::commands::store_country_distribution,
+            store::commands::store_step,
+            store::commands::selection_build,
+            store::commands::store_subscribe_frames,
+            store::maps::store_list_maps,
+            store::maps::store_create_map,
+            store::maps::store_delete_map,
+            store::maps::store_duplicate_map,
+            store::maps::store_update_map_meta,
+            store::maps::store_move_folder,
+            store::maps::store_db_stats,
+            store::map_defaults::store_get_map_defaults,
+            store::map_defaults::store_set_map_defaults,
+            io::import::bulk_import_preview,
+            io::import::bulk_import_confirm,
+            io::import::bulk_import_cancel,
+            io::import::store_import_preview,
+            io::import::store_import_file,
+            io::import::store_import_cancel,
+            io::maps_url::parse_maps_url,
+            io::export::store_export,
+            io::export::store_save_export_file,
+            io::export::store_export_bulk_zip,
+            io::export::store_upload_begin,
+            io::export::store_upload_finish,
+            io::export::store_upload_abort,
+            store::vcs::store_commit,
+            store::vcs::store_list_commits,
+            store::vcs::store_checkout_commit,
+            store::vcs::store_get_commit_delta,
+            store::seen::store_seen_write,
+            store::seen::store_seen_list,
+            store::seen::store_seen_countries,
+            store::seen::store_seen_maps,
+            store::seen::store_seen_clear,
+            store::review::store_review_list,
+            store::review::store_review_edit,
+            selections::saved::store_list_saved_selections,
+            selections::saved::store_get_saved_selections,
+            selections::saved::store_save_selection,
+            selections::saved::store_delete_saved_selection,
+            selections::saved::legacy::store_import_legacy_saved_selections,
+            sync::remote_mapping::remote_mapping_clear,
+            sync::engine::sync_reconcile,
+            sync::log::sync_log_append,
+            sync::log::sync_log_list,
+            sync::map_making::map_making_me,
+            sync::map_making::map_making_validate,
+            sync::map_making::map_making_maps,
+            sync::map_making::map_making_create_map,
+            sync::map_making::map_making_set_key,
+            sync::map_making::map_making_has_key,
+            sync::file::file_source_probe,
+            net::geoguessr::geoguessr_login,
+            net::geoguessr::geoguessr_me,
+            net::geoguessr::geoguessr_logout,
+            plugins::vali::vali_generate,
+            plugins::vali::vali_download,
+            plugins::vali::vali_data_status,
+            plugins::vali::vali_download_stale,
+            procedure::engine::procedure_run,
+            procedure::registry::provider_register,
+            procedure::registry::provider_unregister,
+            procedure::engine::procedure_query,
+            runs::run_reserve,
+            runs::run_cancel,
+            procedure::engine::procedure_activity,
+        ])
         .events(tauri_specta::collect_events![
             plugins::sidecar::SidecarProgress,
             plugins::sidecar::SidecarLine,
@@ -256,6 +259,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             procedure::engine::ProcedureProgress,
             procedure::engine::ProcedureResult,
             net::update::UpdateProgress,
+            collab::sessions::CollabSessions,
+            collab::sessions::CollabPresence,
         ])
 }
 
@@ -298,7 +303,23 @@ pub fn export_bindings() -> Result<(), String> {
     let names = wire_string_enums().map(|(name, _)| name);
     fs::write(&out, owned_by_consts(&promoted, &names)).expect("write bindings");
     eprintln!("[specta] bindings exported to {}", out.display());
+    export_worker_wire()?;
     export_consts()
+}
+
+/// Regenerate the collab Worker's `wire.gen.ts` from the messages this app exchanges with it.
+#[cfg(debug_assertions)]
+#[allow(clippy::print_stderr)]
+fn export_worker_wire() -> Result<(), String> {
+    let out =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../workers/collab/src/wire.gen.ts");
+    let ts = specta_typescript::Typescript::default()
+        .header("// Generated by `npm run gen:bindings` in app/. Do not edit.")
+        .export(&collab::wire(), specta_serde::Format)
+        .map_err(|e| format!("{e:?}"))?;
+    fs::write(&out, ts).map_err(|e| e.to_string())?;
+    eprintln!("[specta] collab Worker wire exported to {}", out.display());
+    Ok(())
 }
 
 fn wire_string_enums() -> [(&'static str, TsConst); 17] {
@@ -595,6 +616,7 @@ pub(crate) fn init_backend(app: &tauri::AppHandle) -> AppResult<()> {
         libc::setlocale(libc::LC_NUMERIC, c"C".as_ptr());
     }
     let _ = APP_HANDLE.set(app.clone());
+    tauri::Manager::manage(app, store::engine::Writes::new(app.clone()));
     store::storage::init_paths(app)?;
     store::storage::run_migrations()?;
     store::engine::delta_legacy::convert_msgpack_deltas();

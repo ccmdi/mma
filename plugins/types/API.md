@@ -10,6 +10,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 
 **Stable surfaces**
 
+- [Account](#account)
 - [Autosave](#autosave)
 - [Bindings consts](#bindings-consts)
 - [Commit](#commit)
@@ -65,6 +66,54 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Validate](#validate)
 - [Validation categories](#validation-categories)
 
+## Account
+
+### Account
+
+`stable` · unreleased
+
+The GitHub account the user is signed in with, and signing in or out of it.
+
+#### Account.me
+
+`stable` · unreleased
+
+```ts
+Account.me(): Promise<GhUser | null>
+```
+
+The signed-in GitHub account, or null when signed out or unreachable.
+
+#### Account.signIn
+
+`stable` · unreleased
+
+```ts
+Account.signIn(onCode: (code: DeviceCodeInfo) => void): Promise<GhUser>
+```
+
+Sign in with GitHub: `onCode` receives the code the user enters in the browser page this opens, which is also copied to the clipboard.
+
+#### Account.signOut
+
+`stable` · unreleased
+
+```ts
+Account.signOut(): Promise<void>
+```
+
+Sign out of GitHub and forget the stored session.
+
+#### Account.use
+
+`stable` · unreleased
+
+```ts
+Account.use(): GhUser | null | undefined
+```
+
+React hook: the signed-in GitHub account, null when signed out, and undefined until first known.
+
 ## Autosave
 
 ### Autosave
@@ -104,15 +153,15 @@ Autosave.flush(): Promise<void>
 
 Save any unsaved changes now instead of waiting for the timer.
 
-#### Autosave.hold
+#### Autosave.paused
 
-`unstable` · since v0.12.0
+`unstable` · unreleased
 
 ```ts
-Autosave.hold(): () => void
+Autosave.paused: { hold: () => () => void; held: () => boolean }
 ```
 
-Defer autosave until the returned release function runs. Useful for batches that land many mutations.
+What defers autosave while held. Useful for batches that land many mutations.
 
 #### Autosave.schedule
 
@@ -1121,12 +1170,13 @@ Edit map locations, metadata, value records, and selections.
 ```ts
 Edit.locations(
   target: Target,
-  edits: Parameters<typeof cmd.storeEdit>[1],
-  records?: Parameters<typeof cmd.storeEdit>[2],
+  edits: Of<"locations">["edits"],
+  records?: Of<"locations">["records"],
 ): Promise<EditResult>
 ```
 
-Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
+Edit locations on a map or in a pending layer, with the rows themselves or the session
+they were uploaded to (see `storeUploadBegin`). Rows refer to interned values such as tags
 by their ids in `records`, matched to the map's by name. Map changes are undoable in that
 map.
 
@@ -1145,13 +1195,25 @@ Edit.meta(
 Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
 Settings merge key by key, so send only the keys that change.
 
+#### Edit.selections
+
+`unstable` · unreleased
+
+```ts
+Edit.selections(op: Of<"selections">): Promise<Mutation<ListedSelection>>
+```
+
+Edit the selection list. Wrap an op in `{ kind: "active", op }` to affect only active
+selections.
+
 #### Edit.values
 
 `stable` · since v0.12.0
 
 ```ts
 Edit.values(
-  ...props: Parameters<typeof cmd.storeEditValues>
+  field: string,
+  edits: Of<"values">["edits"],
 ): Promise<Mutation<ValueRecord>>
 ```
 
@@ -1696,10 +1758,10 @@ Add locations to the map and return their new ids, in order. Undoable.
 `unstable` · `deprecated` · since v0.5.0
 
 ```ts
-addSelections(selectors: Selector[]): Promise<void>
+addSelections(selectors: Selector[]): Promise<Mutation<ListedSelection>>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`.
+**Deprecated in v0.11.3.** Use `MMA.Edit.selections(MMA.addSelection(...selectors))`.
 
 ### addTagToLocations
 
@@ -1716,12 +1778,13 @@ addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>
 `unstable` · `deprecated` · since v0.10.3
 
 ```ts
-applySelectionUpdate(op: SelectionOp): Promise<void>
+applySelectionUpdate(op: Of<"selections">): Promise<Mutation<ListedSelection>>
 ```
 
-**Deprecated in v0.12.0.** Use `MMA.SelectionList.update`.
+**Deprecated in v0.12.0.** Use `MMA.Edit.selections`.
 
-Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections.
+Edit the selection list. Wrap an op in `{ kind: "active", op }` to affect only active
+selections.
 
 ### autosave
 
@@ -1762,15 +1825,15 @@ autosave.flush(): Promise<void>
 
 Save any unsaved changes now instead of waiting for the timer.
 
-#### autosave.hold
+#### autosave.paused
 
-`unstable` · since v0.12.0
+`unstable` · unreleased
 
 ```ts
-autosave.hold(): () => void
+autosave.paused: { hold: () => () => void; held: () => boolean }
 ```
 
-Defer autosave until the returned release function runs. Useful for batches that land many mutations.
+What defers autosave while held. Useful for batches that land many mutations.
 
 #### autosave.schedule
 
@@ -2031,12 +2094,13 @@ Edit map locations, metadata, value records, and selections.
 ```ts
 edit.locations(
   target: Target,
-  edits: Parameters<typeof cmd.storeEdit>[1],
-  records?: Parameters<typeof cmd.storeEdit>[2],
+  edits: Of<"locations">["edits"],
+  records?: Of<"locations">["records"],
 ): Promise<EditResult>
 ```
 
-Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
+Edit locations on a map or in a pending layer, with the rows themselves or the session
+they were uploaded to (see `storeUploadBegin`). Rows refer to interned values such as tags
 by their ids in `records`, matched to the map's by name. Map changes are undoable in that
 map.
 
@@ -2055,13 +2119,25 @@ edit.meta(
 Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
 Settings merge key by key, so send only the keys that change.
 
+#### edit.selections
+
+`unstable` · unreleased
+
+```ts
+edit.selections(op: Of<"selections">): Promise<Mutation<ListedSelection>>
+```
+
+Edit the selection list. Wrap an op in `{ kind: "active", op }` to affect only active
+selections.
+
 #### edit.values
 
 `stable` · since v0.12.0
 
 ```ts
 edit.values(
-  ...props: Parameters<typeof cmd.storeEditValues>
+  field: string,
+  edits: Of<"values">["edits"],
 ): Promise<Mutation<ValueRecord>>
 ```
 
@@ -2775,10 +2851,10 @@ Remove locations by id. Undoable.
 `unstable` · `deprecated` · since v0.5.0
 
 ```ts
-removeSelections(keys: string[]): Promise<void>
+removeSelections(keys: string[]): Promise<Mutation<ListedSelection>>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.SelectionList.update({ kind: "remove", keys })`.
+**Deprecated in v0.11.3.** Use `MMA.Edit.selections({ kind: "remove", keys })`.
 
 ### removeTagFromAllLocations
 
@@ -2850,10 +2926,10 @@ request<T>(
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-resetSelections(): Promise<void>
+resetSelections(): Promise<Mutation<ListedSelection>>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.SelectionList.update({ kind: "set", selections: [] })`.
+**Deprecated in v0.11.3.** Use `MMA.Edit.selections({ kind: "set", selections: [] })`.
 
 ### resolveIds
 
@@ -3400,6 +3476,23 @@ Mutation.settle(m: Mutation): Promise<void>
 
 Resolves once the open map's state and its markers both show `m`. A mutation that reached
 no map (version 0) settles at once.
+
+#### Mutation.write
+
+`stable` · unreleased
+
+```ts
+Mutation.write<
+  R extends
+    | Mutation
+    | {
+        mutation: Mutation;
+      }
+    | null,
+>(fn: () => Promise<R>): Promise<R>
+```
+
+Send a store write, then wait until the open map shows it.
 
 ## Plugin storage
 
@@ -4242,6 +4335,23 @@ The location pinned to the pano it carries, or unpinned to float on default cove
 
 Shared UI primitives for plugin sidebars and dialogs.
 
+#### ui.Avatar
+
+`stable` · unreleased
+
+```ts
+ui.Avatar(
+  props: ComponentPropsWithRef<"span"> & {
+    src?: string | null;
+    size?: number;
+    fallback?: ReactNode;
+    ring?: string;
+  },
+): react.JSX.Element
+```
+
+A round picture `size` pixels wide, showing `fallback` (a plain figure by default) when there is no `src` or it fails to load, ringed in `ring` when given.
+
 #### ui.Bar
 
 `stable` · since v0.11.1
@@ -4954,6 +5064,27 @@ labelColor(name: string, overrides: Record<string, string>): string
 
 A label's color: a user override if set, else a deterministic color from its name.
 
+### legible
+
+`unstable` · unreleased
+
+```ts
+legible(color: RGB, background: RGB): RGB
+```
+
+`color` moved toward white on a dark `background`, or black on a light one, until the two
+reach WCAG AA contrast.
+
+### luminance
+
+`unstable` · unreleased
+
+```ts
+luminance(rgb: RGB): number
+```
+
+WCAG relative luminance of a color, from 0 for black to 1 for white.
+
 ### resolveSvColorHex
 
 `unstable` · since v0.10.3
@@ -5083,6 +5214,91 @@ cmd.claimPluginUpdatePass(): Promise<boolean>
 ```
 
 True for the first caller per app run, which runs the background plugin update check.
+
+#### cmd.collabHost
+
+`unstable` · unreleased
+
+```ts
+cmd.collabHost(map: string): Promise<null>
+```
+
+Host map `map` for everyone it is shared with, until it is left.
+
+#### cmd.collabInvite
+
+`unstable` · unreleased
+
+```ts
+cmd.collabInvite(map: string, on: boolean): Promise<string | null>
+```
+
+Turn on the code that lets guests without a GitHub account join this app's shared map
+`map`, returning it, or turn it off, which turns away every guest in its session.
+
+#### cmd.collabJoin
+
+`unstable` · unreleased
+
+```ts
+cmd.collabJoin(via: Via, replace: boolean): Promise<JoinOutcome>
+```
+
+Join the map `via` reaches, as an account it is shared with or as a guest with an invite
+code, following it into this app's copy of it. A copy edited since its last session is
+reported instead, unless `replace` says to replace those edits.
+
+#### cmd.collabLeave
+
+`unstable` · unreleased
+
+```ts
+cmd.collabLeave(map: string): Promise<null>
+```
+
+Leave the session on this app's map `map`: a host ends it for everyone, a peer keeps its
+copy. An ended session is dismissed.
+
+#### cmd.collabPresent
+
+`unstable` · unreleased
+
+```ts
+cmd.collabPresent(map: string, data: Shown): Promise<null>
+```
+
+Show `data` to everyone else in the session on this app's map `map`.
+
+#### cmd.collabSessions
+
+`unstable` · unreleased
+
+```ts
+cmd.collabSessions(): Promise<CollabSessions>
+```
+
+Every collab session this app is in, and every map it copied from another app's.
+
+#### cmd.collabShare
+
+`unstable` · unreleased
+
+```ts
+cmd.collabShare(map: string, logins: string[]): Promise<null>
+```
+
+Share map `map` with exactly `logins`, or stop sharing it when there are none. Anyone left
+out is turned away from the map's session.
+
+#### cmd.collabShares
+
+`unstable` · unreleased
+
+```ts
+cmd.collabShares(): Promise<Shares>
+```
+
+The maps the signed-in user shares, and the maps others share with them.
 
 #### cmd.discordPresenceSet
 
@@ -5771,47 +5987,10 @@ edit history, sync links, and review sessions stay with the original.
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeEdit(
-  target: Target,
-  edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
-  records: { [key in string]: { [key_1 in number]: ValueRecord } },
-): Promise<EditResult>
+cmd.storeEdit<V extends Edits>(edits: V): Promise<ReplyTo<Edited, V>>
 ```
 
-Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing.
-
-#### cmd.storeEditSelections
-
-`unstable` · since v0.12.0
-
-```ts
-cmd.storeEditSelections(op: SelectionEdit): Promise<Mutation<ListedSelection>>
-```
-
-Edit the selection tree.
-
-#### cmd.storeEditUploaded
-
-`unstable` · since v0.12.0
-
-```ts
-cmd.storeEditUploaded(target: Target, session: string): Promise<EditResult>
-```
-
-Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change.
-
-#### cmd.storeEditValues
-
-`unstable` · since v0.12.0
-
-```ts
-cmd.storeEditValues(
-  field: string,
-  edits: Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>[],
-): Promise<Mutation<ValueRecord>>
-```
-
-Edit an interned field's value records; membership uses ordinary location edits.
+Edit the map; an open pending layer holds location edits until it lands.
 
 #### cmd.storeExport
 
@@ -5921,7 +6100,8 @@ positions for the editor import dialog. Call `storeImportFile` to commit the imp
 cmd.storeLandLayer(name: string): Promise<Mutation<Location>>
 ```
 
-Land a pending layer's edits on the map as one undoable step; later edits to it join that step.
+Land a pending layer's edits on the map as one undoable step; later edits to it join that
+step.
 
 #### cmd.storeListCommits
 
@@ -6170,6 +6350,7 @@ cmd.storeUpdateMapMeta(
       | "updatedAt"
       | "lastOpenedAt"
       | "settings"
+      | "localPluginData"
     >
   > &
     Pick<MapMeta, "id"> & {
@@ -6183,6 +6364,14 @@ cmd.storeUpdateMapMeta(
             >;
           };
         };
+    } & {
+      localPluginData?: {
+        [key in string]: Op<
+          { [key_1 in string]: unknown },
+          { [key_1 in string]: Op<unknown, unknown, null> },
+          null
+        >;
+      };
     },
 ): Promise<Mutation<Location> | null>
 ```
@@ -6235,7 +6424,8 @@ cmd.storeWork(
 ): Promise<WorkResult>
 ```
 
-Run work over the target's locations matched by selector; an open pending layer holds the edits until it lands.
+Run work over the target's locations matched by selector; an open pending layer holds the
+edits until it lands.
 
 #### cmd.syncLogAppend
 
@@ -6494,6 +6684,17 @@ MapHost.create(
   opts: CreateHostOpts,
 ): Promise<MapHost>
 ```
+
+#### MapHost.each
+
+`unstable` · unreleased
+
+```ts
+MapHost.each(attach: (host: MapHost) => () => void): () => void
+```
+
+Run `attach` on the main editor map host and on every host that replaces it, undoing each
+run with what it returns once its host goes. Returns the stop.
 
 #### MapHost.fitToBounds
 
@@ -6878,16 +7079,6 @@ Pano.links(): google.maps.StreetViewLink[]
 ```
 
 The current pano's navigable links.
-
-#### Pano.look
-
-`unstable` · since v0.12.0
-
-```ts
-Pano.look(frame: PanoFrame): void
-```
-
-Point the camera now.
 
 #### Pano.mount
 
@@ -7750,6 +7941,16 @@ Scene.load(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>
 
 Load the whole scene again and follow every change to it from there.
 
+#### Scene.loading
+
+`unstable` · unreleased
+
+```ts
+Scene.loading: { hold: () => () => void; held: () => boolean }
+```
+
+What keeps the map showing as loading; the scene itself holds it until its markers are first drawn.
+
 #### Scene.positions
 
 `unstable` · unreleased
@@ -7984,17 +8185,6 @@ SelectionList.listed(): ListedSelection[]
 
 The listed selections, in list order.
 
-#### SelectionList.run
-
-`unstable` · since v0.12.0
-
-```ts
-SelectionList.run(write: () => Promise<Mutation>): Promise<void>
-```
-
-Run a mutation that may change the listed selections, and announce the change when it
-does.
-
 #### SelectionList.select
 
 `unstable` · since v0.12.0
@@ -8034,16 +8224,6 @@ SelectionList.tagIdsDeep(): readonly number[]
 ```
 
 Tag ids from active selection leaves, including repeated ids and composite children.
-
-#### SelectionList.update
-
-`unstable` · since v0.12.0
-
-```ts
-SelectionList.update(op: SelectionOp): Promise<void>
-```
-
-Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections.
 
 ## Selections
 

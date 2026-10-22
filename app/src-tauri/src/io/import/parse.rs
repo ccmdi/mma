@@ -1,6 +1,6 @@
 //! Turning a file into a `ParsedMap`: SIMD JSON object scanning, CSV, zip, value interning.
 
-use crate::store::engine::{IncomingRecords, ValueRecord};
+use crate::store::engine::ValueRecord;
 use crate::store::maps::MapSettings;
 use crate::types;
 use crate::types::{
@@ -49,7 +49,7 @@ pub(crate) struct ParsedMap {
     pub(super) folder: Option<String>,
     pub(crate) locations: Vec<Location>,
     /// Each interned field's records under provisional ids, which the store remaps.
-    pub(crate) records: IncomingRecords,
+    pub(crate) records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
     pub(super) fields: Option<Value>,
     pub(crate) warnings: Vec<String>,
     /// Map settings carried by the import (`extra.settings`)
@@ -856,7 +856,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     let t_merge = t0.elapsed();
 
     let tag_meta = named("tags");
-    let mut records = IncomingRecords::from([(
+    let mut records = HashMap::from([(
         "tags".to_string(),
         tags_by_name
             .into_iter()

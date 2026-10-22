@@ -1,3 +1,4 @@
+import { Avatar } from "./Avatar";
 import { Bar } from "./Bar";
 import { Button } from "./Button";
 import { Checkbox } from "./Checkbox";
@@ -39,6 +40,7 @@ import { Tooltip } from "./Tooltip";
 
 /** Shared UI primitives for plugin sidebars and dialogs. @api */
 export const ui = {
+	Avatar,
 	Bar,
 	Button,
 	Checkbox,

@@ -11,7 +11,7 @@ pub(crate) mod log;
 pub(crate) mod map_making;
 pub(crate) mod remote_mapping;
 
-use crate::store::engine::{spelled, IncomingRecords, ValueRecord};
+use crate::store::engine::{spelled, ValueRecord};
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::{wire_str_enum, AppResult, Location, LocationFlags};
 use mma_algebra::{canonical, Id, Patch};
@@ -191,7 +191,10 @@ pub fn canon_tags(names: impl IntoIterator<Item = String>) -> Vec<String> {
 /// `records` gives it (unknown tag ids are dropped), stripping undeclared flag bits, reading an
 /// empty pano id as none, and dropping null fields, which a merge patch cannot tell from absent
 /// ones.
-pub fn local_to_normalized(loc: &Location, records: &IncomingRecords) -> NormalizedSyncLocation {
+pub fn local_to_normalized(
+    loc: &Location,
+    records: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+) -> NormalizedSyncLocation {
     let tags = records.get("tags");
     NormalizedSyncLocation {
         lat: loc.lat,
@@ -340,7 +343,7 @@ pub struct RemoteSnapshot<R> {
     pub token: Option<i64>,
     /// The source's records for each interned field, for the look a value a pull creates
     /// should adopt; a value that already exists keeps its own. Empty when the source carries none.
-    pub records: IncomingRecords,
+    pub records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
 }
 
 /// One entry of the full desired remote state. `local_id` is `None` for remote-only

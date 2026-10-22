@@ -88,26 +88,23 @@ pub struct ListedSelection {
     pub ghosted: bool,
 }
 
-impl Store {
-    /// What `entry` does to the selection list beyond its own changes: selections naming
-    /// values it empties are pruned, and a selection naming a value paints in that value's
-    /// record colour, when the selection is new to the list or the entry changes the record.
-    pub(super) fn selection_consequences(&mut self, entry: &Entry) -> SelectionDelta {
-        let gone = self.emptied_values(&entry.locations, |field| {
-            entry
-                .records
-                .get(field)
-                .into_iter()
-                .flat_map(Change::keys_iter)
-                .map(|id| id.to_string())
-                .collect()
-        });
+impl SelectionState {
+    /// The listed selections following `entry` beyond its own changes: selections naming a
+    /// value `gone` holds are pruned, and a selection naming a value paints in that value's
+    /// record colour, from `records`, when the selection is new to the list or the entry
+    /// changes the record.
+    pub(super) fn follow(
+        &self,
+        entry: &Entry,
+        gone: &HashSet<(String, String)>,
+        records: &HashMap<String, Tracked<HashMap<Id<ValueRecord>, ValueRecord>>>,
+    ) -> Change<(String, Listing)> {
         let pruned = if gone.is_empty() {
             entry.selections.clone()
         } else {
-            self.selections.change(&entry.selections, |rows| {
+            self.change(&entry.selections, |rows| {
                 rows.into_iter()
-                    .filter(|row| !names_emptied(&gone, row))
+                    .filter(|row| !names_emptied(gone, row))
                     .collect()
             })
         };
@@ -119,19 +116,19 @@ impl Store {
                     .filter_map(move |(id, rec)| Some(((field.as_str(), *id), rec.shown_color()?)))
             })
             .collect();
-        let listed = self.selections.table();
+        let listed = self.table();
         let is_new = |key: &str| !listed.contains_key(key);
         if changed.is_empty() && !pruned.after().any(|(key, _)| is_new(key)) {
             return pruned;
         }
-        self.selections.change(&pruned, |rows| {
+        self.change(&pruned, |rows| {
             rows.into_iter()
                 .map(|row| {
                     let new = is_new(&row.selection.key);
                     let color = |field: &str, id: u32| {
                         let id = Id::new(id);
                         changed.get(&(field, id)).copied().or_else(|| {
-                            new.then(|| self.value_record(field, id)?.shown_color())
+                            new.then(|| records.get(field)?.get(&id)?.shown_color())
                                 .flatten()
                         })
                     };
@@ -143,10 +140,12 @@ impl Store {
                 .collect()
         })
     }
+}
 
+impl Store {
     /// Interned values that hold no row once `rows` apply, among the values `rows` move and
     /// the ones `touched` names for each field, as field and value.
-    fn emptied_values(
+    pub(super) fn emptied_values(
         &mut self,
         rows: &Change<Location>,
         touched: impl Fn(&str) -> Vec<String>,
@@ -222,8 +221,6 @@ pub(crate) struct Listing {
     pub(crate) order: u32,
     pub(crate) row: ListedSelection,
 }
-
-pub(crate) type SelectionDelta = Change<(String, Listing)>;
 
 /// `table`'s listings in list order, ties broken by key.
 fn in_order(table: HashMap<String, Listing>) -> Vec<Listing> {
@@ -372,9 +369,9 @@ impl SelectionState {
 
     pub(crate) fn change(
         &self,
-        pending: &SelectionDelta,
+        pending: &Change<(String, Listing)>,
         edit: impl FnOnce(Vec<ListedSelection>) -> Vec<ListedSelection>,
-    ) -> SelectionDelta {
+    ) -> Change<(String, Listing)> {
         let before = self.table();
         let mut held = before.clone();
         pending.apply_to(&mut held);
@@ -389,7 +386,7 @@ impl SelectionState {
     /// Apply a list edit. A selection still listed with the same selector keeps its members;
     /// every other one waits to be resolved. A key alone does not name a selector: a manual
     /// selection keeps its key while its locations change.
-    pub(crate) fn apply(&mut self, change: &SelectionDelta) {
+    pub(crate) fn apply(&mut self, change: &Change<(String, Listing)>) {
         let mut table = self.table();
         change.apply_to(&mut table);
         let rows = in_order(table);
@@ -516,24 +513,6 @@ impl SelectionState {
 }
 
 impl Store {
-    pub(crate) fn edit_selections(&mut self, op: &SelectionOp) -> Mutation<ListedSelection> {
-        let rows = op.apply(&self.selections.list());
-        let selections = self.selections.change(&SelectionDelta::default(), |_| rows);
-        let written = self.write(
-            [],
-            &mut None,
-            Entry {
-                selections,
-                ..Default::default()
-            },
-        );
-        Mutation {
-            version: written.version,
-            keys: Vec::new(),
-            history_cleared: written.history_cleared,
-        }
-    }
-
     /// `table` without the rows that are exactly a test for a value no row holds any more.
     pub(crate) fn valid_selections(
         &mut self,
@@ -552,5 +531,26 @@ impl Store {
             .into_iter()
             .filter(|(_, listing)| !names_emptied(&gone, &listing.row))
             .collect()
+    }
+}
+
+impl Write for SelectionOp {
+    type Done = Mutation<ListedSelection>;
+
+    /// The selection list is this device's own, never sent to a host.
+    fn route(self, store: &Store) -> Routed {
+        let rows = self.apply(&store.selections.list());
+        Routed::Here(Entry {
+            selections: store.selections.change(&Change::default(), |_| rows),
+            ..Entry::default()
+        })
+    }
+
+    fn done(edited: EditResult) -> Mutation<ListedSelection> {
+        Mutation {
+            version: edited.mutation.version,
+            keys: Vec::new(),
+            history_cleared: edited.mutation.history_cleared,
+        }
     }
 }

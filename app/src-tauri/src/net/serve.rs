@@ -12,7 +12,7 @@ use tauri::{async_runtime, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_webserve::{on_client_release, register_scheme, SchemeRequest, SchemeResponse};
 
 use crate::net::proxy;
-use crate::store::engine::{close_window, StoreState, WindowLabel};
+use crate::store::engine::{release, Holder, StoreState, WindowLabel};
 
 pub fn run_server() {
     crate::install_crypto_provider();
@@ -39,10 +39,8 @@ pub fn run_server() {
                     // The release callback runs on a synchronous HTTP worker; wait here so its
                     // flush cannot be cancelled when the callback returns and destroys the
                     // client webview.
-                    let closed = async_runtime::block_on(close_window(
-                        state.inner(),
-                        &WindowLabel(label.to_string()),
-                    ));
+                    let window = Holder::Window(WindowLabel(label.to_string()));
+                    let closed = async_runtime::block_on(release(state.inner(), &window));
                     if let Err(e) = closed {
                         log::error!("[close_map] flush for released window '{label}' failed: {e}");
                     }

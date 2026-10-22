@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { act, type ReactNode } from "react";
-import { mountAsync } from "./fixtures/harness";
+import { mountAsync, typeInto } from "./fixtures/harness";
 import { initLocale } from "@/lib/i18n";
 import { setLocal } from "@/lib/hooks/useLocalStorage";
 import type { SubmittedReport } from "@/store/feedback";
@@ -71,14 +71,7 @@ const q = (sel: string) => document.querySelector(sel);
 const qa = (sel: string) => [...document.querySelectorAll(sel)];
 
 function search(text: string) {
-	const input = q(".settings-rail__search input") as HTMLInputElement;
-	act(() => {
-		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.bind(
-			input,
-		);
-		setter(text);
-		input.dispatchEvent(new Event("input", { bubbles: true }));
-	});
+	typeInto(q(".settings-rail__search input") as HTMLInputElement, text);
 }
 
 describe("settings rail", () => {

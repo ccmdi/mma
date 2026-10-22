@@ -45,9 +45,10 @@ import {
 	type HotkeyGroup,
 } from "@/lib/util/hotkeys";
 import { formatBytes } from "@/lib/util/format";
+import { Avatar } from "@/components/primitives/Avatar";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
-import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { Account } from "@/lib/account";
 import type { DeviceCodeInfo, MapPreferences, RGB } from "@/bindings.gen";
 import { collectDiagnostics } from "@/lib/diagnostics";
 import { appVersion } from "@/lib/version";
@@ -101,7 +102,7 @@ import { cmd } from "@/lib/commands";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
-import { useAsync, useSticky } from "@/lib/hooks/useAsync";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { useJob } from "@/lib/hooks/useJob";
 import {
 	useUpdateState,
@@ -1330,9 +1331,7 @@ function CopyDiagnosticsButton() {
 }
 
 function FeedbackBody() {
-	const account = useAsync(() => cmd.githubMe(), []);
-	const known = useSticky(account);
-	const user = known.ok();
+	const user = Account.use();
 	const signingIn = useJob<unknown, DeviceCodeInfo>();
 	const code = signingIn.status === "loading" ? signingIn.progress : null;
 	const [reports] = useReports();
@@ -1342,31 +1341,20 @@ function FeedbackBody() {
 		void refreshStoredReports();
 	}, []);
 
-	const signIn = () =>
-		signingIn.run(async ({ report }) => {
-			const info = await cmd.githubStartLogin();
-			report(info);
-			await openExternal(info.verificationUri);
-			await cmd.githubPollLogin();
-			await account.rerun();
-		});
-
 	return (
 		<>
 			<SettingsGroup title={t("Account")}>
 				<Aux match="github sign in account anonymous">
 					<div className="feedback-account">
-						{known.status === "loading" ? (
+						{user === undefined ? (
 							<span className="text-muted">{t("Checking sign-in...")}</span>
 						) : user ? (
 							<>
-								{user.avatarUrl && (
-									<img className="feedback-account__avatar" src={user.avatarUrl} alt="" />
-								)}
+								{user.avatarUrl && <Avatar src={user.avatarUrl} size={24} />}
 								<span>{user.login}</span>
 								<Button
 									onClick={() => {
-										void cmd.githubLogout().then(account.rerun);
+										void Account.signOut();
 									}}
 								>
 									{t("Sign out")}
@@ -1377,7 +1365,9 @@ function FeedbackBody() {
 								<span className="text-muted">
 									{t("Not signed in. Reports are filed anonymously and replies arrive here.")}
 								</span>
-								<Button onClick={() => void signIn()}>{t("Sign in with GitHub")}</Button>
+								<Button onClick={() => void signingIn.run(({ report }) => Account.signIn(report))}>
+									{t("Sign in with GitHub")}
+								</Button>
 							</>
 						)}
 					</div>

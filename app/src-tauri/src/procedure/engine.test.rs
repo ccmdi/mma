@@ -3,10 +3,13 @@ use crate::net::fetch::{RateSpec, RetrySpec, SendFn, DEFAULT_INFLIGHT, TRANSIENT
 use crate::procedure::quickjs::JsProcedure;
 use crate::runs::run_reserve;
 use crate::store::arrow;
-use crate::store::engine::{render_cell_idx, Stage, Store, StoreManager, Tracked};
-use crate::test_util::{loc, loc_ids, tag_ids};
+use crate::store::engine::{
+    render_cell_idx, EditResult, Holder, Intent, Reached, Stage, Store, StoreManager, Tracked,
+    Upstream,
+};
+use crate::test_util::{loc, loc_ids, tag_ids, Host, Now};
 use crate::types::{LocationFlags, RawExtra};
-use mma_algebra::{Change, Id, Op, Patch, Patchable};
+use mma_algebra::{Change, Id, IdRange, Op, Patch, Patchable};
 use std::{env, thread};
 use tokio::time;
 
@@ -45,11 +48,10 @@ fn given(state: &StoreState, map_id: &Id<MapMeta, String>, rows: Vec<Location>) 
     };
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
-    store.at(&target).edit(
-        rows.into_iter().map(Op::Set).collect(),
-        Default::default(),
-        &mut None,
-    );
+    store
+        .at(&target)
+        .write(rows.into_iter().map(Op::Set).collect::<Vec<_>>())
+        .now();
     target
 }
 
@@ -528,6 +530,82 @@ fn gating_ignores_a_providers_own_output() {
     a.fields = vec!["x".into()];
     a.requires = vec!["x".into()];
     assert_eq!(producers(&[a]), vec![Vec::<usize>::new()]);
+}
+
+/// A host that answers each write a while after it arrives, from its own thread, holding the
+/// manager lock as a session adopting the host's change must.
+struct AnsweredLater {
+    host: Arc<Host>,
+    state: Arc<StoreState>,
+    map: Id<MapMeta, String>,
+}
+
+impl Upstream for AnsweredLater {
+    fn send(&self, intent: Intent, recording: &mut Recording) -> Reached<EditResult> {
+        let answer = self.host.send(intent, recording);
+        let (host, state, map) = (self.host.clone(), self.state.clone(), self.map.clone());
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(200));
+            let mut mgr = state.lock().unwrap();
+            host.answer(mgr.store_for_map(&map).unwrap());
+        });
+        answer
+    }
+
+    fn lease(&self, len: u32) -> Reached<IdRange<Location>> {
+        self.host.lease(len)
+    }
+}
+
+#[test]
+fn on_a_replica_a_consumer_starts_once_the_host_has_its_producers_pages() {
+    let mut a = decl("a", BatchMode::PerRow);
+    a.fields = vec!["x".into()];
+    let mut b = decl("b", BatchMode::PerRow);
+    b.fields = vec!["y".into()];
+    b.requires = vec!["x".into()];
+    let h = Harness::map_only(Arc::new(|rows: &[Location]| {
+        Ok(rows
+            .iter()
+            .map(|r| ResultEntry {
+                id: r.id,
+                json: if r
+                    .extra
+                    .as_ref()
+                    .is_some_and(|e| e.as_str().contains("\"x\""))
+                {
+                    r#"{"extra":{"y":2}}"#.into()
+                } else {
+                    r#"{"extra":{"x":1}}"#.into()
+                },
+            })
+            .collect())
+    }));
+    let (host, replica) = Host::pair("procedure-replica", &[loc(0, 1.0, 0.0)]);
+    let map_id = replica.meta.id.clone();
+    let mut mgr = StoreManager::new();
+    mgr.stores.insert(map_id.clone(), replica);
+    let state = Arc::new(Mutex::new(mgr));
+    state
+        .lock()
+        .unwrap()
+        .store_for_map(&map_id)
+        .unwrap()
+        .upstream = Some(Arc::new(AnsweredLater {
+        host,
+        state: state.clone(),
+        map: map_id.clone(),
+    }));
+
+    run_all(
+        &h.ctx(&state, &map_id),
+        &[a, b].map(|d| ProviderDecl { force: false, ..d }),
+    );
+
+    assert_eq!(
+        read_extra(&state, &map_id, 1),
+        Some(serde_json::json!({"x": 1, "y": 2}))
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -2674,12 +2752,15 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
     };
     {
         let mut manager = state.lock().unwrap();
-        manager.window_map.insert(label.clone(), map_id.clone());
-        manager.store_for_map(&map_id).unwrap().at(&target).edit(
-            vec![Op::Set(loc(1, 1.0, 1.0))],
-            Default::default(),
-            &mut None,
-        );
+        manager
+            .holders
+            .insert(Holder::Window(label.clone()), map_id.clone());
+        manager
+            .store_for_map(&map_id)
+            .unwrap()
+            .at(&target)
+            .write(vec![Op::Set(loc(1, 1.0, 1.0))])
+            .now();
     }
 
     let first = run_reserve();
@@ -2700,7 +2781,12 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
     {
         let mut manager = state.lock().unwrap();
         let store = manager.store_for_map(&map_id).unwrap();
-        store.land("draft", &mut None);
+        store
+            .at(&Target::Pending {
+                name: "draft".into(),
+            })
+            .land()
+            .now();
         let pending = store.pending.get("draft").unwrap();
         assert_eq!(pending.stage, Stage::Discarded);
         assert!(
@@ -2743,14 +2829,20 @@ fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
     };
     {
         let mut manager = state.lock().unwrap();
-        manager.window_map.insert(label.clone(), map_id.clone());
+        manager
+            .holders
+            .insert(Holder::Window(label.clone()), map_id.clone());
         let store = manager.store_for_map(&map_id).unwrap();
-        store.at(&target).edit(
-            vec![Op::Set(loc(1, 1.0, 1.0))],
-            Default::default(),
-            &mut None,
-        );
-        store.land("draft", &mut None);
+        store
+            .at(&target)
+            .write(vec![Op::Set(loc(1, 1.0, 1.0))])
+            .now();
+        store
+            .at(&Target::Pending {
+                name: "draft".into(),
+            })
+            .land()
+            .now();
     }
 
     let run_id = run_reserve();

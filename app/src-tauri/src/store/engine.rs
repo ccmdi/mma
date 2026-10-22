@@ -11,11 +11,12 @@ use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::{fmt, mem};
-use tokio::sync;
+use tokio::{sync, task};
 
 mod dependents;
 pub use frame::*;
 pub(crate) use history::*;
+pub(crate) use intent::*;
 pub use membership::*;
 pub use mutations::*;
 pub use persist::*;
@@ -138,7 +139,7 @@ pub struct Store {
     /// The windows drawing this store. A store opened afresh has none: each window
     /// subscribes when it loads its scene.
     pub(crate) frames: Sinks<FrameBytes>,
-    /// Subscribers to map changes and derived state updates.
+    /// Subscribers to every finished change and derived state update, in version order.
     pub(crate) changes: Sinks<ChangeEvent>,
     /// Pending layers that procedure work is currently writing to.
     pub(crate) writing_layers: Tracked<BTreeSet<String>>,
@@ -150,13 +151,15 @@ pub struct Store {
     pub(crate) dependents: Arc<mma_algebra::Dependents<String>>,
     /// Named layers of pending edits held over the map's rows.
     pub(crate) pending: HashMap<String, Pending>,
+    /// Where writes to the map's shared content go when another app hosts the map.
+    pub(crate) upstream: Option<Arc<dyn Upstream>>,
 }
 
 /// What a finished change touched.
-#[derive(Clone, Copy)]
-pub(crate) enum Finished<'a> {
+#[derive(Clone)]
+pub(crate) enum Finished {
     /// An entry's rows, value records, field definitions, or selections.
-    Entry(&'a Entry),
+    Entry(Arc<Entry>),
     /// The base rows were rewritten, so every row restates its selection.
     Base,
 }
@@ -202,6 +205,7 @@ impl Store {
             held_values: HashMap::new(),
             dependents: Default::default(),
             pending: HashMap::new(),
+            upstream: None,
         }
     }
 
@@ -322,10 +326,10 @@ impl Store {
     /// Update derived state for what changed, broadcast frames and changes, and return its result.
     pub(crate) fn finish(&mut self, finished: Finished) -> Mutation {
         let empty = Entry::default();
-        let list_only = matches!(finished, Finished::Entry(entry)
+        let list_only = matches!(&finished, Finished::Entry(entry)
             if entry.locations.is_empty() && !entry.selections.is_empty());
-        let (entry, resolve_all) = match finished {
-            Finished::Entry(entry) => (entry, !entry.selections.is_empty()),
+        let (entry, resolve_all) = match &finished {
+            Finished::Entry(entry) => (&**entry, !entry.selections.is_empty()),
             Finished::Base => (&empty, true),
         };
         let (changes, records) = (&entry.locations, &entry.records);
@@ -445,6 +449,7 @@ impl Store {
             version: self.version,
             keys: changes.keys(),
             patch,
+            finished: Some(finished),
         });
         result
     }
@@ -494,8 +499,8 @@ impl Store {
 
     /// Insert or restore locations in the overlay. `added` stays sorted by id (the invariant
     /// the bake asserts): fresh ids sort above everything and are appended, O(k);
-    /// anything else (an undo re-adding old ids) is merged in one linear pass, O(n + k),
-    /// where inserting each row into its slot would shift the rows above it, O(n * k).
+    /// anything else (an undo re-adding old ids) joins by a stable sort, which merges the two
+    /// sorted runs in O(n + k) where inserting each row into its slot would cost O(n * k).
     fn overlay_add(&mut self, locs: Vec<Location>) {
         let mut fresh: Vec<Location> = Vec::with_capacity(locs.len());
         for loc in locs {
@@ -519,40 +524,19 @@ impl Store {
             return;
         }
         fresh.sort_unstable_by_key(|l| l.id);
+        let adds = &mut self.overlay.edit().added;
+        let above = adds.last().is_none_or(|last| last.id < fresh[0].id);
+        adds.extend(fresh);
+        if !above {
+            adds.sort_by_key(|l| l.id);
+        }
         if cfg!(debug_assertions) {
-            if let Some(w) = fresh.windows(2).find(|w| w[0].id == w[1].id) {
+            if let Some(w) = adds.windows(2).find(|w| w[0].id == w[1].id) {
                 panic!(
                     "overlay_add duplicate id {} -- next_id allocation bug",
                     w[1].id
                 );
             }
-        }
-        let adds = &mut self.overlay.edit().added;
-        if adds.last().is_none_or(|last| last.id < fresh[0].id) {
-            adds.extend(fresh);
-        } else {
-            let old = mem::take(adds);
-            let mut merged = Vec::with_capacity(old.len() + fresh.len());
-            let mut a = old.into_iter().peekable();
-            let mut b = fresh.into_iter().peekable();
-            loop {
-                let take_a = match (a.peek(), b.peek()) {
-                    (Some(x), Some(y)) => x.id < y.id,
-                    (Some(_), None) => true,
-                    (None, Some(_)) => false,
-                    (None, None) => break,
-                };
-                merged.extend(if take_a { a.next() } else { b.next() });
-            }
-            if cfg!(debug_assertions) {
-                if let Some(w) = merged.windows(2).find(|w| w[0].id == w[1].id) {
-                    panic!(
-                        "overlay_add duplicate id {} -- next_id allocation bug",
-                        w[1].id
-                    );
-                }
-            }
-            *adds = merged;
         }
     }
 
@@ -600,16 +584,8 @@ impl Store {
                 .map(|i| i as u32)
                 .collect();
             if keep.len() < batch.num_rows() {
-                let take_idx = arrow_array::UInt32Array::from(keep);
-                batch = RecordBatch::try_new(
-                    batch.schema(),
-                    batch
-                        .columns()
-                        .iter()
-                        .map(|col| take::take(col.as_ref(), &take_idx, None).unwrap())
-                        .collect(),
-                )
-                .unwrap();
+                batch =
+                    take::take_record_batch(&batch, &arrow_array::UInt32Array::from(keep)).unwrap();
             }
         }
 
@@ -618,11 +594,20 @@ impl Store {
             batch = arrow::patch_batch(&batch, &self.overlay.updated);
         }
 
-        // Step 3: concat adds
+        // Step 3: concat adds, sorted into id order when lent ids fall below the base's
         if !self.overlay.added.is_empty() {
+            let base_rows = batch.num_rows();
+            let interleaved = base_rows > 0
+                && Columns::id(&batch).value(base_rows - 1) > self.overlay.added[0].id.get();
             let add_batch = arrow::locations_to_batch(&self.overlay.added);
-            let s = schema();
-            batch = concat::concat_batches(&s, &[batch, add_batch]).expect("concat failed");
+            batch = concat::concat_batches(&schema(), &[batch, add_batch]).expect("concat failed");
+            if interleaved {
+                let ids = Columns::id(&batch);
+                let mut order: Vec<u32> = (0..batch.num_rows() as u32).collect();
+                order.sort_by_key(|&row| ids.value(row as usize));
+                batch = take::take_record_batch(&batch, &arrow_array::UInt32Array::from(order))
+                    .unwrap();
+            }
         }
 
         log::debug!(
@@ -646,21 +631,45 @@ impl Store {
 /// its own map without clobbering others.
 pub struct StoreManager {
     pub(crate) stores: HashMap<Id<MapMeta, String>, Store>,
-    pub(crate) window_map: HashMap<WindowLabel, Id<MapMeta, String>>,
+    /// What keeps each map's store here: a store leaves once nothing holds its map.
+    pub(crate) holders: HashMap<Holder, Id<MapMeta, String>>,
     /// Registered providers, whose field dependencies every opened store shares.
     pub(crate) providers: Providers,
     /// Each map's files lock, held across every read-to-write of its files on disk.
     files: HashMap<Id<MapMeta, String>, Arc<sync::Mutex<()>>>,
 }
 
+/// What keeps a map's store open.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Holder {
+    /// A window showing the map.
+    Window(WindowLabel),
+    /// A session working on the map, with or without a window open on it.
+    Session(Id<MapMeta, String>),
+}
+
 impl StoreManager {
     pub fn new() -> Self {
         Self {
             stores: HashMap::new(),
-            window_map: HashMap::new(),
+            holders: HashMap::new(),
             providers: Default::default(),
             files: HashMap::new(),
         }
+    }
+
+    /// Let go of what `holder` keeps here, handing back its map's store when nothing else
+    /// holds the map.
+    pub(crate) fn release(&mut self, holder: &Holder) -> Option<(Id<MapMeta, String>, Store)> {
+        let map_id = self.holders.remove(holder)?;
+        if let Some(store) = self.stores.get_mut(&map_id) {
+            store.frames.remove(holder);
+            store.changes.remove(holder);
+        }
+        if self.holders.values().any(|held| *held == map_id) {
+            return None;
+        }
+        self.stores.remove_entry(&map_id)
     }
 
     /// The lock a map's files are written under: an open, save, commit, close, or write to
@@ -681,12 +690,13 @@ impl StoreManager {
         }
     }
 
+    /// A map's row as it stands, as its store holds it when the map is open.
+    pub(crate) fn current(&self, row: MapMeta) -> MapMeta {
+        self.stores.get(&row.id).map_or(row, Store::map)
+    }
+
     pub fn store_for_window(&mut self, label: &WindowLabel) -> AppResult<&mut Store> {
-        let map_id = self
-            .window_map
-            .get(label)
-            .ok_or_else(|| format!("no map open in window '{label}'"))?
-            .clone();
+        let map_id = self.map_id_for_window(label)?;
         self.stores
             .get_mut(&map_id)
             .ok_or_else(|| AppError(format!("store not found for map '{map_id}'")))
@@ -699,33 +709,36 @@ impl StoreManager {
     }
 
     pub fn map_id_for_window(&self, label: &WindowLabel) -> AppResult<Id<MapMeta, String>> {
-        self.window_map
-            .get(label)
+        self.holders
+            .get(&Holder::Window(label.clone()))
             .cloned()
             .ok_or_else(|| AppError(format!("no map open in window '{label}'")))
-    }
-
-    /// Unbind `label` from its map, handing back the map's store to flush when no
-    /// other window still has it open.
-    pub fn unbind_window(&mut self, label: &WindowLabel) -> Option<(Id<MapMeta, String>, Store)> {
-        let map_id = self.window_map.remove(label)?;
-        if let Some(store) = self.stores.get_mut(&map_id) {
-            store.frames.remove(label);
-            store.changes.remove(label);
-        }
-        if self.window_map.values().any(|v| v == &map_id) {
-            log::debug!("[close_map] {map_id} still open in another window, skipping flush");
-            return None;
-        }
-        let Some(store) = self.stores.remove(&map_id) else {
-            log::debug!("[close_map] {map_id} has no store, nothing to flush");
-            return None;
-        };
-        Some((map_id, store))
     }
 }
 
 pub type StoreState = Mutex<StoreManager>;
+
+/// The store's writes, made one at a time in the order they were asked for, off the thread
+/// that asked.
+pub struct Writes(crate::util::Serial<tauri::AppHandle>);
+
+impl Writes {
+    /// The writes of the app `app` serves.
+    pub fn new(app: tauri::AppHandle) -> Self {
+        Self(crate::util::Serial::new("store-writes", app))
+    }
+
+    /// What `job` comes to on the store state, once every write asked for before it is made.
+    /// Waiting for a replica's host happens outside the line, so it holds up no later write.
+    pub(crate) fn write<T: Send + 'static>(
+        &self,
+        job: impl FnOnce(&StoreState) -> AppResult<Reached<T>> + Send + 'static,
+    ) -> impl std::future::Future<Output = AppResult<T>> {
+        use tauri::Manager;
+        let made = self.0.then(move |app| job(&app.state::<StoreState>()));
+        async move { made.await??.await }
+    }
+}
 
 /// Run `f` on the store `target` names: this window's, the live store of a map open in any
 /// window, or a closed map loaded from disk and saved after `f`, under its files lock.
@@ -767,6 +780,23 @@ pub(crate) fn with_target<R>(
         )?;
     }
     Ok(result)
+}
+
+/// Run `f` as [`with_target`] does, then await the change it made as this store reaches it,
+/// with the manager unlocked.
+pub(crate) async fn reach_target<R>(
+    state: &StoreState,
+    label: &WindowLabel,
+    target: &Target,
+    f: impl FnOnce(&mut Store) -> AppResult<Reached<R>>,
+) -> AppResult<R> {
+    task::block_in_place(|| with_target(state, label, target, f))?.await
+}
+
+impl From<WindowLabel> for Holder {
+    fn from(label: WindowLabel) -> Self {
+        Holder::Window(label)
+    }
 }
 
 /// The invoking window's label, extracted from the IPC call. Commands take this
@@ -966,6 +996,7 @@ impl<T> Deref for Tracked<T> {
 pub(crate) mod delta_legacy;
 pub(crate) mod frame;
 mod history;
+mod intent;
 mod membership;
 mod mutations;
 mod persist;

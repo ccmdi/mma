@@ -1,0 +1,43 @@
+name = "mma-collab"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+workers_dev = false
+
+[[routes]]
+pattern = "collab.ccmdi.com"
+custom_domain = true
+
+[[kv_namespaces]]
+binding = "SHARES"
+id = "06c58720f5a24ba59f1c3d222869fe0e"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[durable_objects.bindings]]
+name = "DIRECTORY"
+class_name = "Directory"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Directory"]
+
+[observability]
+enabled = true
+
+[[ratelimits]]
+name = "RATE"
+namespace_id = "1003"
+
+  [ratelimits.simple]
+  limit = 60
+  period = 60
+
+# Secrets (set with `wrangler secret put <NAME>`, never in this file):
+#   WORKER_SECRET    signing key for worker tokens

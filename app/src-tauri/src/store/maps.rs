@@ -6,7 +6,7 @@
 //! `Location.extra` fields and persists their type definitions.
 
 use crate::selections::{Address, Builtin, BuiltinFieldKind};
-use crate::store::engine::{IncomingRecords, StoreManager, StoreState};
+use crate::store::engine::{Reached, StoreManager, StoreState, Target};
 use crate::store::storage::Stamped;
 use crate::store::{arrow, engine, map_defaults, storage};
 use crate::sv::schema::PanoType;
@@ -15,13 +15,15 @@ use crate::types::shape::MapShape;
 use crate::types::{wire_str_enum, AppError, AppResult, LocationFlags, RawExtra};
 use crate::util::now_iso;
 use arrow_array::RecordBatch;
-use mma_algebra::{Counts, Id, Patch, Patchable};
+use mma_algebra::{Counts, Id, Json, Patch};
 use rusqlite::{params, Connection};
 use serde::{de::Error as _, ser::Error as _};
 use specta::datatype::DataType;
 use std::collections::HashMap;
 use std::fs;
+use std::mem;
 use std::path::Path;
+use tauri_specta::Reply;
 use tokio::task;
 
 // ---------------------------------------------------------------------------
@@ -30,7 +32,7 @@ use tokio::task;
 
 /// Action performed by a per-map key binding on the open location.
 /// New action kinds (e.g. copy-to-map) are added as variants here.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
+#[derive(Clone, mma_fields::Json, specta::Type, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MapKeyAction {
     #[serde(rename_all = "camelCase")]
@@ -90,9 +92,7 @@ pub struct MapPreferences {
 }
 
 /// A map's settings: its preferences plus what refers to its own tags and data.
-#[derive(
-    Clone, Default, serde::Serialize, serde::Deserialize, specta::Type, Debug, mma_fields::Patch,
-)]
+#[derive(Clone, Default, mma_fields::Json, specta::Type, Debug, mma_fields::Patch)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MapSettings {
     #[serde(flatten)]
@@ -107,7 +107,7 @@ pub struct MapSettings {
     /// What each plugin keeps with this map, by plugin id and then key.
     #[patch(merge)]
     #[specta(type = HashMap<String, HashMap<String, specta_typescript::Unknown>>)]
-    pub plugin_data: HashMap<String, HashMap<String, serde_json::Value>>,
+    pub plugin_data: HashMap<String, HashMap<String, Json>>,
 }
 
 impl MapSettings {
@@ -315,7 +315,7 @@ impl FieldChoice {
 /// groups (selection disambiguation). The only un-inferrable property a field can
 /// declare is circularity (heading/azimuth=360, hour-of-day=24, month=12);
 /// everything else is inferred from `FieldType`.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
+#[derive(Clone, mma_fields::Json, specta::Type, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ComparisonType {
     Linear,
@@ -409,7 +409,7 @@ impl MapExtra {
 
 /// Score bounding box: either `"auto"` (computed from locations) or an
 /// explicit `[south, west, north, east]` rectangle.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
+#[derive(Clone, mma_fields::Json, specta::Type, Debug, PartialEq)]
 #[serde(untagged)]
 pub enum ScoreBounds {
     Auto(String),
@@ -632,6 +632,11 @@ pub struct MapMeta {
     pub extra: MapExtra,
     #[field(json)]
     pub labels: Vec<String>,
+    /// What each plugin keeps with this map on this device alone, by plugin id and then key.
+    #[field(json)]
+    #[patch(merge)]
+    #[specta(type = HashMap<String, HashMap<String, specta_typescript::Unknown>>)]
+    pub local_plugin_data: HashMap<String, HashMap<String, Json>>,
     #[patch(skip)]
     pub location_count: i64,
     /// Location changes since the last commit.
@@ -648,6 +653,18 @@ pub struct MapMeta {
     pub updated_at: String,
     #[patch(skip)]
     pub last_opened_at: Option<String>,
+}
+
+impl MapMetaPatch {
+    /// Take out of this patch the details that stay on this device: where the map is filed and
+    /// what plugins keep here alone. When it was last opened never enters a patch.
+    pub(crate) fn take_local(&mut self) -> Patch<MapMeta> {
+        Patch::<MapMeta> {
+            folder: mem::take(&mut self.folder),
+            local_plugin_data: mem::take(&mut self.local_plugin_data),
+            ..Patch::<MapMeta>::of(self.id.clone())
+        }
+    }
 }
 
 impl Stamped for MapMeta {
@@ -727,10 +744,7 @@ pub(crate) fn read_map_meta(
 pub async fn store_list_maps(state: tauri::State<'_, StoreState>) -> AppResult<Vec<MapMeta>> {
     let rows = storage::with_db(move |conn| Ok(list_map_rows(conn)?)).await?;
     let mgr = state.lock()?;
-    Ok(rows
-        .into_iter()
-        .map(|row| mgr.stores.get(&row.id).map_or(row, engine::Store::map))
-        .collect())
+    Ok(rows.into_iter().map(|row| mgr.current(row)).collect())
 }
 
 /// The one ephemeral map. A reserved id rather than a flag column: the row is an
@@ -739,7 +753,7 @@ pub async fn store_list_maps(state: tauri::State<'_, StoreState>) -> AppResult<V
 pub const SCRATCH_MAP_ID: &str = "scratch";
 
 /// Every map except the scratch one.
-fn list_map_rows(conn: &Connection) -> rusqlite::Result<Vec<MapMeta>> {
+pub(crate) fn list_map_rows(conn: &Connection) -> rusqlite::Result<Vec<MapMeta>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT {} FROM {} WHERE id != ?1",
         MapMeta::SELECT,
@@ -776,16 +790,26 @@ pub fn purge_scratch_map() -> AppResult<bool> {
 #[specta::specta]
 pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult<MapMeta> {
     storage::with_db(move |conn| {
-        let id = Id::new(uuid::Uuid::new_v4().to_string());
-        let now = now_iso();
-        let settings = serde_json::to_string(&map_defaults::new_map_settings(conn)?)?;
-        conn.execute(
-            "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id.raw(), name, folder, settings, now, now],
-        )?;
-        Ok(read_map_meta(conn, &id)?)
+        let settings = map_defaults::new_map_settings(conn)?;
+        insert_map(conn, &name, folder.as_deref(), &settings)
     })
     .await
+}
+
+/// Add an empty map named `name` in `folder` with `settings`. Returns its full metadata.
+pub(crate) fn insert_map(
+    conn: &Connection,
+    name: &str,
+    folder: Option<&str>,
+    settings: &MapSettings,
+) -> AppResult<MapMeta> {
+    let id = Id::new(uuid::Uuid::new_v4().to_string());
+    let now = now_iso();
+    conn.execute(
+        "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id.raw(), name, folder, serde_json::to_string(settings)?, now, now],
+    )?;
+    Ok(read_map_meta(conn, &id)?)
 }
 
 /// Add `copy_id` as a copy of `source`'s row holding `batch`. The row lands only once the
@@ -793,7 +817,10 @@ pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult
 fn duplicate_map_row(
     conn: &Connection,
     source: &Id<MapMeta, String>,
-    live: Option<(MapMeta, IncomingRecords)>,
+    live: Option<(
+        MapMeta,
+        HashMap<String, HashMap<Id<engine::ValueRecord>, engine::ValueRecord>>,
+    )>,
     copy_id: &Id<MapMeta, String>,
     name: &str,
     batch: &RecordBatch,
@@ -817,6 +844,7 @@ fn duplicate_map_row(
     if let Some((mut live, records)) = live {
         live.id = copy_id.clone();
         live.name = name.to_string();
+        live.local_plugin_data.clear();
         live.stamp(now);
         storage::update_row::<MapMeta>(&tx, "maps", copy_id.raw(), &live)?;
         for (field, records) in &records {
@@ -910,7 +938,7 @@ pub async fn store_delete_map(
     task::block_in_place(|| {
         let mut mgr = state.lock()?;
         mgr.stores.remove(&id);
-        mgr.window_map.retain(|_, v| v != &id);
+        mgr.holders.retain(|_, held| held != &id);
 
         let conn = storage::open_db()?;
         delete_map_data(&conn, &id)?;
@@ -925,17 +953,21 @@ pub async fn store_delete_map(
 #[tauri::command]
 #[specta::specta]
 pub fn store_update_map_meta(
-    state: tauri::State<'_, StoreState>,
+    writes: tauri::State<'_, engine::Writes>,
     patch: Patch<MapMeta>,
-) -> AppResult<Option<engine::Mutation>> {
-    update_map_meta(&mut *state.lock()?, &storage::open_db()?, patch)
+    reply: Reply<Option<engine::Mutation>>,
+) {
+    reply.when(
+        writes
+            .write(move |state| update_map_meta(&mut *state.lock()?, &storage::open_db()?, patch)),
+    );
 }
 
 fn update_map_meta(
     mgr: &mut StoreManager,
     conn: &Connection,
     patch: Patch<MapMeta>,
-) -> AppResult<Option<engine::Mutation>> {
+) -> AppResult<Reached<Option<engine::Mutation>>> {
     if let Some(extra) = &patch.extra {
         check_interned_keys(extra.interned())?;
     }
@@ -947,25 +979,9 @@ fn update_map_meta(
             &read_map_meta(conn, &patch.id)?,
             &patch,
         )?;
-        return Ok(None);
+        return Ok(Reached::ready(Ok(None)));
     };
-    let current = MapMeta {
-        extra: MapExtra {
-            fields: (*store.field_defs).clone(),
-        },
-        ..(*store.meta).clone()
-    };
-    let next = current.patched(&patch);
-    let meta =
-        mma_algebra::Change::from_iter([mma_algebra::Transition::new(Some(current), Some(next))]);
-    Ok(Some(store.write(
-        [],
-        &mut None,
-        engine::Entry {
-            meta,
-            ..Default::default()
-        },
-    )))
+    Ok(store.at(&Target::Map { id: None }).write(patch).map(Some))
 }
 
 /// Move every map in folder `from` to folder `to`, or to the root when `to` is null.
@@ -978,21 +994,12 @@ pub async fn store_move_folder(
 ) -> AppResult<()> {
     for store in state.lock()?.stores.values_mut() {
         if store.meta.folder.as_deref() == Some(from.as_str()) {
-            let before = (*store.meta).clone();
-            let mut after = before.clone();
-            after.folder = to.clone();
-            let meta = mma_algebra::Change::from_iter([mma_algebra::Transition::new(
-                Some(before),
-                Some(after),
-            )]);
-            store.write(
-                [],
-                &mut None,
-                engine::Entry {
-                    meta,
-                    ..Default::default()
-                },
-            );
+            let refiled = Patch::<MapMeta> {
+                id: store.meta.id.clone(),
+                folder: to.clone().into(),
+                ..Default::default()
+            };
+            let _ = store.at(&Target::Map { id: None }).write(refiled);
         }
     }
     storage::with_db(move |conn| {

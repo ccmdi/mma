@@ -22,15 +22,11 @@ const CloseContext = createContext<(() => void) | null>(null);
 export const RESIZE_MS = 220;
 export const RESIZE_EASING = "cubic-bezier(0.2, 0, 0, 1)";
 
-/** Where a modal's top edge sits for its height: centred when it opens or the window resizes
- *  (`anchor` null), and `anchor` is that opening top afterwards. Growth holds the opening top
- *  so it runs downward; shrinking settles back toward centre, never above it. Either way it
- *  stays on screen. */
-export function modalTop(anchor: number | null, height: number, viewport: number): number {
+/** Where a modal's top edge sits: slightly above centre, with two fifths of the free space
+ *  above it and three below, never closer than a twentieth of the window to either edge. */
+export function modalTop(height: number, viewport: number): number {
 	const gap = Math.round(viewport * 0.05);
-	const centred = Math.round((viewport - height) / 2);
-	const wanted = anchor === null ? centred : Math.max(anchor, centred);
-	return Math.max(gap, Math.min(wanted, viewport - height - gap));
+	return Math.max(gap, Math.round((viewport - height) * 0.4));
 }
 
 /** Eases a modal's frame between the heights its content lays out at, holding the top edge
@@ -44,13 +40,11 @@ function followContentHeight(frame: HTMLDivElement | null) {
 	const style = getComputedStyle(frame);
 	const borderY = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
 	let height: number | null = null;
-	let openTop: number | null = null;
 	let top: number | null = null;
 	let resize: Animation | null = null;
 
 	const place = (next: number, animate: boolean) => {
-		const nextTop = modalTop(openTop, next, window.innerHeight);
-		openTop ??= nextTop;
+		const nextTop = modalTop(next, window.innerHeight);
 		if (nextTop === top) return;
 		if (animate && top !== null) {
 			popup.animate([{ marginTop: `${top}px` }, { marginTop: `${nextTop}px` }], {
@@ -88,10 +82,7 @@ function followContentHeight(frame: HTMLDivElement | null) {
 		resize = animation;
 	});
 	const onViewportResize = () => {
-		if (height === null) return;
-		openTop = null;
-		top = null;
-		place(height, false);
+		if (height !== null) place(height, false);
 	};
 
 	observer.observe(body);

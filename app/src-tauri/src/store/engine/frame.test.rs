@@ -311,7 +311,7 @@ fn a_sink_that_cannot_take_a_frame_is_dropped() {
     sinks.send(FrameBytes(sample_frame().encode()));
 
     assert_eq!(live.bytes().len(), 2, "the live window keeps receiving");
-    assert!(!sinks.0.contains_key(&WindowLabel("gone".into())));
+    assert!(!sinks.has(&WindowLabel("gone".into()).into()));
 }
 
 /// The frame behind `app/test/unit/fixtures/polygon-frame.bin`: no marker changes, a

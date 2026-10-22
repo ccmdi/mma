@@ -378,10 +378,6 @@ export function createPano() {
 		);
 	}
 
-	function look(frame: PanoFrame) {
-		if (viewer) applyFrame(viewer, frame);
-	}
-
 	function nudge(dHeading: number, dPitch: number) {
 		if (!viewer) return;
 		const current = viewer.getPov();
@@ -615,8 +611,6 @@ export function createPano() {
 		canvas,
 		/** Cover-crop the live frame into an exact image, or null until real imagery renders. */
 		captureImage,
-		/** Point the camera now. */
-		look,
 		/** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. */
 		reserveLook,
 		/** Nudge heading and pitch by a delta, keeping pitch in range. */

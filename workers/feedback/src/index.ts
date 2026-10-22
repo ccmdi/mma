@@ -17,6 +17,7 @@ import {
 	referencedAttachments,
 	type Comment,
 } from "./github";
+import { bad, json } from "../../shared/http";
 import { defuseMentions } from "./markdown";
 import {
 	hmacHex,
@@ -92,17 +93,6 @@ interface ReportRequest {
 	installId?: unknown;
 	challenge?: unknown;
 	nonce?: unknown;
-}
-
-function json(data: unknown, status = 200): Response {
-	return new Response(JSON.stringify(data), {
-		status,
-		headers: { "Content-Type": "application/json" },
-	});
-}
-
-function bad(message: string, status = 400): Response {
-	return json({ error: message }, status);
 }
 
 async function replyToken(env: Env, number: number): Promise<string> {

@@ -26,3 +26,23 @@ describe("MapHost.kindForMapType", () => {
 		expect(MapHost.kindForMapType("osm")).toBe("google");
 	});
 });
+
+describe("MapHost.each", () => {
+	const host = (id: string) => ({ id }) as unknown as MapHost;
+
+	it("binds the host now and every host after it, undoing each binding as its host goes", () => {
+		const log: string[] = [];
+		const name = (h: MapHost) => (h as unknown as { id: string }).id;
+		MapHost.set(host("a"));
+		const stop = MapHost.each((h) => {
+			log.push(`on ${name(h)}`);
+			return () => log.push(`off ${name(h)}`);
+		});
+		MapHost.set(null);
+		MapHost.set(host("b"));
+		stop();
+		MapHost.set(host("c"));
+		MapHost.set(null);
+		expect(log).toEqual(["on a", "off a", "on b", "off b"]);
+	});
+});

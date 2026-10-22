@@ -9,7 +9,7 @@ vi.mock("@/store/settings", () => ({
 
 import { DEFAULT_SETTINGS, type GeneratorSettings } from "@/plugins/generator/engine/types";
 import { SettingsPanel } from "@/plugins/generator/ui/SettingsPanel";
-import { mount } from "./fixtures/harness";
+import { mount, typeInto } from "./fixtures/harness";
 
 function render(objective: "count" | "spacing", running = false) {
 	return mount(
@@ -56,13 +56,9 @@ describe("generator ranges", () => {
 	}
 
 	function leaveWith(input: HTMLInputElement, text: string) {
-		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-		act(() => {
-			input.focus();
-			setter.call(input, text);
-			input.dispatchEvent(new Event("input", { bubbles: true }));
-			input.blur();
-		});
+		act(() => input.focus());
+		typeInto(input, text);
+		act(() => input.blur());
 	}
 
 	function render(settings: Partial<GeneratorSettings>) {

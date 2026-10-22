@@ -14,13 +14,13 @@ URL.revokeObjectURL = () => {};
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		feedbackLogTail: vi.fn().mockResolvedValue(""),
+		githubMe: vi.fn().mockResolvedValue(null),
 		storeUploadBegin: vi.fn().mockResolvedValue("session"),
 		storeUploadAbort: vi.fn().mockResolvedValue(undefined),
 	},
 }));
 vi.mock("@/lib/diagnostics", () => ({ collectDiagnostics: vi.fn().mockResolvedValue({}) }));
 vi.mock("@/lib/feedback/submit", () => ({
-	isSignedIn: vi.fn().mockResolvedValue(false),
 	submitReport: vi.fn(),
 }));
 vi.mock("@/lib/feedback/body", () => ({ buildIssueBody: () => "" }));

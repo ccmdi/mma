@@ -58,6 +58,7 @@ const EVENT_DEFS = {
 	/** @unstable */
 	"trail:changed": event<void>(),
 	"seen:changed": event<void>(),
+	"account:changed": event<void>(),
 	/** @unstable */
 	"update:changed": event<void>(),
 	/** @unstable */

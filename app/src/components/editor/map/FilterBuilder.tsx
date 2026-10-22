@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useMemo } from "react";
 import { Store } from "@/store/store";
-import { SelectionList } from "@/store/selectionList";
+import { Edit } from "@/store/edit";
 import { Query } from "@/store/query";
 import type { Selection, FilterOp, FieldDef } from "@/bindings.gen";
 import { addSelection, filterIsLocalTime, type FilterOpKind, OP_LABELS } from "@/store/selections";
@@ -599,7 +599,7 @@ export function FilterBuilder({ mapId }: { mapId: string }) {
 			persistKey={mapId}
 			submitLabel={t("Add filter")}
 			onSubmit={(field, test) => {
-				void SelectionList.update(addSelection({ type: "Filter", field, test }));
+				void Edit.selections(addSelection({ type: "Filter", field, test }));
 				const type = getFieldDef(field)?.type;
 				if (type)
 					void countMissingTimezone(

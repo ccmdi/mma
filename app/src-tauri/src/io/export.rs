@@ -3,12 +3,13 @@
 //! triggers a native save dialog to move the file to its final destination.
 
 use crate::selections::{tree::SelectionInput, Selector};
-use crate::store::engine::{IncomingRecords, StoreState, ValueRecord, WindowLabel};
+use crate::store::engine::{StoreState, ValueRecord, WindowLabel};
 use crate::store::{engine, storage};
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::{AppError, AppResult, Location, LocationFlags};
 use mma_algebra::Id;
 use serde::de::DeserializeOwned;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -94,7 +95,7 @@ pub struct CoordOpts {
 /// `extra` fields nest under `extra`.
 fn location_to_coord(
     loc: &Location,
-    records: &IncomingRecords,
+    records: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
     opts: &CoordOpts,
 ) -> serde_json::Value {
     use serde_json::{json, Value};
@@ -179,7 +180,7 @@ fn location_to_coord(
 pub(crate) fn export_document(
     name: &str,
     locs: &[Location],
-    records: &IncomingRecords,
+    records: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
     fields: Option<serde_json::Value>,
     co: &CoordOpts,
 ) -> serde_json::Value {
@@ -231,7 +232,10 @@ pub(crate) fn csv_document(locs: &[Location]) -> String {
 }
 
 /// A GeoJSON FeatureCollection of Point features, each carrying its tag names.
-pub(crate) fn geojson_document(locs: &[Location], records: &IncomingRecords) -> serde_json::Value {
+pub(crate) fn geojson_document(
+    locs: &[Location],
+    records: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+) -> serde_json::Value {
     let tags = records.get("tags").cloned().unwrap_or_default();
     let features: Vec<serde_json::Value> = locs
         .iter()
@@ -265,7 +269,7 @@ pub async fn store_export(
     task::block_in_place(|| {
         engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
             let interned: Vec<String> = store.registry().interned().map(str::to_string).collect();
-            let records: IncomingRecords = store
+            let records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> = store
                 .fields(interned.iter().map(String::as_str))
                 .iter()
                 .map(|values| (values.field().to_string(), values.carried()))

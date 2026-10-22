@@ -41,23 +41,36 @@ pub(super) const DATA_LOCATION_FILE: &str = "data_location.txt";
 
 /// Resolve and cache the data/temp directories. Called once from `setup()`,
 /// before anything touches disk.
-///
-/// The effective data dir is the OS default unless a [`DATA_LOCATION_FILE`]
-/// pointer in `app_config_dir` overrides it. Test mode always uses the default.
 pub(crate) fn init_paths<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<()> {
     let default_dir = app.path().app_data_dir().map_err(AppError::from)?;
     let config_dir = app.path().app_config_dir().map_err(AppError::from)?;
     let _ = DEFAULT_DATA_DIR.set(default_dir.clone());
     let _ = CONFIG_DIR.set(config_dir.clone());
     let _ = TEMP_DIR.set(app.path().temp_dir().map_err(AppError::from)?);
+    let _ = APP_DATA_DIR.set(effective_data_dir(
+        crate::env::var("MMA_DATA_DIR").as_deref(),
+        default_dir,
+        &config_dir,
+    ));
+    Ok(())
+}
 
-    let effective = if is_test_mode() {
+/// The data directory in effect: the one `named` by `MMA_DATA_DIR`, so several instances can
+/// run side by side, else the OS default unless a [`DATA_LOCATION_FILE`] pointer in
+/// `config_dir` overrides it outside test mode.
+pub(super) fn effective_data_dir(
+    named: Option<&str>,
+    default_dir: PathBuf,
+    config_dir: &Path,
+) -> PathBuf {
+    if let Some(dir) = named.and_then(parse_data_location) {
+        return dir;
+    }
+    if is_test_mode() {
         default_dir
     } else {
-        read_data_location_override(&config_dir).unwrap_or(default_dir)
-    };
-    let _ = APP_DATA_DIR.set(effective);
-    Ok(())
+        read_data_location_override(config_dir).unwrap_or(default_dir)
+    }
 }
 
 /// The effective app data directory (default or user override). Errors if

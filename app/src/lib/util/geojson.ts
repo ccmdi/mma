@@ -1,4 +1,4 @@
-import { SelectionList } from "@/store/selectionList";
+import { Edit } from "@/store/edit";
 import type { PolygonGeometry } from "@/bindings.gen";
 import { addSelection } from "@/store/selections";
 import { pickFiles } from "@/lib/util/util";
@@ -56,7 +56,7 @@ export async function loadGeoJSON() {
 			/* ignore malformed files */
 		}
 	}
-	await SelectionList.update(
+	await Edit.selections(
 		addSelection(...polygons.map((polygon) => ({ type: "Polygon" as const, polygon }))),
 	);
 }

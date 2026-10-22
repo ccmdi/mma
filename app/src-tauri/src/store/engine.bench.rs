@@ -260,7 +260,7 @@ impl BenchApp {
             .expect("mock app");
         storage::init_paths(app.handle()).expect("init app paths");
         let mut mgr = StoreManager::new();
-        mgr.window_map.insert(label(), bench_map_id());
+        mgr.holders.insert(Holder::Window(label()), bench_map_id());
         mgr.stores.insert(bench_map_id(), Store::new());
         app.manage(StoreState::new(mgr));
         Self { app }
@@ -282,7 +282,10 @@ impl BenchApp {
     }
 
     pub fn edit(&self, edits: Vec<Edit<Location>>) -> EditResult {
-        store_edit(label(), self.state(), MAP, edits, IncomingRecords::new()).expect("edit")
+        with_target(&self.state(), &label(), &MAP, |store| {
+            store.at(&MAP).write(edits).settled()
+        })
+        .expect("edit")
     }
 
     pub fn undo(&self) -> Mutation {
@@ -304,11 +307,10 @@ impl BenchApp {
             .into_iter()
             .map(|s| input(Selection::of(s)))
             .collect();
-        store_edit_selections(
-            label(),
-            self.state(),
-            SelectionEdit::Op(SelectionOp::Set { selections }),
-        )
+        with_target(&self.state(), &label(), &MAP, |store| {
+            let op = SelectionEdit::Op(SelectionOp::Set { selections }).resolved(store)?;
+            store.at(&MAP).write(op).settled()
+        })
         .expect("edit_selections")
     }
 
@@ -370,7 +372,12 @@ fn input(selection: Selection) -> SelectionInput {
 
 /// A location edit straight on the engine, without the command's state lock.
 pub fn write(store: &mut Store, edits: &[Edit<Location>]) -> Mutation {
-    store.write(edits.iter().cloned(), &mut None, Entry::default())
+    store
+        .at(&Target::Map { id: None })
+        .write(edits.to_vec())
+        .settled()
+        .expect("write")
+        .mutation
 }
 
 /// The rows `selector` resolves to, its indexes built first as every selector read does.

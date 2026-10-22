@@ -13,8 +13,10 @@ use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
 use crate::util::now_iso;
 use mma_algebra::{Edit, Id, Op};
+use std::collections::HashMap;
 use std::time::Instant;
 use tauri::ipc::Channel;
+use tauri_specta::Reply;
 use tokio::task;
 
 /// Open a map, deliver its later changes on `changes`, and return its initial state
@@ -30,15 +32,13 @@ pub async fn store_open_map(
 ) -> AppResult<StoreStatus> {
     // Claim the window binding before the unlocked read, so a concurrent checkout's
     // open-elsewhere guard sees this open from its first moment.
-    state
-        .lock()?
-        .window_map
-        .insert(label.clone(), map_id.clone());
+    let window = Holder::Window(label.clone());
+    state.lock()?.holders.insert(window.clone(), map_id.clone());
     let opened = open_claimed_map(&label, &state, map_id.clone(), changes).await;
     if opened.is_err() {
         if let Ok(mut mgr) = state.lock() {
-            if mgr.window_map.get(&label) == Some(&map_id) {
-                mgr.window_map.remove(&label);
+            if mgr.holders.get(&window) == Some(&map_id) {
+                mgr.holders.remove(&window);
             }
         }
     }
@@ -77,9 +77,10 @@ async fn open_claimed_map(
     .await??;
     let mut mgr = state.lock()?;
     let dependents = mgr.providers.dependents();
-    mgr.window_map.insert(label.clone(), map_id.clone());
+    let window = Holder::Window(label.clone());
+    mgr.holders.insert(window.clone(), map_id.clone());
     for other in mgr.stores.values_mut() {
-        other.changes.remove(label);
+        other.changes.remove(&window);
     }
     let store = match loaded {
         Some(mut store) => {
@@ -90,7 +91,7 @@ async fn open_claimed_map(
     };
     store.announce();
     let status = store.open_status();
-    store.changes.insert(label.clone(), changes);
+    store.changes.insert(window, changes);
     Ok(status)
 }
 
@@ -101,7 +102,256 @@ pub async fn store_close_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<()> {
-    close_window(&state, &label).await
+    release(&state, &Holder::Window(label)).await
+}
+
+/// Save uncommitted changes to disk. No-op when nothing has changed.
+#[tauri::command]
+#[specta::specta]
+pub async fn store_save_dirty(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+) -> AppResult<()> {
+    let map_id = state.lock()?.map_id_for_window(&label)?;
+    save(&state, &map_id).await
+}
+
+/// Draw the open map's markers: `frames` receives the whole scene, then every change to it.
+#[tauri::command]
+#[specta::specta]
+pub async fn store_subscribe_frames(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    frames: Channel<FrameBytes>,
+    req: RenderRequest,
+) -> AppResult<()> {
+    let mut mgr = state.lock()?;
+    let map_id = mgr.map_id_for_window(&label)?;
+    let window = Holder::Window(label.clone());
+    for (id, store) in &mut mgr.stores {
+        if *id != map_id {
+            store.frames.remove(&window);
+        }
+    }
+    mgr.store_for_map(&map_id)?
+        .subscribe_frames(label, frames, &req);
+    Ok(())
+}
+
+/// A change to the map: its locations, an interned field's values, or the selection list.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Edits {
+    /// Locations where `target` says. Rows refer to interned values such as tags by their ids
+    /// in `records`; each is matched to the map's value of the same name, created when missing.
+    Locations {
+        target: Target,
+        edits: Rows,
+        records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+    },
+    /// One interned field's value records; membership uses location edits.
+    Values {
+        field: String,
+        edits: Vec<Edit<ValueRecord>>,
+    },
+    /// The selection list.
+    Selections(SelectionEdit),
+}
+
+/// A location edit's rows: sent with it, or uploaded beforehand in chunks.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(untagged)]
+pub enum Rows {
+    /// The rows themselves.
+    Inline(InlineRows),
+    /// The rows uploaded to the session `storeUploadBegin` opened.
+    Uploaded { session: String },
+}
+
+#[derive(specta::Type)]
+#[specta(transparent, inline)]
+pub struct InlineRows(Vec<Edit<Location>>);
+
+/// Read through a JSON value: a raw extra cannot be read back from serde's buffered input.
+impl<'de> serde::Deserialize<'de> for InlineRows {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let rows = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;
+        serde_json::from_value(rows)
+            .map(InlineRows)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+impl Rows {
+    /// The rows in hand, reading an upload's chunks.
+    fn read(self) -> AppResult<Vec<Edit<Location>>> {
+        match self {
+            Rows::Inline(InlineRows(rows)) => Ok(rows),
+            Rows::Uploaded { session } => export::read_uploaded_chunks(&session),
+        }
+    }
+}
+
+/// What an edit did, answering the `Edits` variant it was.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Edited {
+    /// What the location edit did.
+    Locations(EditResult),
+    /// The version the value edit reached and the keys its new records took.
+    Values(Mutation<ValueRecord>),
+    /// The version the selection edit reached.
+    Selections(Mutation<ListedSelection>),
+}
+
+impl Edits {
+    /// Where the change goes: the map or layer a location edit names, else this window's map.
+    fn target(&self) -> Target {
+        match self {
+            Edits::Locations { target, .. } => target.clone(),
+            Edits::Values { .. } | Edits::Selections(_) => Target::Map { id: None },
+        }
+    }
+
+    /// This edit with its rows in hand. It runs before the store lock, so reading a large
+    /// upload holds up no other window.
+    fn read(self) -> AppResult<Self> {
+        Ok(match self {
+            Edits::Locations {
+                target,
+                edits,
+                records,
+            } => Edits::Locations {
+                target,
+                edits: Rows::Inline(InlineRows(edits.read()?)),
+                records,
+            },
+            edits => edits,
+        })
+    }
+
+    /// Make the change on `store` at `target` for `window`.
+    fn write(
+        self,
+        store: &mut Store,
+        window: &WindowLabel,
+        target: &Target,
+    ) -> AppResult<Reached<Edited>> {
+        let receipt = receipt(store, window, target);
+        let received = move |edited: EditResult| EditResult {
+            mutation: receipt(edited.mutation),
+            ..edited
+        };
+        Ok(match self {
+            Edits::Locations { edits, records, .. } => {
+                store.check_interned(records.keys())?;
+                let edited = store.at(target).from(&records).write(edits.read()?);
+                edited.map(|edited| Edited::Locations(received(edited)))
+            }
+            Edits::Values { field, edits } => store
+                .at(target)
+                .field(&field)?
+                .write(edits)
+                .map(Edited::Values),
+            Edits::Selections(edit) => {
+                let op = edit.resolved(store)?;
+                store.at(target).write(op).map(Edited::Selections)
+            }
+        })
+    }
+}
+
+/// Edit the map; an open pending layer holds location edits until it lands.
+#[tauri::command]
+#[specta::specta]
+pub fn store_edit(
+    label: WindowLabel,
+    writes: tauri::State<'_, Writes>,
+    edits: Edits,
+    reply: Reply<Edited>,
+) {
+    reply.when(writes.write(move |state| {
+        let target = edits.target();
+        let edits = edits.read()?;
+        with_target(state, &label, &target, |store| {
+            edits.write(store, &label, &target)
+        })
+    }));
+}
+
+/// Run work over the target's locations matched by selector; an open pending layer holds the
+/// edits until it lands.
+#[tauri::command]
+#[specta::specta]
+pub fn store_work(
+    label: WindowLabel,
+    writes: tauri::State<'_, Writes>,
+    target: Target,
+    selector: Selector<SelectionInput>,
+    work: Work,
+    reply: Reply<WorkResult>,
+) {
+    reply.when(writes.write(move |state| {
+        with_target(state, &label, &target, |store| {
+            let receipt = receipt(store, &label, &target);
+            let worked = store
+                .at(&target)
+                .scope(&selector.map_children(SelectionInput::compile))
+                .write(work);
+            Ok(worked.map(|worked| WorkResult {
+                mutation: receipt(worked.mutation),
+                ..worked
+            }))
+        })
+    }));
+}
+
+/// Undo the newest edit, or redo the newest undone one.
+#[tauri::command]
+#[specta::specta]
+pub fn store_step(
+    label: WindowLabel,
+    writes: tauri::State<'_, Writes>,
+    stack: Stack,
+    timeline: Timeline,
+    reply: Reply<Mutation>,
+) {
+    reply.when(writes.write(move |state| {
+        with_target(state, &label, &Target::Map { id: None }, |store| {
+            let _t = Instant::now();
+            let map_id = store.meta.id.clone();
+            let stepped = store.step(stack, timeline, |seq| {
+                load_edit(&storage::open_db()?, &map_id, seq)
+            });
+            log::debug!(
+                "[{stack:?} {timeline:?}] stack_depth={} step={}ms",
+                store.steps[timeline].len(stack),
+                _t.elapsed().as_millis()
+            );
+            Ok(Reached::later(async move {
+                stepped
+                    .await?
+                    .ok_or_else(|| "nothing to step through".into())
+            }))
+        })
+    }));
+}
+
+/// Land a pending layer's edits on the map as one undoable step; later edits to it join that
+/// step.
+#[tauri::command]
+#[specta::specta]
+pub fn store_land_layer(
+    label: WindowLabel,
+    writes: tauri::State<'_, Writes>,
+    name: String,
+    reply: Reply<Mutation>,
+) {
+    reply.when(writes.write(move |state| {
+        with_target(state, &label, &Target::Map { id: None }, |store| {
+            Ok(store.at(&Target::Pending { name }).land())
+        })
+    }));
 }
 
 /// Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first.
@@ -109,40 +359,53 @@ pub async fn store_close_map(
 #[specta::specta]
 pub fn store_close_layer(
     label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
+    writes: tauri::State<'_, Writes>,
     name: String,
     map_id: Option<Id<MapMeta, String>>,
-) -> AppResult<()> {
-    let mut manager = state.lock()?;
-    let map_id = map_id.or_else(|| manager.window_map.get(&label).cloned());
-    let Some(map_id) = map_id else {
-        return Ok(());
-    };
-    if let Some(store) = manager.stores.get_mut(&map_id) {
-        store.close_layer(&name);
-    }
-    Ok(())
+    reply: Reply<()>,
+) {
+    reply.when(writes.write(move |state| {
+        let mut manager = state.lock()?;
+        let map_id = map_id.or_else(|| manager.map_id_for_window(&label).ok());
+        if let Some(store) = map_id.and_then(|map_id| manager.stores.get_mut(&map_id)) {
+            store.close_layer(&name);
+        }
+        Ok(Reached::ready(Ok(())))
+    }));
 }
 
-/// Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change.
+/// The receipt `window` waits on for a mutation at `target`: version 0 when the change
+/// reaches a map this window does not watch, so waiting returns at once.
+fn receipt(
+    store: &Store,
+    window: &WindowLabel,
+    target: &Target,
+) -> impl FnOnce(Mutation) -> Mutation + Send + 'static {
+    let unwatched = matches!(target, Target::Map { id: Some(_) })
+        && !store.changes.has(&Holder::Window(window.clone()));
+    move |mutation| Mutation {
+        version: if unwatched { 0 } else { mutation.version },
+        ..mutation
+    }
+}
+
+/// Answer one question about the target's locations matched by selector.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_edit_uploaded(
+pub async fn store_read(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     target: Target,
-    session: String,
-) -> AppResult<EditResult> {
-    let started = Instant::now();
-    // Read before taking the store lock: a malformed chunk must leave the store untouched.
-    let edits = task::spawn_blocking(move || export::read_uploaded_chunks(&session)).await??;
-    let result =
-        task::block_in_place(|| store_edit(label, state, target, edits, IncomingRecords::new()))?;
-    log::debug!(
-        "[cmd] store_edit_uploaded total={}ms",
-        started.elapsed().as_millis()
-    );
-    Ok(result)
+    selector: Selector<SelectionInput>,
+    ask: Ask,
+) -> AppResult<Answer> {
+    reach_target(&state, &label, &target, |store| {
+        Ok(Reached::ready(store.at(&target).read(
+            &selector.map_children(SelectionInput::compile),
+            &ask,
+        )))
+    })
+    .await
 }
 
 /// Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
@@ -178,8 +441,7 @@ pub async fn store_copy_locations_to_map(
     selector: Selector<SelectionInput>,
 ) -> AppResult<CopyToMapResult> {
     let started = Instant::now();
-    let copied =
-        task::block_in_place(|| copy_locations_to_map(&state, &label, target_map_id, selector))?;
+    let copied = copy_locations_to_map(&state, &label, target_map_id, selector).await?;
     log::debug!(
         "[cmd] copy_to_map copied={} skipped={} total={}ms",
         copied.copied,
@@ -189,148 +451,50 @@ pub async fn store_copy_locations_to_map(
     Ok(copied)
 }
 
-fn copy_locations_to_map(
+async fn copy_locations_to_map(
     state: &StoreState,
     label: &WindowLabel,
     target_map_id: Id<MapMeta, String>,
     selector: Selector<SelectionInput>,
 ) -> AppResult<CopyToMapResult> {
     let here = Target::Map { id: None };
-    let (matched, records) = with_target(state, label, &here, |source| {
-        if source.meta.id == target_map_id {
-            return Err(AppError("cannot copy a location into its own map".into()));
-        }
-        let rows = source
-            .at(&here)
-            .rows(&selector.map_children(SelectionInput::compile));
-        Ok((rows, source.held_value_records()))
+    let (matched, records) = task::block_in_place(|| {
+        with_target(state, label, &here, |source| {
+            if source.meta.id == target_map_id {
+                return Err(AppError("cannot copy a location into its own map".into()));
+            }
+            let rows = source
+                .at(&here)
+                .rows(&selector.map_children(SelectionInput::compile));
+            Ok((rows, source.held_value_records()))
+        })
     })?;
     let there = Target::Map {
         id: Some(target_map_id),
     };
-    with_target(state, label, &there, |target| {
-        let held = HeldRows::of(&target.at(&there).rows(&Selector::Everything));
-        let total = matched.len() as u32;
-        let fresh: Vec<Location> = matched.into_iter().filter(|row| !held.holds(row)).collect();
-        let records = referenced_records(&records, &fresh);
-        let adds = fresh
-            .into_iter()
-            .map(|row| {
-                Op::Add(Location {
-                    created_at: 0,
-                    ..row
+    let (copied, total) = task::block_in_place(|| {
+        with_target(state, label, &there, |target| {
+            let held = HeldRows::of(&target.at(&there).rows(&Selector::Everything));
+            let total = matched.len() as u32;
+            let fresh: Vec<Location> = matched.into_iter().filter(|row| !held.holds(row)).collect();
+            let records = referenced_records(&records, &fresh);
+            let adds = fresh
+                .into_iter()
+                .map(|row| {
+                    Op::Add(Location {
+                        created_at: 0,
+                        ..row
+                    })
                 })
-            })
-            .collect();
-        let copied = target
-            .at(&there)
-            .edit(adds, records, &mut None)
-            .mutation
-            .keys
-            .len() as u32;
-        Ok(CopyToMapResult {
-            copied,
-            skipped: total - copied,
+                .collect();
+            let copied = target.at(&there).from(&records).write(adds);
+            Ok((copied, total))
         })
-    })
-}
-
-/// Save uncommitted changes to disk. No-op when nothing has changed.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_save_dirty(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-) -> AppResult<()> {
-    let _t = Instant::now();
-    log::debug!("[cmd] store_save_dirty ENTER");
-    // The snapshot carries the revision it serialized, so the store can be told exactly
-    // what disk holds once the write lands, however many edits arrived meanwhile.
-    let files = {
-        let mut mgr = state.lock()?;
-        let map_id = mgr.map_id_for_window(&label)?;
-        mgr.files(&map_id)
-    };
-    let _writing = files.lock().await;
-    let (map_id, unsaved) = {
-        let mut mgr = state.lock()?;
-        let store = mgr.store_for_window(&label)?;
-        let map_id = store.meta.id.clone();
-        let Some(unsaved) = store.unsaved()? else {
-            return Ok(());
-        };
-        (map_id, unsaved)
-    };
-
-    let map_id2 = map_id.clone();
-    let unsaved = task::spawn_blocking(move || {
-        let delta_path = storage::arrow_delta_path(&map_id2)?;
-        unsaved.write(&storage::open_db()?, &map_id2, &delta_path)?;
-        Ok::<_, AppError>(unsaved)
-    })
-    .await
-    .unwrap_or_else(|e| Err(e.into()))?;
-
-    // The window may have closed or switched maps during the write; the map_id check
-    // stops a fresh store from being marked saved by a stale write.
-    let mut mgr = state.lock()?;
-    if let Ok(store) = mgr.store_for_window(&label) {
-        if store.meta.id == map_id {
-            store.saved(&unsaved);
-        }
-    }
-
-    log::debug!(
-        "[cmd] store_save_dirty total={}ms",
-        _t.elapsed().as_millis()
-    );
-    Ok(())
-}
-
-/// Draw the open map's markers: `frames` receives the whole scene, then every change to it.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_subscribe_frames(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    frames: Channel<FrameBytes>,
-    req: RenderRequest,
-) -> AppResult<()> {
-    let mut mgr = state.lock()?;
-    let map_id = mgr.map_id_for_window(&label)?;
-    for (id, store) in &mut mgr.stores {
-        if *id != map_id {
-            store.frames.remove(&label);
-        }
-    }
-    mgr.store_for_map(&map_id)?
-        .subscribe_frames(label, frames, &req);
-    Ok(())
-}
-
-/// Undo the newest edit, or redo the newest undone one.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_step(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    stack: Stack,
-    timeline: Timeline,
-) -> AppResult<Mutation> {
-    with_target(&state, &label, &Target::Map { id: None }, |store| {
-        let _t = Instant::now();
-        let map_id = store.meta.id.clone();
-        let mutation = store
-            .step(stack, timeline, |seq| {
-                load_edit(&storage::open_db()?, &map_id, seq)
-            })?
-            .ok_or("nothing to step through")?;
-        log::debug!(
-            "[{stack:?} {timeline:?}] stack_depth={} step={}ms",
-            store.steps[timeline].len(stack),
-            _t.elapsed().as_millis()
-        );
-        Ok(mutation)
+    })?;
+    let copied = copied.await?.mutation.keys.len() as u32;
+    Ok(CopyToMapResult {
+        copied,
+        skipped: total - copied,
     })
 }
 
@@ -401,6 +565,7 @@ pub async fn honeycomb_points(
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
+
 pub enum PointSampling {
     /// Up to `count` points uniformly at random, fewer when the polygon fills little of its bounding box.
     Random { count: u32 },
@@ -475,91 +640,6 @@ pub async fn polygon_bounds(polygon: selections::PolygonGeometry) -> Option<[f64
     ])
 }
 
-/// The receipt `window` waits on for `mutation` at `target`: version 0 when the change
-/// reached a map this window does not watch, so waiting returns at once.
-fn receipt(
-    store: &Store,
-    window: &WindowLabel,
-    target: &Target,
-    mut mutation: Mutation,
-) -> Mutation {
-    if matches!(target, Target::Map { id: Some(_) }) && !store.changes.has(window) {
-        mutation.version = 0;
-    }
-    mutation
-}
-
-macro_rules! run_as {
-    (; $run:expr) => {
-        $run
-    };
-    (async; $run:expr) => {
-        task::block_in_place(|| $run)
-    };
-}
-
 #[cfg(test)]
 #[path = "commands.test.rs"]
 mod tests;
-
-macro_rules! command_table {
-    ($callback:ident, $extra:tt) => {
-        $callback! { $extra;
-            "Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing." store_edit(target: Target, edits: Vec<Edit<Location>>, records: IncomingRecords) at target -> EditResult => |store, window| {
-                store.check_interned(records.keys())?;
-                let mut edited = store.at(&target).edit(edits, records, &mut None);
-                edited.mutation = receipt(store, window, &target, edited.mutation);
-                Ok(edited)
-            };
-            "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> Mutation => async |store| {
-                Ok(store.land(&name, &mut None))
-            };
-            "Run work over the target's locations matched by selector; an open pending layer holds the edits until it lands." store_work(target: Target, selector: Selector<SelectionInput>, work: Work) at target -> WorkResult => async |store, window| {
-                let mut worked = store.at(&target).work(&selector.map_children(SelectionInput::compile), &work)?;
-                worked.mutation = receipt(store, window, &target, worked.mutation);
-                Ok(worked)
-            };
-            "Edit an interned field's value records; membership uses ordinary location edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> Mutation<ValueRecord> => |store| {
-                store.edit_values(&field, edits)
-            };
-
-            "Edit the selection tree." store_edit_selections(op: SelectionEdit) -> Mutation<ListedSelection> => |store| {
-                let op = op.resolved(store)?;
-                Ok(store.edit_selections(&op))
-            };
-            "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) at target -> Answer => async |store| {
-                store.at(&target).read(&selector.map_children(SelectionInput::compile), &ask)
-            };
- }
-    };
-}
-pub(crate) use command_table;
-
-macro_rules! table_target {
-    () => {
-        &Target::Map { id: None }
-    };
-    ($at:ident) => {
-        &$at
-    };
-}
-
-macro_rules! define_commands {
-    ($extra:tt; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => $( $mode:ident )? |$store:ident $(, $window:ident)?| $body:block; )*) => {
-        $(
-            #[doc = $doc]
-            #[tauri::command]
-            #[specta::specta]
-            pub $( $mode )? fn $name(label: WindowLabel, state: tauri::State<'_, StoreState>, $( $arg: $ty ),*) -> AppResult<$ret> {
-                let started = Instant::now();
-                let result = run_as!($( $mode )?; with_target(&state, &label, table_target!($( $at )?), |$store| {
-                    $( let $window = &label; )?
-                    $body
-                }));
-                log::debug!("[cmd] {} total={}ms", stringify!($name), started.elapsed().as_millis());
-                result
-            }
-        )*
-    };
-}
-command_table!(define_commands, []);

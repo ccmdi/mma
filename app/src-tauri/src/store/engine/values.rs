@@ -7,7 +7,7 @@ use super::*;
 use crate::selections;
 use crate::types::{AppError, AppResult, Location};
 use crate::util::Rgb;
-use mma_algebra::{trimmed_name, unique_name, Constrained, Edit, Field, Id, Op, Patch};
+use mma_algebra::{trimmed_name, unique_name, Constrained, Edit, Field, Id, Op};
 use std::collections::HashMap;
 
 /// The names interned values carried, by field and then id.
@@ -16,9 +16,7 @@ use std::collections::HashMap;
 pub struct ValueNames(pub HashMap<String, HashMap<Id<ValueRecord>, String>>);
 
 /// Metadata for one interned value.
-#[derive(
-    Clone, Debug, Default, serde::Serialize, serde::Deserialize, specta::Type, mma_fields::Patch,
-)]
+#[derive(Clone, Debug, Default, mma_fields::Json, specta::Type, mma_fields::Patch)]
 #[serde(rename_all = "camelCase")]
 pub struct ValueRecord {
     #[patch(key)]
@@ -119,7 +117,10 @@ pub(crate) fn spelled(
 }
 
 /// The records among `records` that `rows` reference, by field.
-pub(crate) fn referenced_records(records: &IncomingRecords, rows: &[Location]) -> IncomingRecords {
+pub(crate) fn referenced_records(
+    records: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+    rows: &[Location],
+) -> HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> {
     records
         .iter()
         .map(|(field, held)| {
@@ -300,7 +301,9 @@ impl Store {
     }
 
     /// Every interned field's records as they stand.
-    pub(crate) fn held_value_records(&self) -> IncomingRecords {
+    pub(crate) fn held_value_records(
+        &self,
+    ) -> HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> {
         self.records
             .iter()
             .map(|(field, records)| (field.clone(), (**records).clone()))
@@ -318,114 +321,10 @@ impl Store {
             .map(|m| (**m).clone())
             .unwrap_or_default()
     }
-
-    /// Apply edits to `field`'s value records in one undoable edit.
-    /// Renaming onto a name another record holds merges the two values and remaps their rows.
-    pub(crate) fn edit_values(
-        &mut self,
-        field: &str,
-        edits: Vec<Edit<ValueRecord>>,
-    ) -> AppResult<Mutation<ValueRecord>> {
-        self.check_interned([field])?;
-        let edits = edits
-            .into_iter()
-            .map(named)
-            .collect::<AppResult<Vec<_>>>()?;
-        let (floor, held) = {
-            let fields = self.fields([field]);
-            let values = &fields[0];
-            let held: Vec<Id<ValueRecord>> = values
-                .keys()
-                .into_iter()
-                .filter(|key| values.count(key) > 0)
-                .filter_map(|key| key.parse().ok().map(Id::new))
-                .collect();
-            (values.floor(), held)
-        };
-        let before = self.records(field);
-        let bare = |id: Id<ValueRecord>| ValueRecord {
-            id,
-            ..Default::default()
-        };
-        let mut after = before.clone();
-        for id in held {
-            after.entry(id).or_insert_with(|| bare(id));
-        }
-        let applied = mma_algebra::apply(&mut after, edits, Id::new(floor));
-        after.retain(|&id, rec| before.contains_key(&id) || *rec != bare(id));
-        let patches = self.plan_value_merges(field, &applied.redirects)?;
-        let delta = RecordDelta::between(&before, &after);
-        let records =
-            RecordDeltas::from_iter((!delta.is_empty()).then(|| (field.to_string(), delta)));
-        let mut settled = (*self.meta).clone();
-        let meta = if settled
-            .settings
-            .remap_values(field, |id| survivor(&applied.redirects, id))
-        {
-            Change::from_iter([mma_algebra::Transition::new(
-                Some((*self.meta).clone()),
-                Some(settled),
-            )])
-        } else {
-            Change::default()
-        };
-        let mutation = self.write(
-            patches.into_iter().map(Op::Put),
-            &mut None,
-            Entry {
-                records,
-                meta,
-                ..Default::default()
-            },
-        );
-        Ok(Mutation {
-            keys: applied.keys,
-            version: mutation.version,
-            history_cleared: mutation.history_cleared,
-        })
-    }
-
-    /// Remap merged value ids in one pass, following merge chains to their final target.
-    fn plan_value_merges(
-        &mut self,
-        field: &str,
-        merges: &HashMap<Id<ValueRecord>, Id<ValueRecord>>,
-    ) -> AppResult<Vec<Patch<Location>>> {
-        if merges.is_empty() {
-            return Ok(Vec::new());
-        }
-        let to = self.registry().assign(field)?;
-        let mut patches: Vec<Patch<Location>> = Vec::new();
-        let mut err: Option<AppError> = None;
-        {
-            for row in self.all().rows() {
-                let current = held_ids(&row, field);
-                if !current.iter().any(|id| merges.contains_key(id)) {
-                    continue;
-                }
-                let mut next: Vec<Id<ValueRecord>> = Vec::with_capacity(current.len());
-                for &id in &current {
-                    let mapped = survivor(merges, id);
-                    if !next.contains(&mapped) {
-                        next.push(mapped);
-                    }
-                }
-                let mut patch = row_patch(row.id());
-                match to.write(&mut patch, row.flags(), &serde_json::json!(next)) {
-                    Ok(()) => patches.push(patch),
-                    Err(e) => err = Some(e),
-                }
-            }
-        }
-        match err {
-            Some(e) => Err(e),
-            None => Ok(patches),
-        }
-    }
 }
 
 /// Where a merged value ends up, following merge chains to their final target.
-fn survivor(
+pub(super) fn survivor(
     merges: &HashMap<Id<ValueRecord>, Id<ValueRecord>>,
     mut id: Id<ValueRecord>,
 ) -> Id<ValueRecord> {

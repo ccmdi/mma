@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-vi.mock("@/store/autosave", () => ({ Autosave: { hold: () => () => {} } }));
+vi.mock("@/store/autosave", () => ({ Autosave: { paused: { hold: () => () => {} } } }));
 vi.mock("@/bindings.gen", () => ({
 	events: {
 		procedureProgress: { listen: async () => () => {} },

@@ -89,7 +89,7 @@ const toolArmed = () =>
 async function armTool() {
 	await withApi((api) => {
 		api.MapHost.get()!.moveCamera({ center: { lat: 0.5, lng: 10 }, zoom: 13 });
-		return api.SelectionList.update({ kind: "set", selections: [] });
+		return api.Edit.selections({ kind: "set", selections: [] });
 	});
 	if (await toolArmed()) await browser.$(TOOL).click();
 	await browser.$(TOOL).click();

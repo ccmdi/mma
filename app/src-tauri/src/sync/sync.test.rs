@@ -105,7 +105,7 @@ fn local_to_normalized_strips_virtual_flags_and_resolves_tags() {
         (Id::new(id), record)
     };
     // 99 has no record, so it is dropped.
-    let records = IncomingRecords::from([(
+    let records = HashMap::from([(
         "tags".to_string(),
         HashMap::from([named(10, "zeta"), named(11, "alpha")]),
     )]);

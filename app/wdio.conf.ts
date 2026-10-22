@@ -54,6 +54,8 @@ export const SHARED_EXCLUDES = [
 	// Throughput tools: run explicitly against a host-path fixture, never in a suite.
 	"./test/e2e/benchFixture.test.ts",
 	"./test/e2e/providerBench.test.ts",
+	// Three apps at once: run by wdio.collab.conf.ts.
+	"./test/e2e/collab.test.ts",
 ];
 
 export const config: WebdriverIO.Config = {

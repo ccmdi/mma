@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { Tag } from "@/types";
 import { act } from "react";
-import { mount as mountRoot } from "./fixtures/harness";
+import { mount as mountRoot, typeInto } from "./fixtures/harness";
 import type { EditorImportPreview } from "@/bindings.gen";
 import { emit } from "@/lib/events";
 // trace().end() logs through tauri-plugin-log, which needs a host.
@@ -60,12 +60,7 @@ function mount() {
 }
 
 function type(text: string) {
-	const input = container.querySelector<HTMLInputElement>(".form-add-tag__input")!;
-	act(() => {
-		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-		setter.call(input, text);
-		input.dispatchEvent(new Event("input", { bubbles: true }));
-	});
+	typeInto(container.querySelector<HTMLInputElement>(".form-add-tag__input")!, text);
 }
 
 function submitTag() {

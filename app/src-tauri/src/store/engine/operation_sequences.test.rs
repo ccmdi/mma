@@ -1,5 +1,8 @@
 use super::*;
 use crate::selections::tree::{SelectionInput, SelectionOp};
+use crate::test_util::Now;
+
+const MAP: Target = Target::Map { id: None };
 
 #[test]
 fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_history() {
@@ -11,19 +14,22 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
     let mut redo = Vec::<(BTreeMap<Id<Location>, Location>, bool)>::new();
     let mut next_id = 1;
     let set_tag_one_selection = |store: &mut Store, active: bool| {
-        store.edit_selections(&SelectionOp::Set {
-            selections: if active {
-                vec![SelectionInput {
-                    selector: Selector::Filter {
-                        field: "tags".into(),
-                        test: selections::FilterOp::Contains { value: 1.into() },
-                    },
-                    color: Some(Rgb([17, 91, 203])),
-                }]
-            } else {
-                vec![]
-            },
-        });
+        store
+            .at(&MAP)
+            .write(SelectionOp::Set {
+                selections: if active {
+                    vec![SelectionInput {
+                        selector: Selector::Filter {
+                            field: "tags".into(),
+                            test: selections::FilterOp::Contains { value: 1.into() },
+                        },
+                        color: Some(Rgb([17, 91, 203])),
+                    }]
+                } else {
+                    vec![]
+                },
+            })
+            .now();
     };
     set_tag_one_selection(&mut store, selection_active);
 
@@ -106,7 +112,11 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                         (rng() % 340) as f64 - 170.0,
                     );
                     let before = (model.clone(), selection_active);
-                    let written = store.write([Op::Add(row.clone())], &mut None, Entry::default());
+                    let written = store
+                        .at(&MAP)
+                        .write(vec![Op::Add(row.clone())])
+                        .now()
+                        .mutation;
                     assert_eq!(written.keys, [Id::new(id)], "id allocation: {context}");
                     let stored = store.get_loc_by_id(row.id).unwrap();
                     assert!(
@@ -126,7 +136,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                 2 if !model.is_empty() => {
                     let id = *model.keys().nth((rng() as usize) % model.len()).unwrap();
                     let before = (model.clone(), selection_active);
-                    store.write([Op::Remove(id)], &mut None, Entry::default());
+                    store.at(&MAP).write(vec![Op::Remove(id)]).now().mutation;
                     model.remove(&id);
                     undo.push(before);
                     redo.clear();
@@ -143,7 +153,11 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                         }
                     }
                     let before = (model.clone(), selection_active);
-                    store.write([Op::Set(row.clone())], &mut None, Entry::default());
+                    store
+                        .at(&MAP)
+                        .write(vec![Op::Set(row.clone())])
+                        .now()
+                        .mutation;
                     model.insert(row.id, row);
                     undo.push(before);
                     redo.clear();
@@ -168,14 +182,12 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                     let before = (model.clone(), selection_active);
                     store
                         .at(&Target::Map { id: None })
-                        .work(
-                            &Selector::Locations {
-                                locations: vec![id],
-                                name: None,
-                            },
-                            &op,
-                        )
-                        .unwrap();
+                        .scope(&Selector::Locations {
+                            locations: vec![id],
+                            name: None,
+                        })
+                        .write(op)
+                        .now();
                     let row = model.get_mut(&id).unwrap();
                     if has_tag {
                         row.tags.retain(|current| *current != Id::new(tag));
@@ -196,7 +208,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                     undo.push((model.clone(), selection_active));
                     store
                         .step(Stack::Redo, Timeline::Edits, fetch_stored)
-                        .unwrap()
+                        .now()
                         .unwrap();
                     (model, selection_active) = next;
                 }

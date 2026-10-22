@@ -6,7 +6,7 @@ use std::collections::HashSet;
 struct Row {
     id: u32,
     name: String,
-    extra: Option<Json>,
+    extra: Option<Object>,
 }
 
 impl Keyed for Row {
@@ -23,7 +23,7 @@ impl Keyed for Row {
 struct RowPatch {
     id: u32,
     name: Option<String>,
-    extra: Patch<Option<Json>>,
+    extra: Patch<Option<Object>>,
 }
 
 impl Keyed for RowPatch {
@@ -237,7 +237,7 @@ fn apply(r: &Row, p: &RowPatch) -> Row {
 #[test]
 fn a_layer_reads_its_intents_over_the_row_below_as_it_is_now() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.write([Op::Put(rename(1, "mine"))], &mut Ids::default());
+    layer.write([Op::Put(rename(1, "mine"))]);
     assert_eq!(
         layer.get(1, Some(row(1, "below")), apply),
         Some(row(1, "mine"))
@@ -263,29 +263,29 @@ fn a_layer_reads_its_intents_over_the_row_below_as_it_is_now() {
 #[test]
 fn intents_land_in_order_and_a_set_or_remove_replaces_what_came_before() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.write([Op::Put(rename(1, "first"))], &mut Ids::default());
-    layer.write([Op::Put(rename(1, "second"))], &mut Ids::default());
+    layer.write([Op::Put(rename(1, "first"))]);
+    layer.write([Op::Put(rename(1, "second"))]);
     assert_eq!(
         layer.get(1, Some(row(1, "below")), apply),
         Some(row(1, "second"))
     );
 
-    layer.write([Op::Remove(1)], &mut Ids::default());
+    layer.write([Op::Remove(1)]);
     assert_eq!(layer.get(1, Some(row(1, "below")), apply), None);
-    layer.write([Op::Put(rename(1, "after remove"))], &mut Ids::default());
+    layer.write([Op::Put(rename(1, "after remove"))]);
     assert_eq!(layer.get(1, Some(row(1, "below")), apply), None);
 
-    layer.write([Op::Set(row(1, "set"))], &mut Ids::default());
-    layer.write([Op::Put(rename(1, "edited"))], &mut Ids::default());
+    layer.write([Op::Set(row(1, "set"))]);
+    layer.write([Op::Put(rename(1, "edited"))]);
     assert_eq!(layer.get(1, None, apply), Some(row(1, "edited")));
 }
 
 #[test]
 fn resolving_a_layer_pairs_each_key_with_its_row_before_and_after() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.write([Op::Put(rename(1, "new"))], &mut Ids::default());
-    layer.write([Op::Remove(2)], &mut Ids::default());
-    layer.write([Op::Set(row(3, "added"))], &mut Ids::default());
+    layer.write([Op::Put(rename(1, "new"))]);
+    layer.write([Op::Remove(2)]);
+    layer.write([Op::Set(row(3, "added"))]);
     let below = |key: u32| (key < 3).then(|| row(key, "old"));
     let resolved: Vec<_> = layer.resolve(below, apply).collect();
     assert_eq!(
@@ -537,16 +537,19 @@ fn a_null_patch_key_removes_one_key_while_clear_removes_the_entire_map() {
     let remove_only = json!({ "last": null }).as_object().cloned().unwrap();
     assert_eq!(
         only_entry.patched(&Field::Set(remove_only.into())),
-        Some(Json::new())
+        Some(Object::new())
     );
     assert_eq!(original.patched(&Field::Clear), None);
-    assert_eq!(Option::<Json>::None.patched(&Field::Clear), None);
+    assert_eq!(Option::<Object>::None.patched(&Field::Clear), None);
 }
 
 #[test]
 fn an_empty_key_patch_is_a_no_op_but_a_clear_is_not() {
     let original = json!({ "x": [1, 2] }).as_object().cloned();
-    assert_eq!(original.patched(&Field::Set(Json::new().into())), original);
+    assert_eq!(
+        original.patched(&Field::Set(Object::new().into())),
+        original
+    );
     assert_eq!(original.patched(&Field::Clear), None);
 }
 
@@ -846,10 +849,13 @@ fn ids_order_and_hash_by_their_raw_value() {
 
 #[test]
 fn nested_map_edits_compose_and_preserve_json_null() {
-    type Entries = HashMap<String, HashMap<String, Value>>;
+    type Entries = HashMap<String, HashMap<String, Json>>;
     let old = Entries::from([(
         "first".into(),
-        HashMap::from([("kept".into(), json!(1)), ("removed".into(), json!(2))]),
+        HashMap::from([
+            ("kept".into(), Json(json!(1))),
+            ("removed".into(), Json(json!(2))),
+        ]),
     )]);
     let patch: Patch<Entries> = serde_json::from_value(json!({
         "first": { "put": {
@@ -861,49 +867,52 @@ fn nested_map_edits_compose_and_preserve_json_null() {
     }))
     .unwrap();
     let updated = old.patched(&patch);
-    assert_eq!(updated["first"]["kept"], json!(3));
+    assert_eq!(*updated["first"]["kept"], json!(3));
     assert!(!updated["first"].contains_key("removed"));
-    assert_eq!(updated["first"]["null"], Value::Null);
-    assert_eq!(updated["second"]["independent"], json!(true));
+    assert_eq!(*updated["first"]["null"], Value::Null);
+    assert_eq!(*updated["second"]["independent"], json!(true));
     assert_eq!(old.patched(&Entries::between(&old, &updated)), updated);
     assert_eq!(updated.patched(&Entries::between(&updated, &old)), old);
 }
 
 #[test]
 fn map_set_replaces_while_put_preserves_other_entries() {
-    type Entries = HashMap<String, HashMap<String, Value>>;
+    type Entries = HashMap<String, HashMap<String, Json>>;
     let old = Entries::from([(
         "first".into(),
-        HashMap::from([("keep".into(), json!(1)), ("change".into(), json!(2))]),
+        HashMap::from([
+            ("keep".into(), Json(json!(1))),
+            ("change".into(), Json(json!(2))),
+        ]),
     )]);
     let set: Patch<Entries> =
         serde_json::from_value(json!({ "first": { "set": { "change": 3 } } })).unwrap();
     let put: Patch<Entries> =
         serde_json::from_value(json!({ "first": { "put": { "change": { "set": 3 } } } })).unwrap();
     assert!(!old.patched(&set)["first"].contains_key("keep"));
-    assert_eq!(old.patched(&put)["first"]["keep"], json!(1));
-    assert_eq!(old.patched(&put)["first"]["change"], json!(3));
+    assert_eq!(*old.patched(&put)["first"]["keep"], json!(1));
+    assert_eq!(*old.patched(&put)["first"]["change"], json!(3));
     let empty: Patch<Entries> = serde_json::from_value(json!({ "first": { "set": {} } })).unwrap();
     assert!(old.patched(&empty)["first"].is_empty());
 }
 
 #[test]
 fn optional_maps_delegate_keyed_edits_and_preserve_present_empty_values() {
-    type Entries = HashMap<String, Value>;
+    type Entries = HashMap<String, Json>;
     let old = Some(Entries::from([
-        ("keep".into(), json!(1)),
-        ("change".into(), json!(2)),
+        ("keep".into(), Json(json!(1))),
+        ("change".into(), Json(json!(2))),
     ]));
     let patch = Field::Set(<Entries as Patchable>::Patch::from([(
         "change".into(),
-        Op::Set(json!(3)),
+        Op::Set(Json(json!(3))),
     )]));
     let updated = old.patched(&patch).unwrap();
-    assert_eq!(updated["keep"], json!(1));
-    assert_eq!(updated["change"], json!(3));
+    assert_eq!(*updated["keep"], json!(1));
+    assert_eq!(*updated["change"], json!(3));
     assert_eq!(
         Option::<Entries>::None.patched(&patch).unwrap(),
-        Entries::from([("change".into(), json!(3))])
+        Entries::from([("change".into(), Json(json!(3)))])
     );
     assert_eq!(old.patched(&Field::Keep), old);
     assert_eq!(old.patched(&Field::Clear), None);
@@ -919,23 +928,23 @@ fn optional_maps_delegate_keyed_edits_and_preserve_present_empty_values() {
 
 #[test]
 fn optional_json_patches_keep_present_empty_objects_and_use_normal_equality() {
-    let absent: Option<Json> = None;
-    let empty = Some(Json::new());
+    let absent: Option<Object> = None;
+    let empty = Some(Object::new());
     assert_eq!(
-        absent.patched(&Option::<Json>::between(&absent, &empty)),
+        absent.patched(&Option::<Object>::between(&absent, &empty)),
         empty
     );
-    assert_eq!(Option::<Json>::between(&empty, &absent), Field::Clear);
+    assert_eq!(Option::<Object>::between(&empty, &absent), Field::Clear);
     let integer = json!({ "n": 1 }).as_object().cloned();
     let decimal = json!({ "n": 1.0 }).as_object().cloned();
     assert_eq!(
-        integer.patched(&Option::<Json>::between(&integer, &decimal)),
+        integer.patched(&Option::<Object>::between(&integer, &decimal)),
         decimal
     );
-    let scalar = Some(json!(true));
-    let null = Some(Value::Null);
+    let scalar = Some(Json(json!(true)));
+    let null = Some(Json(Value::Null));
     assert_eq!(
-        scalar.patched(&Option::<Value>::between(&scalar, &null)),
+        scalar.patched(&Option::<Json>::between(&scalar, &null)),
         null
     );
 }
@@ -973,27 +982,27 @@ fn rfc_7396_appendix_a() {
     ];
     for (target, patch, expected) in cases {
         assert_eq!(merge_patch(&target, &patch), expected);
-        assert_eq!(target.patched(&patch.clone().into()), expected);
+        assert_eq!(*Json(target).patched(&patch.clone().into()), expected);
     }
 }
 
 #[test]
 fn recursive_merge_diffs_and_replacement_preserve_exact_states() {
-    let old = json!({"child":{"keep":1,"change":2,"drop":3},"array":[1,2]});
-    let new = json!({"child":{"keep":1,"change":4},"array":[3]});
-    let patch = Value::between(&old, &new);
+    let old = Json(json!({"child":{"keep":1,"change":2,"drop":3},"array":[1,2]}));
+    let new = Json(json!({"child":{"keep":1,"change":4},"array":[3]}));
+    let patch = Json::between(&old, &new);
     assert_eq!(
         patch,
         JsonWrite::Merge(json!({"child":{"change":4,"drop":null},"array":[3]}))
     );
     assert_eq!(old.patched(&patch), new);
-    assert_eq!(new.patched(&Value::between(&new, &old)), old);
-    let nullable = json!({"child":{"literal":null}});
+    assert_eq!(new.patched(&Json::between(&new, &old)), old);
+    let nullable = Json(json!({"child":{"literal":null}}));
     assert_eq!(
-        Value::between(&old, &nullable),
-        JsonWrite::Replace(nullable.clone())
+        Json::between(&old, &nullable),
+        JsonWrite::Replace(nullable.0.clone())
     );
-    assert_eq!(old.patched(&Value::between(&old, &nullable)), nullable);
+    assert_eq!(old.patched(&Json::between(&old, &nullable)), nullable);
     let before = HashMap::from([("row".to_owned(), old)]);
     let after = HashMap::from([("row".to_owned(), nullable)]);
     let edits = HashMap::between(&before, &after);
@@ -1011,57 +1020,147 @@ fn an_optional_merged_slot_reaches_every_value_from_every_other() {
     ];
     for old in &cases {
         for new in &cases {
-            assert_eq!(old.patched(&Option::<Json>::between(old, new)), *new);
+            assert_eq!(old.patched(&Option::<Object>::between(old, new)), *new);
         }
     }
 }
 
 #[test]
-fn a_json_write_is_read_as_a_merge_and_cannot_be_written() {
-    struct Probe<T>(PhantomData<T>);
-    trait Unwritable {
-        fn writable(&self) -> bool {
-            false
-        }
-    }
-    impl<T> Unwritable for Probe<T> {}
-    impl<T: serde::Serialize> Probe<T> {
-        fn writable(&self) -> bool {
-            true
-        }
-    }
-    assert!(Probe::<Value>(PhantomData).writable());
-    assert!(!Probe::<JsonWrite>(PhantomData).writable());
-    assert!(!Probe::<Patch<Option<Json>>>(PhantomData).writable());
+fn a_json_write_is_read_as_a_merge() {
     assert_eq!(
         serde_json::from_value::<JsonWrite>(json!({ "a": { "b": null } })).unwrap(),
         JsonWrite::Merge(json!({ "a": { "b": null } }))
     );
 }
 
-#[test]
-fn ids_hand_out_keys_above_every_key_they_have_seen() {
-    let mut ids: Ids<u32> = Ids::above([3, 9, 1]);
-    assert_eq!(ids.take(), 10);
-    ids.saw(&4);
-    assert_eq!(ids.take(), 11);
-    ids.saw(&20);
-    assert_eq!(ids.take(), 21);
-    assert_eq!(Ids::<u32>::default().take(), 1);
+fn binary<T: Encode + serde::de::DeserializeOwned>(value: &T) -> T {
+    postcard::from_bytes(&postcard::to_stdvec(&Encoded(value)).unwrap()).unwrap()
 }
 
 #[test]
-fn a_layer_keys_each_added_row_and_keeps_later_keys_above_a_set_one() {
+fn every_patch_shape_survives_a_binary_round_trip_exactly() {
+    let nested = json!({ "a": { "b": null } });
+    let object = nested.as_object().cloned().unwrap();
+    for write in [
+        JsonWrite::Merge(nested.clone()),
+        JsonWrite::Replace(nested.clone()),
+    ] {
+        assert_eq!(binary(&write), write);
+    }
+    let fields: [Patch<Option<Object>>; 4] = [
+        Field::Keep,
+        Field::Clear,
+        Field::Set(JsonWrite::Merge(object.clone())),
+        Field::Set(JsonWrite::Replace(object)),
+    ];
+    for field in fields {
+        assert_eq!(binary(&field), field);
+    }
+    let edits: Patch<HashMap<String, Json>> = HashMap::from([
+        ("kept".to_string(), Op::Put(JsonWrite::Replace(nested))),
+        ("gone".to_string(), Op::Remove(())),
+        ("new".to_string(), Op::Set(Json(json!(1.5)))),
+        ("null".to_string(), Op::Set(Json(Value::Null))),
+    ]);
+    assert_eq!(binary(&edits), edits);
+    let plugins: Patch<HashMap<String, HashMap<String, Json>>> =
+        HashMap::from([("plugin".to_string(), Op::Put(edits))]);
+    assert_eq!(binary(&plugins), plugins);
+}
+
+#[test]
+fn a_field_reads_null_as_a_clear_and_writes_a_set_as_its_value_in_json() {
+    let field: Field<u32> = serde_json::from_value(json!(null)).unwrap();
+    assert_eq!(field, Field::Clear);
+    assert_eq!(serde_json::to_value(Field::Set(2)).unwrap(), json!(2));
+}
+
+#[test]
+fn ids_hand_out_keys_above_every_key_they_have_seen() {
+    let mut ids: Ids<u32> = Ids::above([3, 9, 1]);
+    assert_eq!(ids.take(), Ok(10));
+    ids.saw(&4);
+    assert_eq!(ids.take(), Ok(11));
+    ids.saw(&20);
+    assert_eq!(ids.take(), Ok(21));
+    assert_eq!(Ids::<u32>::default().take(), Ok(1));
+}
+
+#[test]
+fn a_leased_ids_hands_out_only_keys_inside_its_lease() {
+    let mut ids: Ids<Id<()>> = Ids::above([Id::new(3)]);
+    ids.lease(IdRange {
+        first: Id::new(100),
+        len: 3,
+    });
+    assert_eq!(ids.take(), Ok(Id::new(100)));
+    ids.saw(&Id::new(4));
+    ids.saw(&Id::new(500));
+    assert_eq!(ids.take(), Ok(Id::new(101)));
+    ids.saw(&Id::new(102));
+    assert_eq!(ids.take(), Err(Exhausted));
+    assert_eq!(ids.take_run(1), Err(Exhausted));
+}
+
+#[test]
+fn a_lease_refuses_a_run_or_an_added_row_it_cannot_fit() {
+    let mut ids: Ids<Id<()>> = Ids::default();
+    ids.lease(IdRange {
+        first: Id::new(10),
+        len: 4,
+    });
+    assert_eq!(ids.take_run(5), Err(Exhausted));
+    assert_eq!(ids.next(), &Id::new(10), "a refused run takes nothing");
+    let run = ids.take_run(3).unwrap();
+    assert_eq!(run.iter().map(Id::get).collect::<Vec<_>>(), [10, 11, 12]);
+    assert_eq!(ids.take_run(1).map(|run| run.first), Ok(Id::new(13)));
+
+    assert_eq!(ids.remaining(), Some(0));
+
+    let mut ids: Ids<u32> = Ids::default();
+    ids.end = Some(3);
+    let three: [Edit<Row>; 3] = [
+        Op::Add(row(0, "a")),
+        Op::Add(row(0, "b")),
+        Op::Add(row(0, "c")),
+    ];
+    let keyed = ids.key_all(three).map(|(_, added)| added);
+    assert_eq!(keyed, Err(Exhausted));
+    assert_eq!(ids.next(), &1, "a refused batch takes nothing");
+}
+
+#[test]
+fn a_run_past_the_last_id_is_refused_and_takes_nothing() {
+    let mut ids: Ids<Id<()>> = Ids::starting_at(Id::new(u32::MAX - 2));
+    assert_eq!(ids.take_run(u32::MAX), Err(Exhausted));
+    assert_eq!(ids.next(), &Id::new(u32::MAX - 2));
+    assert_eq!(
+        ids.take_run(2).map(|run| run.first),
+        Ok(Id::new(u32::MAX - 2))
+    );
+}
+
+#[test]
+fn an_unleased_ids_never_runs_out() {
+    let mut ids: Ids<Id<()>> = Ids::default();
+    assert_eq!(ids.take_run(1_000_000).map(|run| run.first), Ok(Id::new(1)));
+    ids.saw(&Id::new(4_000_000));
+    assert_eq!(ids.take(), Ok(Id::new(4_000_001)));
+    assert_eq!(ids, Ids::starting_at(Id::new(4_000_002)));
+}
+
+#[test]
+fn keying_a_batch_keys_each_added_row_and_keeps_later_keys_above_a_set_one() {
     let mut ids: Ids<u32> = Ids::above([2]);
-    let mut layer: Layer<Row> = Layer::default();
-    let added = layer.write(
-        [
+    let (edits, added) = ids
+        .key_all([
             Op::Add(row(0, "a")),
             Op::Set(row(7, "b")),
             Op::Add(row(0, "c")),
-        ],
-        &mut ids,
-    );
+        ])
+        .unwrap();
+    let mut layer: Layer<Row> = Layer::default();
+    layer.write(edits);
     assert_eq!(added, [3, 8]);
     assert_eq!(layer.keys().collect::<Vec<_>>(), [3, 7, 8]);
     assert_eq!(layer.get(8, None, apply), Some(row(8, "c")));
@@ -1112,13 +1211,13 @@ fn a_child_slot_visits_maps_and_refills_its_children_in_order() {
 #[test]
 fn a_run_of_ids_is_contiguous_and_later_ids_go_above_it() {
     let mut ids: Ids<Id<()>> = Ids::starting_at(Id::new(5));
-    let run = ids.take_run(3);
+    let run = ids.take_run(3).unwrap();
     assert_eq!(run.iter().map(Id::get).collect::<Vec<_>>(), vec![5, 6, 7]);
     assert_eq!(run.nth(2), Some(Id::new(7)));
     assert_eq!(run.nth(3), None);
     assert!(run.contains(Id::new(5)) && run.contains(Id::new(7)));
     assert!(!run.contains(Id::new(4)) && !run.contains(Id::new(8)));
-    assert_eq!(ids.take(), Id::new(8));
+    assert_eq!(ids.take(), Ok(Id::new(8)));
 }
 
 #[test]
@@ -1168,6 +1267,23 @@ fn rows_written_on_both_sides_of_a_change_replace_the_row_under_their_key() {
 }
 
 #[test]
+fn a_change_stands_only_on_a_table_holding_every_state_it_starts_from() {
+    let change = Change::from_sides(
+        vec![row(1, "added"), row(2, "updated"), row(4, "kept")],
+        vec![row(2, "before"), row(3, "removed"), row(4, "old")],
+    );
+    let untouched = by_key([row(2, "before"), row(3, "removed"), row(4, "old")]);
+    assert_eq!(change.standing_on(&untouched), Ok(()));
+
+    let since = by_key([row(1, "taken"), row(2, "edited"), row(4, "old")]);
+    let Err(Moved(mut moved)) = change.standing_on(&since) else {
+        panic!("a change does not stand on rows edited since");
+    };
+    moved.sort_unstable();
+    assert_eq!(moved, [1, 2, 3]);
+}
+
+#[test]
 fn a_json_pointer_escapes_tilde_before_slash() {
     assert_eq!(json_pointer(["a/b", "~1", "c"]), "/a~1b/~01/c");
     assert_eq!(json_pointer([] as [&str; 0]), "");
@@ -1187,4 +1303,18 @@ fn patch_ops_travel_in_the_standard_shape() {
         .unwrap(),
         json!({ "op": "move", "from": "/a", "path": "/b" })
     );
+}
+
+#[test]
+fn recent_holds_the_newest_values_up_to_its_cap_in_key_order() {
+    let mut recent = Recent::new(2);
+    for key in 1..=3 {
+        recent.put(key, key * 10);
+    }
+    assert_eq!(recent.get(&1), None);
+    assert_eq!(recent.get(&2), Some(&20));
+    assert_eq!((recent.oldest(), recent.newest()), (Some(&2), Some(&3)));
+    assert_eq!(recent.after(&2).collect::<Vec<_>>(), [&30]);
+    recent.clear();
+    assert_eq!(recent.newest(), None);
 }

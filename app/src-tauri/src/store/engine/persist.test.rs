@@ -1,6 +1,6 @@
 use super::*;
 use crate::store::arrow;
-use crate::test_util::{loc, TempDir};
+use crate::test_util::{loc, Now, TempDir};
 use crate::types::ErrCode;
 use mma_algebra::Op;
 use rusqlite::Connection;
@@ -8,6 +8,8 @@ use std::fs;
 use std::time::Duration;
 use tokio::runtime::Builder;
 use tokio::time;
+
+const MAP: Target = Target::Map { id: None };
 
 fn database(path: &Path) -> Connection {
     let conn = Connection::open(path).unwrap();
@@ -28,7 +30,11 @@ fn store_with_one_edit() -> Store {
     });
     store.meta.edit().name = "after".into();
     store.batch = Some(RecordBatch::new_empty(arrow::schema()));
-    store.write([Op::Set(loc(1, 11.0, 11.0))], &mut None, Entry::default());
+    store
+        .at(&MAP)
+        .write(vec![Op::Set(loc(1, 11.0, 11.0))])
+        .now()
+        .mutation;
     store
 }
 
@@ -174,8 +180,16 @@ fn history_write_failure_rolls_back_partial_entries_and_keeps_prior_stack() {
         1
     );
 
-    store.write([Op::Set(loc(2, 12.0, 12.0))], &mut None, Entry::default());
-    store.write([Op::Set(loc(3, 13.0, 13.0))], &mut None, Entry::default());
+    store
+        .at(&MAP)
+        .write(vec![Op::Set(loc(2, 12.0, 12.0))])
+        .now()
+        .mutation;
+    store
+        .at(&MAP)
+        .write(vec![Op::Set(loc(3, 13.0, 13.0))])
+        .now()
+        .mutation;
     let expected = vec![
         store.get_loc_by_id(Id::new(1)).unwrap(),
         store.get_loc_by_id(Id::new(2)).unwrap(),
@@ -207,8 +221,8 @@ fn history_write_failure_rolls_back_partial_entries_and_keeps_prior_stack() {
     let mut history = load_edit_history(&reopened, &Id::new("m".into())).unwrap();
     assert_eq!(history.len(Stack::Undo), 1);
     assert_eq!(history.len(Stack::Redo), 0);
-    let fetched = history
-        .step(Stack::Undo, |seq| {
+    let (fetched, _) = history
+        .take(Stack::Undo, |seq| {
             load_edit(&reopened, &Id::new("m".into()), seq)
         })
         .unwrap()
@@ -240,13 +254,15 @@ fn closing_a_window_waits_for_the_maps_files_lock_before_its_store_leaves() {
     {
         let mut mgr = state.lock().unwrap();
         mgr.stores.insert(map.clone(), Store::new());
-        mgr.window_map.insert(window.clone(), map.clone());
+        mgr.holders
+            .insert(Holder::Window(window.clone()), map.clone());
     }
     let files = state.lock().unwrap().files(&map);
 
     runtime.block_on(async {
         let writing = files.lock().await;
-        let close = close_window(&state, &window);
+        let holder = Holder::Window(window.clone());
+        let close = release(&state, &holder);
         tokio::pin!(close);
         let waited = time::timeout(Duration::from_millis(50), &mut close).await;
         assert!(
@@ -258,6 +274,76 @@ fn closing_a_window_waits_for_the_maps_files_lock_before_its_store_leaves() {
         drop(writing);
         close.await.unwrap();
     });
+    assert!(state.lock().unwrap().stores.is_empty());
+}
+
+fn set_row(state: &StoreState, map: &Id<MapMeta, String>, row: Location) {
+    let mut mgr = state.lock().unwrap();
+    let store = mgr.store_for_map(map).unwrap();
+    store.at(&MAP).write(vec![Op::Set(row)]).now().mutation;
+}
+
+#[test]
+fn a_held_store_outlives_its_last_window_and_leaves_saved_when_let_go() {
+    let runtime = Builder::new_current_thread().build().unwrap();
+    let map = storage::tests::map_on_disk("held-past-its-window");
+    let window = WindowLabel("w".into());
+    let state: &'static StoreState = Box::leak(Box::new(StoreState::new(StoreManager::new())));
+
+    let held = runtime
+        .block_on(hold(state, Holder::Session(map.clone()), &map))
+        .unwrap();
+    state
+        .lock()
+        .unwrap()
+        .holders
+        .insert(Holder::Window(window.clone()), map.clone());
+    set_row(state, &map, loc(1, 1.0, 1.0));
+    runtime
+        .block_on(release(state, &Holder::Window(window.clone())))
+        .unwrap();
+    assert!(state.lock().unwrap().stores.contains_key(&map));
+
+    set_row(state, &map, loc(2, 2.0, 2.0));
+    runtime.block_on(held.release()).unwrap();
+    assert!(state.lock().unwrap().stores.is_empty());
+    assert_eq!(load_store(&map).unwrap().all().rows().count(), 2);
+}
+
+#[test]
+fn letting_go_of_a_store_a_window_has_open_saves_it_and_leaves_it_to_the_window() {
+    let runtime = Builder::new_current_thread().build().unwrap();
+    let map = storage::tests::map_on_disk("held-under-a-window");
+    let window = WindowLabel("w".into());
+    let state: &'static StoreState = Box::leak(Box::new(StoreState::new(StoreManager::new())));
+    {
+        let mut mgr = state.lock().unwrap();
+        mgr.stores.insert(map.clone(), load_store(&map).unwrap());
+        mgr.holders
+            .insert(Holder::Window(window.clone()), map.clone());
+    }
+
+    let sessions = [
+        Holder::Session(map.clone()),
+        Holder::Session(Id::new("other".into())),
+    ];
+    let holds: Vec<Hold> = sessions
+        .into_iter()
+        .map(|session| runtime.block_on(hold(state, session, &map)).unwrap())
+        .collect();
+    set_row(state, &map, loc(1, 1.0, 1.0));
+    for held in holds {
+        runtime.block_on(held.release()).unwrap();
+    }
+    {
+        let mut mgr = state.lock().unwrap();
+        assert!(!mgr.store_for_map(&map).unwrap().is_unsaved());
+    }
+    assert_eq!(load_store(&map).unwrap().all().rows().count(), 1);
+
+    runtime
+        .block_on(release(state, &Holder::Window(window.clone())))
+        .unwrap();
     assert!(state.lock().unwrap().stores.is_empty());
 }
 
@@ -313,4 +399,18 @@ fn opening_a_map_whose_base_file_is_damaged_is_map_unreadable() {
     };
     fs::remove_file(&path).unwrap();
     assert_eq!(err.0, ErrCode::MapUnreadable.wire());
+}
+
+#[test]
+fn a_hold_reaches_its_store_until_it_lets_go() {
+    let runtime = Builder::new_current_thread().build().unwrap();
+    let map = storage::tests::map_on_disk("reached-through-a-hold");
+    let state: &'static StoreState = Box::leak(Box::new(StoreState::new(StoreManager::new())));
+    let held = runtime
+        .block_on(hold(state, Holder::Session(map.clone()), &map))
+        .unwrap();
+
+    assert_eq!(held.store(|store| Ok(store.meta.id.clone())).unwrap(), map);
+    runtime.block_on(held.release()).unwrap();
+    assert!(held.store(|_| Ok(())).is_err());
 }

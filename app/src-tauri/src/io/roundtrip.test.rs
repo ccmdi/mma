@@ -5,7 +5,7 @@
 
 use super::parse::{parse_csv, parse_file};
 use crate::io::export::{csv_document, export_document, geojson_document, CoordOpts};
-use crate::store::engine::{IncomingRecords, ValueRecord};
+use crate::store::engine::ValueRecord;
 use crate::test_util::tag_ids;
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::{Location, LocationFlags, RawExtra};
@@ -219,14 +219,16 @@ fn names<'a>(tags: impl IntoIterator<Item = &'a ValueRecord>) -> HashMap<Id<Valu
 }
 
 /// The store's records as the export receives them: here only the tags.
-fn tag_records(tags: &[ValueRecord]) -> IncomingRecords {
-    IncomingRecords::from([(
+fn tag_records(tags: &[ValueRecord]) -> HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> {
+    HashMap::from([(
         "tags".to_string(),
         tags.iter().map(|rec| (rec.id, rec.clone())).collect(),
     )])
 }
 
-fn parsed_tags(records: &IncomingRecords) -> Vec<ValueRecord> {
+fn parsed_tags(
+    records: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+) -> Vec<ValueRecord> {
     records
         .get("tags")
         .map(|tags| tags.values().cloned().collect())
@@ -395,7 +397,11 @@ fn habitat(id: u32, name: &str, extra: &Value, order: Option<u32>) -> ValueRecor
 }
 
 /// A map whose plugin field `habitat` interns its values, beside tags.
-fn habitat_map() -> (Vec<Location>, IncomingRecords, Value) {
+fn habitat_map() -> (
+    Vec<Location>,
+    HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+    Value,
+) {
     let locations = vec![
         with_tags(
             with_extra(loc(1.0, 2.0), &json!({ "habitat": [1, 2] })),
@@ -404,7 +410,7 @@ fn habitat_map() -> (Vec<Location>, IncomingRecords, Value) {
         with_extra(loc(3.0, 4.0), &json!({ "habitat": [2], "score": 4 })),
         loc(5.0, 6.0),
     ];
-    let records = IncomingRecords::from([
+    let records = HashMap::from([
         (
             "tags".to_string(),
             HashMap::from([(Id::new(1), tag(1, "Rural", "#3a7fc2", Some(1), &[]))]),
@@ -429,7 +435,10 @@ fn habitat_map() -> (Vec<Location>, IncomingRecords, Value) {
     (locations, records, fields)
 }
 
-fn habitat_names(parsed: &IncomingRecords, l: &Location) -> Vec<String> {
+fn habitat_names(
+    parsed: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+    l: &Location,
+) -> Vec<String> {
     let names = names(parsed["habitat"].values());
     match l.extra.as_ref().and_then(|e| e.get("habitat")) {
         Some(Value::Array(ids)) => ids

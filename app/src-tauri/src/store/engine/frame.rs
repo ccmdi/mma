@@ -1,6 +1,6 @@
 //! Render frames: the one binary message that carries every marker change to a window.
 
-use super::WindowLabel;
+use super::Holder;
 use crate::selections::PolygonGeometry;
 use crate::types::{wire_enum, wire_names, Location, TsConst};
 use crate::util::Rgb;
@@ -9,6 +9,7 @@ use specta::datatype::DataType;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::ipc::{Channel, InvokeResponseBody, IpcResponse};
+use tokio::sync::mpsc;
 
 wire_enum! {
     /// What a render frame does to the scene.
@@ -244,8 +245,26 @@ impl specta::Type for FrameBytes {
     }
 }
 
-/// The windows watching one store, keyed by window label.
-pub(crate) struct Sinks<T>(HashMap<WindowLabel, Channel<T>>);
+/// Where a store hands what it sends: a window's channel, or a session's queue.
+pub(crate) trait Sink<T>: Send + Sync {
+    /// Hand over `msg`, failing once nothing takes it anymore.
+    fn send(&self, msg: T) -> Result<(), String>;
+}
+
+impl<T: IpcResponse + Send + Sync> Sink<T> for Channel<T> {
+    fn send(&self, msg: T) -> Result<(), String> {
+        Channel::send(self, msg).map_err(|error| error.to_string())
+    }
+}
+
+impl<T: Send> Sink<T> for mpsc::UnboundedSender<T> {
+    fn send(&self, msg: T) -> Result<(), String> {
+        mpsc::UnboundedSender::send(self, msg).map_err(|_| "its receiver is gone".into())
+    }
+}
+
+/// What watches one store, keyed by what holds it open.
+pub(crate) struct Sinks<T>(HashMap<Holder, Box<dyn Sink<T>>>);
 
 impl<T> Default for Sinks<T> {
     fn default() -> Self {
@@ -253,29 +272,29 @@ impl<T> Default for Sinks<T> {
     }
 }
 
-impl<T: Clone + IpcResponse> Sinks<T> {
-    pub(crate) fn insert(&mut self, label: WindowLabel, sink: Channel<T>) {
-        self.0.insert(label, sink);
+impl<T: Clone> Sinks<T> {
+    pub(crate) fn insert(&mut self, holder: impl Into<Holder>, sink: impl Sink<T> + 'static) {
+        self.0.insert(holder.into(), Box::new(sink));
     }
 
-    pub(crate) fn remove(&mut self, label: &WindowLabel) {
-        self.0.remove(label);
+    pub(crate) fn remove(&mut self, holder: &Holder) {
+        self.0.remove(holder);
     }
 
-    pub(crate) fn has(&self, label: &WindowLabel) -> bool {
-        self.0.contains_key(label)
+    pub(crate) fn has(&self, holder: &Holder) -> bool {
+        self.0.contains_key(holder)
     }
 
     pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    /// Hand `msg` to every window. A window that cannot take it is gone.
+    /// Hand `msg` to every sink. A sink that cannot take it is gone.
     pub(crate) fn send(&mut self, msg: T) {
-        self.0.retain(|label, sink| match sink.send(msg.clone()) {
+        self.0.retain(|holder, sink| match sink.send(msg.clone()) {
             Ok(()) => true,
             Err(e) => {
-                log::warn!("[sinks] dropping sink for '{label}': {e}");
+                log::warn!("[sinks] dropping sink for {holder:?}: {e}");
                 false
             }
         });

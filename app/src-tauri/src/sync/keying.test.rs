@@ -1,5 +1,5 @@
 use super::*;
-use crate::store::engine::{IncomingRecords, ValueRecord};
+use crate::store::engine::ValueRecord;
 use crate::sync::diff::compute_sync_plan;
 use crate::sync::{
     local_to_normalized, sync_hash, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch,
@@ -114,13 +114,13 @@ fn loc(id: u32, f: impl FnOnce(&mut Location)) -> Location {
     l
 }
 
-fn tag_records() -> IncomingRecords {
+fn tag_records() -> HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> {
     let red = ValueRecord {
         id: Id::new(1),
         name: Some("red".into()),
         ..Default::default()
     };
-    IncomingRecords::from([("tags".to_string(), HashMap::from([(Id::new(1), red)]))])
+    HashMap::from([("tags".to_string(), HashMap::from([(Id::new(1), red)]))])
 }
 
 fn hash_of(l: &Location) -> String {

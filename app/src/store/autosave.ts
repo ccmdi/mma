@@ -3,13 +3,13 @@ import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { emit as emitEvent } from "@/lib/events";
+import { holds } from "@/lib/util/holds";
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 /** Every write to the map's files, each starting only after the one before has finished. */
 let writes: Promise<void> = Promise.resolve();
 const DELAY_MS = 2000;
 
-let holds = 0;
 let deferred = false;
 
 function save(): Promise<void> {
@@ -29,20 +29,15 @@ function save(): Promise<void> {
 
 /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. @api */
 export const Autosave = {
-	/** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
-	hold: (): (() => void) => {
-		holds++;
-		return () => {
-			holds--;
-			if (holds === 0 && deferred) {
-				deferred = false;
-				Autosave.schedule();
-			}
-		};
-	},
+	/** What defers autosave while held. Useful for batches that land many mutations. @unstable */
+	paused: holds(() => {
+		if (Autosave.paused.held() || !deferred) return;
+		deferred = false;
+		Autosave.schedule();
+	}),
 	/** Schedule a debounced autosave. Mutations call this automatically. @unstable */
 	schedule: () => {
-		if (holds > 0) {
+		if (Autosave.paused.held()) {
 			deferred = true;
 			return;
 		}

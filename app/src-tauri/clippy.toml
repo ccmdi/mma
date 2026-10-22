@@ -1,2 +1,15 @@
 absolute-paths-max-segments = 2
 too-many-lines-threshold = 200
+disallowed-methods = [
+    { path = "rmp_serde::encode::write", reason = "MessagePack is read only to convert legacy delta sidecars" },
+    { path = "rmp_serde::encode::write_named", reason = "MessagePack is read only to convert legacy delta sidecars" },
+    { path = "rmp_serde::encode::to_vec", reason = "MessagePack is read only to convert legacy delta sidecars" },
+    { path = "rmp_serde::encode::to_vec_named", reason = "MessagePack is read only to convert legacy delta sidecars" },
+    { path = "rmp_serde::decode::from_read", reason = "MessagePack is read only to convert legacy delta sidecars" },
+    { path = "rmp_serde::decode::from_read_ref", reason = "MessagePack is read only to convert legacy delta sidecars" },
+    { path = "rmp_serde::decode::from_slice", reason = "MessagePack is read only to convert legacy delta sidecars" },
+]
+disallowed-types = [
+    { path = "rmp_serde::encode::Serializer", reason = "MessagePack is read only to convert legacy delta sidecars" },
+    { path = "rmp_serde::decode::Deserializer", reason = "MessagePack is read only to convert legacy delta sidecars" },
+]

@@ -10,16 +10,6 @@ import {
 } from "@/store/feedback";
 import type { ReportInput } from "./body";
 
-/** Which transport a submission would use. Signed in, the issue is authored by the user and
- *  they get GitHub's own notifications; anonymous, the worker files it on their behalf. */
-export async function isSignedIn(): Promise<boolean> {
-	try {
-		return await cmd.githubHasSession();
-	} catch {
-		return false;
-	}
-}
-
 /** File `body` as an issue and record it locally. The caller composes the body so the dialog
  *  can show the user exactly what will be sent. */
 export async function submitReport(

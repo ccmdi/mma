@@ -21,7 +21,7 @@ describe("Bounds cache - empty and basic", () => {
 
 	it("selected-only on empty map returns null", async () => {
 		const bounds = await withApi(async (api) => {
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			return api.fetchBounds({ type: "Selected" });
 		});
 		expect(bounds).toBeNull();
@@ -236,7 +236,7 @@ describe("Bounds cache - selected-only", () => {
 	});
 
 	after(async () => {
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 		await closeMap();
 		await deleteMap(mapId);
 	});
@@ -249,7 +249,7 @@ describe("Bounds cache - selected-only", () => {
 
 	it("selected-only bounds are restricted to selection", async () => {
 		const bounds = await withApi(async (api, tid) => {
-			await api.SelectionList.update(api.addSelection(api.tagSelector(tid)));
+			await api.Edit.selections(api.addSelection(api.tagSelector(tid)));
 			return api.fetchBounds({ type: "Selected" });
 		}, tagId);
 
@@ -262,7 +262,7 @@ describe("Bounds cache - selected-only", () => {
 
 	it("selected-only with no selection returns null", async () => {
 		const bounds = await withApi(async (api) => {
-			await api.SelectionList.update({ kind: "set", selections: [] });
+			await api.Edit.selections({ kind: "set", selections: [] });
 			return api.fetchBounds({ type: "Selected" });
 		});
 		expect(bounds).toBeNull();

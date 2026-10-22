@@ -20,8 +20,10 @@ vi.mock("@/lib/commands", async () => {
 	const mutationResult = () => ({ mutation: { version: 0, keys: [] } });
 	return cmdProxy({
 		storeOpenMap: async () => openMapResult(),
-		storeEdit: (_target: unknown, edits: unknown) => {
-			const puts = (edits as { put: Record<string, unknown> }[]).map((e) => e.put);
+		storeEdit: (edits: unknown) => {
+			const puts = (
+				edits as { locations: { edits: { put: Record<string, unknown> }[] } }
+			).locations.edits.map((e) => e.put);
 			wire.updates.push(puts as UpdateCall);
 			if (!wire.gated) return Promise.resolve(mutationResult());
 			return new Promise((res) => wire.gates.push(() => res(mutationResult())));

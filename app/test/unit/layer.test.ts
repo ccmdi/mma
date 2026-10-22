@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-type EditCall = { target: { name: string }; edits: unknown[] };
+type EditCall = { target: { name: string }; edits: unknown };
 const h = vi.hoisted(() => ({
 	id: 0,
 	order: [] as string[],
@@ -19,7 +19,7 @@ const h = vi.hoisted(() => ({
 vi.mock("@/store/store", () => ({ Store: { get: () => ({ mapId: h.mapId, map: {} }) } }));
 vi.mock("@/store/edit", () => ({
 	Edit: {
-		locations: async (target: { name: string }, edits: unknown[]) => {
+		locations: async (target: { name: string }, edits: unknown) => {
 			h.order.push("edit");
 			h.edits.push({ target, edits });
 			if (h.blockNextEdit) {

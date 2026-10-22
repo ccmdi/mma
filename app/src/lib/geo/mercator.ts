@@ -1,7 +1,7 @@
 // Web Mercator projection, Google Maps convention: a raster tile is 256px square and the
 // whole world is exactly one tile at zoom 0, so the two are the same number.
 
-import type { LatLng } from "@/types";
+import type { Bounds, LatLng } from "@/types";
 import { clamp } from "@/types/util";
 
 export const TILE_SIZE = 256;
@@ -33,4 +33,17 @@ export function worldToTile(wx: number, wy: number, zoom: number): { x: number; 
 export function pixelToLatLng(globalPx: number, globalPy: number, zoom: number): LatLng {
 	const scale = 2 ** zoom;
 	return worldToLatLng(globalPx / scale, globalPy / scale);
+}
+
+/** The copy of world `x` nearest `from`, so a path from `from` crosses the antimeridian the short way. */
+export function unwrapWorldX(x: number, from: number): number {
+	return x - TILE_SIZE * Math.round((x - from) / TILE_SIZE);
+}
+
+/** Where a map showing `bounds` is centered: their middle in world space. */
+export function middleOf({ west, south, east, north }: Bounds): LatLng {
+	const sw = latLngToWorld({ lat: south, lng: west });
+	const ne = latLngToWorld({ lat: north, lng: east < west ? east + 360 : east });
+	const x = (sw.x + ne.x) / 2;
+	return worldToLatLng(((x % TILE_SIZE) + TILE_SIZE) % TILE_SIZE, (sw.y + ne.y) / 2);
 }

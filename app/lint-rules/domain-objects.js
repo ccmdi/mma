@@ -29,6 +29,9 @@ const COMPANIONS = {
 	"lib/sv/pano": "Pano",
 	"lib/data/procedure": "Procedure",
 	"lib/data/provider": "Provider",
+	"lib/account": "Account",
+	"plugins/collab/sessions": "Sessions",
+	"plugins/collab/presence": "Presence",
 };
 
 const objects = new Map(

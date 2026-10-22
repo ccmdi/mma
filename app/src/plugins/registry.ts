@@ -18,6 +18,14 @@ export interface Plugin extends PluginIdentity {
 	 *  Only for plugins whose state can't be serialized (e.g. an iframe). */
 	keepAlive?: boolean;
 	activate(): void | (() => void);
+	/** Mounted once at the root of every window while the plugin is enabled, such as a dialog it raises itself. */
+	layer?: ComponentType;
+	/** Drawn on the plugin's button wherever it appears, such as a status dot. */
+	badge?: ComponentType;
+	/** Show the plugin's button on the map list too, opening its modal. */
+	onMapList?: boolean;
+	/** Shown in the editor header beside the map name, such as a status pill. */
+	headerItem?: ComponentType;
 	modal?: ComponentType<{ onClose: () => void }>;
 	sidebar?: ComponentType<{ onClose: () => void }>;
 	locationPanel?: ComponentType;
@@ -67,7 +75,14 @@ export function getPlugin(id: string): Plugin | undefined {
 /** True when the plugin contributes data only and has no UI surfaces. @api */
 export function isBackgroundPlugin(id: string): boolean {
 	const plugin = plugins.get(id);
-	return !!plugin && !plugin.sidebar && !plugin.modal && !plugin.locationPanel;
+	return (
+		!!plugin &&
+		!plugin.sidebar &&
+		!plugin.modal &&
+		!plugin.locationPanel &&
+		!plugin.layer &&
+		!plugin.headerItem
+	);
 }
 
 /** Remove a plugin from the registry. @api @unstable */
@@ -76,7 +91,7 @@ export function unregisterPlugin(id: string) {
 	emitEvent("plugins:changed");
 }
 
-const cleanups = new Map<string, () => void>();
+const active = new Map<string, (() => void) | undefined>();
 
 const ENABLED_KEY = "mma_plugins_enabled";
 function saveEnabled(set: Set<string>) {
@@ -111,7 +126,7 @@ export function activatePlugins() {
 
 /** Deactivate all plugins and stop their sidecars. Called when a map closes. */
 export function deactivatePlugins() {
-	for (const id of new Set([...getPlugins().map((p) => p.id), ...cleanups.keys()])) teardown(id);
+	for (const id of new Set([...getPlugins().map((p) => p.id), ...active.keys()])) teardown(id);
 	// Nothing is active any more, so nothing should still be running. Covers plugins
 	// that registered no cleanup of their own.
 	cmd.sidecarStop(null).catch(() => {});
@@ -123,18 +138,6 @@ export function activatePlugin(id: string) {
 	if (plugin) activate(plugin);
 }
 
-// A plugin that throws while activating stays inactive without stopping the others.
-function activate(plugin: Plugin) {
-	if (cleanups.has(plugin.id)) return;
-	try {
-		const cleanup = runAsPlugin(plugin.id, () => plugin.activate());
-		if (cleanup) cleanups.set(plugin.id, cleanup);
-	} catch (e) {
-		log.error(`[plugin] activate failed for "${plugin.id}":`, e);
-		disposePlugin(plugin.id);
-	}
-}
-
 /** Deactivate a single plugin and stop its sidecar. */
 export function deactivatePlugin(id: string) {
 	teardown(id);
@@ -142,10 +145,21 @@ export function deactivatePlugin(id: string) {
 	cmd.sidecarStop(id).catch(() => {});
 }
 
+// A plugin that throws while activating stays inactive without stopping the others.
+function activate(plugin: Plugin) {
+	if (active.has(plugin.id)) return;
+	try {
+		active.set(plugin.id, runAsPlugin(plugin.id, () => plugin.activate()) ?? undefined);
+	} catch (e) {
+		log.error(`[plugin] activate failed for "${plugin.id}":`, e);
+		disposePlugin(plugin.id);
+	}
+}
+
 // Run the plugin's own cleanup, then reverse every host registration it made.
 function teardown(id: string) {
-	const cleanup = cleanups.get(id);
-	cleanups.delete(id);
+	const cleanup = active.get(id);
+	active.delete(id);
 	try {
 		cleanup?.();
 	} catch (e) {

@@ -6,8 +6,12 @@
 //! [`convert_msgpack_delta`], called as a map opens.
 //! When every install has upgraded, delete this file, its test file, its `mod delta_legacy;`
 //! line in `engine.rs`, both calls in `lib.rs`, the call in `open_claimed_map`, the
-//! `rmp-serde` dependency, and the non-human-readable branches of `RawExtra`'s serde impls
-//! -- nothing else refers to any of it.
+//! `rmp-serde` dependency, and the legacy map arm of `RawExtra`'s binary visitor -- nothing
+//! else refers to any of it.
+#![expect(
+    clippy::disallowed_methods,
+    reason = "this module converts the legacy MessagePack sidecars"
+)]
 
 use super::{set_aside_delta, Overlay, StoreWarning};
 use crate::store::{arrow, storage};

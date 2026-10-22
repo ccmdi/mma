@@ -7,6 +7,7 @@ import { Tooltip } from "@/components/primitives/Tooltip";
 import { Spinner } from "@/components/primitives/Spinner";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { TextInput } from "@/components/primitives/TextInput";
+import { Avatar } from "@/components/primitives/Avatar";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiInformationOutline } from "@mdi/js";
 import type { Conflict, NormalizedSyncLocation, SideCounts, SyncLogEntry } from "@/bindings.gen";
@@ -124,20 +125,13 @@ export function ConnectionUser({
 }) {
 	return (
 		<div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: "2rem" }}>
-			{avatarUrl ? (
-				<img
-					src={avatarUrl}
-					alt=""
-					width={24}
-					height={24}
-					style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-					onError={(e) => (e.currentTarget.style.display = "none")}
-				/>
-			) : (
-				<span aria-hidden className="sync-user__initial">
-					{name.slice(0, 1).toUpperCase()}
-				</span>
-			)}
+			<Avatar
+				aria-hidden
+				className="sync-user__avatar"
+				src={avatarUrl}
+				size={24}
+				fallback={name.slice(0, 1).toUpperCase()}
+			/>
 			<span className="sync-user__name truncate">{name}</span>
 			{action}
 		</div>

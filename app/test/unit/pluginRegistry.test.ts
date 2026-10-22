@@ -370,11 +370,13 @@ describe("isBackgroundPlugin", () => {
 		registerPlugin({ ...makePlugin("side", "Sidebar"), sidebar: () => null });
 		registerPlugin({ ...makePlugin("modal", "Modal"), modal: () => null });
 		registerPlugin({ ...makePlugin("panel", "Panel"), locationPanel: () => null });
+		registerPlugin({ ...makePlugin("launch", "Launcher"), layer: () => null });
 
 		expect(isBackgroundPlugin("bg")).toBe(true);
 		expect(isBackgroundPlugin("side")).toBe(false);
 		expect(isBackgroundPlugin("modal")).toBe(false);
 		expect(isBackgroundPlugin("panel")).toBe(false);
+		expect(isBackgroundPlugin("launch")).toBe(false);
 		expect(isBackgroundPlugin("not-loaded")).toBe(false);
 	});
 });

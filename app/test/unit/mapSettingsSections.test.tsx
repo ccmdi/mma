@@ -29,7 +29,7 @@ vi.mock("@/lib/commands", () => ({
 }));
 
 import { MapSettingsForm, type MapFormContext } from "@/components/dialogs/MapSettingsForm";
-import { mount } from "./fixtures/harness";
+import { mount, typeInto } from "./fixtures/harness";
 
 const map: MapMeta = {
 	id: "m1",
@@ -40,6 +40,7 @@ const map: MapMeta = {
 	scoreBounds: "auto",
 	extra: {},
 	labels: [],
+	localPluginData: {},
 	locationCount: 0,
 	pending: { added: 0, removed: 0, updated: 0 },
 	createdAt: "2026-01-01",
@@ -55,14 +56,6 @@ function render(context: MapFormContext, current = map) {
 		) as HTMLButtonElement;
 	const inputs = () => [...m.container.querySelectorAll<HTMLInputElement>("input")];
 	return { ...m, save, inputs };
-}
-
-function type(input: HTMLInputElement, text: string) {
-	const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-	act(() => {
-		setter.call(input, text);
-		input.dispatchEvent(new Event("input", { bubbles: true }));
-	});
 }
 
 const nameInput = (inputs: HTMLInputElement[]) => inputs[0];
@@ -87,8 +80,8 @@ describe("MapSettingsForm is composed from SECTIONS", () => {
 			settings: { searchRadius: 50, duplicateScore: "year", reviewOrder: "year" },
 		});
 		const expressions = m.inputs().filter((input) => input.className.includes("mono"));
-		type(expressions[0], "");
-		type(expressions[1], "-year");
+		typeInto(expressions[0], "");
+		typeInto(expressions[1], "-year");
 		await act(async () => {});
 		act(() => m.save().click());
 		expect(Edit.meta).toHaveBeenLastCalledWith({
@@ -102,10 +95,10 @@ describe("MapSettingsForm is composed from SECTIONS", () => {
 		const m = render("editor");
 		expect(m.save().disabled).toBe(false);
 
-		type(nameInput(m.inputs()), "");
+		typeInto(nameInput(m.inputs()), "");
 		expect(m.save().disabled).toBe(true);
 
-		type(nameInput(m.inputs()), "Sweden");
+		typeInto(nameInput(m.inputs()), "Sweden");
 		expect(m.save().disabled).toBe(false);
 		m.unmount();
 	});
@@ -113,16 +106,16 @@ describe("MapSettingsForm is composed from SECTIONS", () => {
 	it("keeps Save disabled when one of two blocking sections clears", async () => {
 		const m = render("editor");
 
-		type(nameInput(m.inputs()), "");
-		type(exprInput(m.inputs()), "bad(");
+		typeInto(nameInput(m.inputs()), "");
+		typeInto(exprInput(m.inputs()), "bad(");
 		await act(async () => {});
 		expect(m.save().disabled).toBe(true);
 
-		type(nameInput(m.inputs()), "Sweden");
+		typeInto(nameInput(m.inputs()), "Sweden");
 		await act(async () => {});
 		expect(m.save().disabled).toBe(true);
 
-		type(exprInput(m.inputs()), "1");
+		typeInto(exprInput(m.inputs()), "1");
 		await act(async () => {});
 		expect(m.save().disabled).toBe(false);
 		m.unmount();

@@ -16,12 +16,12 @@ describe("Selection filters — extra field operations", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 	});
 
 	it("filter eq on string field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "country",
@@ -35,7 +35,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter neq on string field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "country",
@@ -49,7 +49,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter gt on numeric field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "altitude",
@@ -64,7 +64,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter lt on numeric field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "altitude",
@@ -79,7 +79,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter gte on numeric field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "altitude",
@@ -94,7 +94,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter lte on numeric field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "altitude",
@@ -109,7 +109,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter between on numeric field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "altitude",
@@ -124,7 +124,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter has on field (field exists)", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "country",
@@ -138,7 +138,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter nothas on field that does not exist", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "nonexistent",
@@ -152,7 +152,7 @@ describe("Selection filters — extra field operations", () => {
 
 	it("filter returns empty for no matches", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "country",
@@ -180,12 +180,12 @@ describe("Selection filters — core field operations", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 	});
 
 	it("filter on heading field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "heading",
@@ -200,7 +200,7 @@ describe("Selection filters — core field operations", () => {
 
 	it("filter on lat field", async () => {
 		await withApi(async (api) =>
-			api.SelectionList.update(
+			api.Edit.selections(
 				api.addSelection({ type: "Filter", field: "lat", test: { op: "between", lo: 0, hi: 30 } }),
 			),
 		);
@@ -211,21 +211,21 @@ describe("Selection filters — core field operations", () => {
 
 	it("intersecting two filters narrows results", async () => {
 		await withApi(async (api) => {
-			await api.SelectionList.update(
+			await api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "heading",
 					test: { op: "gt", value: 100 },
 				}),
 			);
-			await api.SelectionList.update(
+			await api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "heading",
 					test: { op: "lt", value: 200 },
 				}),
 			);
-			await api.SelectionList.update({
+			await api.Edit.selections({
 				kind: "active",
 				op: { kind: "combine", group: "Intersection", keys: null },
 			});
@@ -238,21 +238,21 @@ describe("Selection filters — core field operations", () => {
 
 	it("union of two filters combines results", async () => {
 		await withApi(async (api) => {
-			await api.SelectionList.update(
+			await api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "heading",
 					test: { op: "lt", value: 36 },
 				}),
 			);
-			await api.SelectionList.update(
+			await api.Edit.selections(
 				api.addSelection({
 					type: "Filter",
 					field: "heading",
 					test: { op: "gt", value: 336 },
 				}),
 			);
-			await api.SelectionList.update({
+			await api.Edit.selections({
 				kind: "active",
 				op: { kind: "combine", group: "Union", keys: null },
 			});

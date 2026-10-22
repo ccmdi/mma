@@ -568,7 +568,7 @@ impl Targeted<'_> {
             }
             _ => selector,
         };
-        self.scope(pool, Some(ask), |scope| {
+        self.scope(pool).asking(ask).read(|scope| {
             Ok(match ask {
                 Ask::Spacing => {
                     let points = scope.points();

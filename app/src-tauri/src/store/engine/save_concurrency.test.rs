@@ -1,6 +1,6 @@
 use super::*;
 use crate::store::{arrow, storage};
-use crate::test_util::{loc, TempDir};
+use crate::test_util::{loc, Now, TempDir};
 use mma_algebra::Op;
 use rusqlite::Connection;
 use std::path::Path;
@@ -16,11 +16,10 @@ fn database() -> Connection {
 }
 
 fn add(store: &mut Store, lat: f64) {
-    store.at(&Target::Map { id: None }).edit(
-        vec![Op::Add(loc(0, lat, 0.0))],
-        Default::default(),
-        &mut None,
-    );
+    store
+        .at(&Target::Map { id: None })
+        .write(vec![Op::Add(loc(0, lat, 0.0))])
+        .now();
 }
 
 fn disk_latitudes(path: &Path) -> Vec<f64> {

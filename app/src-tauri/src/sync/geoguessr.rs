@@ -4,10 +4,10 @@
 //! the only handle) and the wire format is [`MapShape::GeoGuessr`].
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::net::geoguessr::{proxy_headers, session, upstream_url};
 use crate::net::proxy;
-use crate::store::engine::IncomingRecords;
 use crate::sync::{
     has_pano, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch, PushedId,
     RemoteSnapshot, SyncDirection, SyncProvider,
@@ -230,7 +230,7 @@ impl SyncProvider for GeoGuessrProvider {
             return Err(ErrCode::GeoguessrPolygonal.err());
         }
         Ok(RemoteSnapshot {
-            records: IncomingRecords::new(),
+            records: HashMap::new(),
             locations: draft.coordinates.unwrap_or_default(),
             token: Some(draft.version),
         })

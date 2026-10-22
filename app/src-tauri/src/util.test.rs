@@ -122,3 +122,32 @@ fn sha256_hex_known_value() {
 fn sha256_hex_differs_for_different_input() {
     assert_ne!(sha256_hex(b"hello"), sha256_hex(b"world"));
 }
+
+#[test]
+fn a_serial_thread_runs_jobs_in_the_order_given_off_the_calling_thread() {
+    let serial = Serial::new("test-serial", Mutex::new(Vec::new()));
+    let caller = std::thread::current().id();
+    let ran: Vec<_> = (0..50)
+        .map(|n| {
+            serial.then(move |seen: &Mutex<Vec<u32>>| {
+                seen.lock().unwrap().push(n);
+                (std::thread::current().id(), seen.lock().unwrap().clone())
+            })
+        })
+        .collect();
+    let answers: Vec<_> = futures::executor::block_on(futures::future::join_all(ran))
+        .into_iter()
+        .map(Result::unwrap)
+        .collect();
+    assert!(answers.iter().all(|(thread, _)| *thread != caller));
+    assert_eq!(answers.last().unwrap().1, (0..50).collect::<Vec<_>>());
+}
+
+#[test]
+fn a_job_that_panics_fails_alone_and_the_next_still_runs() {
+    let serial = Serial::new("test-serial", ());
+    let failed = serial.then(|_: &()| -> u32 { panic!("a job gone wrong") });
+    let next = serial.then(|_: &()| 7);
+    assert!(futures::executor::block_on(failed).is_err());
+    assert_eq!(futures::executor::block_on(next).unwrap(), 7);
+}

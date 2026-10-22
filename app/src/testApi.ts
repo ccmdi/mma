@@ -6,6 +6,7 @@ import { Mutation } from "@/store/mutation";
 import { Query } from "@/store/query";
 import { cmd } from "@/lib/commands";
 import { goTo } from "@/store/router";
+import { Edit } from "@/store/edit";
 
 export { mapOpen } from "@/lib/util/debug";
 
@@ -13,9 +14,7 @@ export { mapOpen } from "@/lib/util/debug";
 export async function syncSelections(): Promise<{ ids: number[] }> {
 	const rows = SelectionList.listed();
 	if (rows.length === 0) return { ids: [] };
-	await Mutation.settle(
-		await cmd.storeEditSelections({ kind: "set", selections: rows.map((r) => r.selection) }),
-	);
+	await Edit.selections({ kind: "set", selections: rows.map((r) => r.selection) });
 	return { ids: await Query.read({ type: "Selected" }, { kind: "ids" }) };
 }
 

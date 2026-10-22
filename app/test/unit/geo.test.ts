@@ -5,6 +5,7 @@ import {
 	densifyRing,
 	normalizeHeading,
 	reverseHeading,
+	sameBounds,
 	wrapDeg,
 	lerpLng,
 	lngSpan,
@@ -212,5 +213,13 @@ describe("bearingDeg", () => {
 	it("follows the great circle rather than the rhumb line", () => {
 		// Due east at 60N starts out bearing north of east.
 		expect(bearingDeg({ lat: 60, lng: 0 }, { lat: 60, lng: 10 })).toBeCloseTo(85.67, 1);
+	});
+});
+
+describe("sameBounds", () => {
+	it("compares every edge", () => {
+		const box = { west: 1, south: 2, east: 3, north: 4 };
+		expect(sameBounds(box, { ...box })).toBe(true);
+		expect(sameBounds(box, { ...box, north: 5 })).toBe(false);
 	});
 });

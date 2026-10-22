@@ -1,11 +1,11 @@
 //! Patches, pending edits, and reversible changes to keyed values.
 
 use serde_json::Value;
-use std::collections::{hash_map, BTreeMap, BTreeSet, HashMap};
+use std::collections::{hash_map, BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-type Json = serde_json::Map<String, Value>;
+type Object = serde_json::Map<String, Value>;
 
 /// Compare field values after normalizing their JSON representation.
 pub fn same_field_value(a: Option<&Value>, b: Option<&Value>) -> bool {
@@ -28,11 +28,6 @@ pub fn canonical(v: &Value) -> Value {
         }
         _ => v.clone(),
     }
-}
-
-/// Whether `v` is its type's default: an empty nested patch, for one.
-pub fn is_default<T: Default + PartialEq>(v: &T) -> bool {
-    *v == T::default()
 }
 
 /// A number as JSON: whole values as integers, the rest as floats.
@@ -61,6 +56,39 @@ pub trait Patchable: Sized {
 
 /// A change to some of a `T`'s fields: an absent field is unchanged.
 pub type Patch<T> = <T as Patchable>::Patch;
+
+/// A value written in its lossless form, the only form a patch has: without `Serialize`, a patch
+/// cannot be written as JSON.
+pub trait Encode {
+    fn encode<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error>;
+}
+
+/// A value serialized as its [`Encode`] form.
+pub struct Encoded<'a, T: ?Sized>(pub &'a T);
+
+impl<T: Encode + ?Sized> serde::Serialize for Encoded<'_, T> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.encode(s)
+    }
+}
+
+impl<T: Encode + ?Sized> Encode for Box<T> {
+    fn encode<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        (**self).encode(s)
+    }
+}
+
+impl<T: Encode> Encode for Vec<T> {
+    fn encode<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_seq(self.iter().map(Encoded))
+    }
+}
+
+impl<K: serde::Serialize, V: Encode> Encode for HashMap<K, V> {
+    fn encode<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_map(self.iter().map(|(key, value)| (key, Encoded(value))))
+    }
+}
 
 /// A value an optional slot holds, and how a patch writes it there.
 /// A patchable value with a default fills an empty slot by patching its default.
@@ -95,7 +123,8 @@ impl<T: Patchable + Default> Optional for T {
 
 /// An optional field update: absent keeps it, null clears it, and a value replaces it.
 /// When updates are combined, the later update wins.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(remote = "Self")]
 pub enum Field<T> {
     #[default]
     Keep,
@@ -171,8 +200,12 @@ impl<T> From<Option<T>> for Field<T> {
     }
 }
 
+/// Read as JSON, null clears and a value sets; binary formats keep all three apart.
 impl<T: serde::Serialize> serde::Serialize for Field<T> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if !s.is_human_readable() {
+            return Self::serialize(self, s);
+        }
         match self {
             Field::Set(v) => s.serialize_some(v),
             Field::Keep | Field::Clear => s.serialize_none(),
@@ -180,9 +213,19 @@ impl<T: serde::Serialize> serde::Serialize for Field<T> {
     }
 }
 
+impl<T: Encode> Encode for Field<T> {
+    fn encode<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Field::serialize(&self.as_ref().map(Encoded), s)
+    }
+}
+
 impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Field<T> {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Ok(Option::<T>::deserialize(d)?.into())
+        if d.is_human_readable() {
+            Ok(Option::<T>::deserialize(d)?.into())
+        } else {
+            Self::deserialize(d)
+        }
     }
 }
 
@@ -234,9 +277,9 @@ pub fn merge_patch(target: &Value, patch: &Value) -> Value {
 /// A merge patch when the target state is expressible by RFC 7396.
 pub fn merge_patch_between(old: &Value, new: &Value) -> Option<Value> {
     let patch = if let Value::Object(new) = new {
-        let empty = Json::new();
+        let empty = Object::new();
         let old = old.as_object().unwrap_or(&empty);
-        let mut patch = Json::new();
+        let mut patch = Object::new();
         for (key, value) in new {
             if old.get(key) != Some(value) {
                 patch.insert(
@@ -322,9 +365,51 @@ pub fn json_pointer<'a>(segments: impl IntoIterator<Item = &'a str>) -> String {
         .collect()
 }
 
+/// A value in its JSON form: the value itself in human-readable formats, and its JSON text in
+/// binary ones, which cannot describe free JSON.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Json<T = Value>(pub T);
+
+impl<T> std::ops::Deref for Json<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> From<T> for Json<T> {
+    fn from(value: T) -> Self {
+        Json(value)
+    }
+}
+
+impl<T: serde::Serialize> serde::Serialize for Json<T> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if s.is_human_readable() {
+            self.0.serialize(s)
+        } else {
+            let text = serde_json::to_string(&self.0).map_err(serde::ser::Error::custom)?;
+            s.serialize_str(&text)
+        }
+    }
+}
+
+impl<'de, T: serde::de::DeserializeOwned> serde::Deserialize<'de> for Json<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        if d.is_human_readable() {
+            T::deserialize(d).map(Json)
+        } else {
+            let text = String::deserialize(d)?;
+            serde_json::from_str(&text)
+                .map(Json)
+                .map_err(serde::de::Error::custom)
+        }
+    }
+}
+
 /// A write to a JSON value: an RFC 7396 merge patch, or a whole replacement for a value merging
-/// cannot reach, such as one holding a nested null. Patches are read, never written, so the wire
-/// form is only ever a merge patch and a replacement needs none.
+/// cannot reach, such as one holding a nested null. It is read from JSON as a merge patch and
+/// encoded with which write it is.
 #[derive(Clone, Debug, PartialEq)]
 pub enum JsonWrite<D = Value> {
     Merge(D),
@@ -345,6 +430,14 @@ impl<D> JsonWrite<D> {
             JsonWrite::Replace(v) => JsonWrite::Replace(f(v)),
         }
     }
+
+    /// How this write writes its JSON.
+    pub fn policy(&self) -> Policy {
+        match self {
+            JsonWrite::Merge(_) => Policy::Merge,
+            JsonWrite::Replace(_) => Policy::Replace,
+        }
+    }
 }
 
 /// A merge patch.
@@ -360,9 +453,22 @@ impl<D: Default> Default for JsonWrite<D> {
     }
 }
 
-impl<'de, D: serde::Deserialize<'de>> serde::Deserialize<'de> for JsonWrite<D> {
+impl<D: serde::Serialize> Encode for JsonWrite<D> {
+    fn encode<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        serde::Serialize::serialize(&(self.policy(), Json(self.value())), s)
+    }
+}
+
+impl<'de, D: serde::de::DeserializeOwned> serde::Deserialize<'de> for JsonWrite<D> {
     fn deserialize<De: serde::Deserializer<'de>>(d: De) -> Result<Self, De::Error> {
-        D::deserialize(d).map(JsonWrite::Merge)
+        if d.is_human_readable() {
+            return D::deserialize(d).map(JsonWrite::Merge);
+        }
+        let (policy, Json(value)) = <(Policy, Json<D>)>::deserialize(d)?;
+        Ok(match policy {
+            Policy::Merge => JsonWrite::Merge(value),
+            Policy::Replace => JsonWrite::Replace(value),
+        })
     }
 }
 
@@ -375,7 +481,7 @@ impl JsonWrite {
 }
 
 /// How a patch writes a JSON value: merged into it per RFC 7396, or written over it whole.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Policy {
     Merge,
     Replace,
@@ -482,19 +588,19 @@ pub fn json_between<T: serde::Serialize>(
         .map_or_else(|| JsonWrite::Replace(new), JsonWrite::Merge)
 }
 
-impl Patchable for Value {
+impl Patchable for Json {
     type Patch = JsonWrite;
     fn patched(&self, patch: &Self::Patch) -> Self {
-        match patch {
+        Json(match patch {
             JsonWrite::Merge(patch) => merge_patch(self, patch),
             JsonWrite::Replace(value) => value.clone(),
-        }
+        })
     }
     fn between(old: &Self, new: &Self) -> Self::Patch {
         JsonWrite::between(old, new)
     }
     fn to_patch(&self) -> Self::Patch {
-        JsonWrite::Merge(self.clone())
+        JsonWrite::Merge(self.0.clone())
     }
 }
 
@@ -553,7 +659,7 @@ where
     }
 }
 
-impl Patchable for Json {
+impl Patchable for Object {
     type Patch = JsonWrite<Self>;
     fn patched(&self, patch: &Self::Patch) -> Self {
         match patch {
@@ -583,12 +689,12 @@ pub trait Wire {
     type Patch;
 }
 
-impl Wire for Value {
+impl Wire for Json {
     type Value = specta_typescript::Unknown;
     type Patch = specta_typescript::Unknown;
 }
 
-impl Wire for Json {
+impl Wire for Object {
     type Value = HashMap<String, specta_typescript::Unknown>;
     type Patch = Self::Value;
 }
@@ -740,7 +846,7 @@ impl<T, Raw: specta::Type> specta::Type for Id<T, Raw> {
 }
 
 /// Ids handed out together, one after another.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct IdRange<_T> {
     /// The first id in the run.
     pub first: Id<_T>,
@@ -776,11 +882,26 @@ impl<_T> IdRange<_T> {
 }
 
 impl<T> Ids<Id<T>> {
-    /// Hand out `len` ids no row holds, one after another.
-    pub fn take_run(&mut self, len: u32) -> IdRange<T> {
+    /// Hand out `len` ids no row holds, one after another, or none when the lease cannot fit them.
+    pub fn take_run(&mut self, len: u32) -> Result<IdRange<T>, Exhausted> {
         let first = self.next;
-        self.next = Id::new(first.0 + len);
-        IdRange { first, len }
+        let next = Id::new(first.0.checked_add(len).ok_or(Exhausted)?);
+        if self.end.is_some_and(|end| next > end) {
+            return Err(Exhausted);
+        }
+        self.next = next;
+        Ok(IdRange { first, len })
+    }
+
+    /// Hand out only the ids of `lease` from now on.
+    pub fn lease(&mut self, lease: IdRange<T>) {
+        self.next = lease.first;
+        self.end = Some(Id::new(lease.first.0 + lease.len));
+    }
+
+    /// How many ids are left to hand out, or `None` when no lease bounds them.
+    pub fn remaining(&self) -> Option<u32> {
+        self.end.map(|end| end.0.saturating_sub(self.next.0))
     }
 }
 
@@ -866,24 +987,36 @@ impl<T> Sequential for Id<T> {
     }
 }
 
-/// Hands out keys above every key it has seen, so it never hands out one twice.
+/// Hands out keys above every key it has seen, so it never hands out one twice. A leased one
+/// hands out only keys below the end of its lease.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ids<K> {
     next: K,
+    end: Option<K>,
 }
+
+/// Every key the lease allows is taken.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Exhausted;
+
+impl std::fmt::Display for Exhausted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("every key the lease allows is taken")
+    }
+}
+
+impl std::error::Error for Exhausted {}
 
 impl<K: Sequential> Default for Ids<K> {
     fn default() -> Self {
-        Self {
-            next: K::default().after(),
-        }
+        Self::starting_at(K::default().after())
     }
 }
 
 impl<K: Sequential> Ids<K> {
     /// Keys from `next` up.
     pub fn starting_at(next: K) -> Self {
-        Self { next }
+        Self { next, end: None }
     }
 
     /// Keys above every one in `seen`.
@@ -901,29 +1034,32 @@ impl<K: Sequential> Ids<K> {
     }
 
     /// Hand out a key no row holds.
-    pub fn take(&mut self) -> K {
+    pub fn take(&mut self) -> Result<K, Exhausted> {
+        if self.end.as_ref().is_some_and(|end| self.next >= *end) {
+            return Err(Exhausted);
+        }
         let key = self.next.clone();
         self.next = key.after();
-        key
+        Ok(key)
     }
 
-    /// `key` is in use, so later keys go above it.
+    /// `key` is in use, so later keys go above it. A key past the lease is someone else's.
     pub fn saw(&mut self, key: &K) {
-        if *key >= self.next {
+        if *key >= self.next && self.end.as_ref().is_none_or(|end| key < end) {
             self.next = key.after();
         }
     }
 
     /// The key `edit` names, and the edit as written there: an added row takes a fresh key
     /// and is set at it, and a row set at a key keeps later keys above it.
-    pub fn key<T, P>(&mut self, edit: Op<T, P, K>) -> (K, Op<T, P, K>)
+    pub fn key<T, P>(&mut self, edit: Op<T, P, K>) -> Result<(K, Op<T, P, K>), Exhausted>
     where
         T: Keyed<Key = K>,
         P: Keyed<Key = K>,
     {
-        match edit {
+        Ok(match edit {
             Op::Add(mut row) => {
-                let key = self.take();
+                let key = self.take()?;
                 row.set_key(key.clone());
                 (key, Op::Set(row))
             }
@@ -934,7 +1070,34 @@ impl<K: Sequential> Ids<K> {
             }
             Op::Put(patch) => (patch.key(), Op::Put(patch)),
             Op::Remove(key) => (key.clone(), Op::Remove(key)),
-        }
+        })
+    }
+
+    /// `edits` each as [`Self::key`] writes it, and the keys the added rows took in order. When
+    /// not every added row can take a key, none is taken.
+    pub fn key_all<T, P>(
+        &mut self,
+        edits: impl IntoIterator<Item = Op<T, P, K>>,
+    ) -> Result<(Vec<Op<T, P, K>>, Vec<K>), Exhausted>
+    where
+        T: Keyed<Key = K>,
+        P: Keyed<Key = K>,
+    {
+        let mut ids = self.clone();
+        let mut added = Vec::new();
+        let keyed = edits
+            .into_iter()
+            .map(|edit| {
+                let new = matches!(edit, Op::Add(_));
+                let (key, edit) = ids.key(edit)?;
+                if new {
+                    added.push(key);
+                }
+                Ok(edit)
+            })
+            .collect::<Result<_, _>>()?;
+        *self = ids;
+        Ok((keyed, added))
     }
 }
 
@@ -964,6 +1127,18 @@ pub enum Op<T, P, K> {
 
 /// An edit to a keyed, patchable row.
 pub type Edit<T> = Op<T, Patch<T>, <T as Keyed>::Key>;
+
+impl<T: serde::Serialize, P: Encode, K: serde::Serialize> Encode for Op<T, P, K> {
+    fn encode<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let op = match self {
+            Op::Add(row) => Op::Add(row),
+            Op::Set(row) => Op::Set(row),
+            Op::Put(patch) => Op::Put(Encoded(patch)),
+            Op::Remove(key) => Op::Remove(key),
+        };
+        serde::Serialize::serialize(&op, s)
+    }
+}
 
 impl<T: Clone, P, K> Op<T, P, K> {
     /// Apply this edit to the underlying row. Patching a missing row has no effect.
@@ -1036,7 +1211,7 @@ where
                 let (key, mut row) = match row.unique().and_then(|u| holders.get(&u)) {
                     Some(held) => (held.clone(), table[held].filled(&row)),
                     None => {
-                        let key = ids.take();
+                        let key = ids.take().expect("an unleased Ids never runs out");
                         let mut row = row;
                         row.set_key(key.clone());
                         (key, row)
@@ -1099,43 +1274,31 @@ impl<T: Patchable + Keyed> Default for Layer<T> {
 impl<T: Patchable + Keyed> Layer<T>
 where
     Patch<T>: Keyed<Key = T::Key>,
-    T::Key: Sequential,
 {
-    /// Append edits by key, giving each added row a key from `ids`. Replacing or removing a
-    /// row discards its earlier edits. Returns the keys the added rows took, in order.
-    pub fn write(
-        &mut self,
-        edits: impl IntoIterator<Item = Edit<T>>,
-        ids: &mut Ids<T::Key>,
-    ) -> Vec<T::Key> {
-        let mut added = Vec::new();
+    /// Append keyed edits by the key each names, as [`Ids::key_all`] writes them. Replacing
+    /// or removing a row discards its earlier edits.
+    pub fn write(&mut self, edits: impl IntoIterator<Item = Edit<T>>) {
         for edit in edits {
-            let new = matches!(edit, Op::Add(_));
-            let (key, edit) = ids.key(edit);
-            if new {
-                added.push(key.clone());
-            }
+            let key = match &edit {
+                Op::Add(row) | Op::Set(row) => row.key(),
+                Op::Put(patch) => patch.key(),
+                Op::Remove(key) => key.clone(),
+            };
             let held = self.ops.entry(key).or_default();
             if !matches!(edit, Op::Put(_)) {
                 held.clear();
             }
             held.push(edit);
         }
-        added
     }
 
     /// Rewrite every pending edit, keeping each row's edits in order.
-    pub fn map_edits(self, mut f: impl FnMut(Edit<T>) -> Edit<T>, ids: &mut Ids<T::Key>) -> Self {
+    pub fn map_edits(self, f: impl FnMut(Edit<T>) -> Edit<T>) -> Self {
         let mut layer = Self::default();
-        layer.write(self.into_edits().map(&mut f), ids);
+        layer.write(self.into_edits().map(f));
         layer
     }
-}
 
-impl<T: Patchable + Keyed> Layer<T>
-where
-    Patch<T>: Keyed<Key = T::Key>,
-{
     /// Every pending edit, each row's in the order it was made.
     pub fn into_edits(self) -> impl Iterator<Item = Edit<T>> {
         self.ops.into_values().flatten()
@@ -1426,22 +1589,27 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
             table.insert_row(row.clone());
         }
     }
-}
 
-impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
-    /// This change if `table` still holds every state it starts from; otherwise no change.
-    pub fn if_standing(self, table: &HashMap<K, V>) -> Self {
-        let stands = self.transitions().all(|t| {
-            let key = t.before.or(t.after).map(|(k, _)| k);
-            key.is_some_and(|k| t.before.map(|(_, v)| v) == table.get(k))
-        });
-        if stands {
-            self
+    /// Whether `table` still holds every state this change starts from, naming the keys it does not.
+    pub fn standing_on(&self, table: &impl Table<T>) -> Result<(), Moved<T::Key>> {
+        let moved: Vec<T::Key> = self
+            .transitions()
+            .filter_map(|t| {
+                let key = t.before.or(t.after)?.key();
+                (table.row(&key).as_ref() != t.before).then_some(key)
+            })
+            .collect();
+        if moved.is_empty() {
+            Ok(())
         } else {
-            Self::default()
+            Err(Moved(moved))
         }
     }
 }
+
+/// The keys whose rows no longer hold the state a change starts from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Moved<K>(pub Vec<K>);
 
 /// A reversible change that can be combined with a compatible later change.
 pub trait Delta: Default + Sized {
@@ -1586,6 +1754,60 @@ impl<K: Clone + Eq + Hash> Dependents<K> {
             }
         }
         stale
+    }
+}
+
+/// The newest values put under rising keys, at most `cap` of them, the oldest let go first.
+pub struct Recent<K, V> {
+    cap: usize,
+    held: VecDeque<(K, V)>,
+}
+
+impl<K: Ord, V> Recent<K, V> {
+    pub fn new(cap: usize) -> Self {
+        Self {
+            cap,
+            held: VecDeque::new(),
+        }
+    }
+
+    /// Keep `value` under `key`, above every key held, letting go of the oldest past the cap.
+    pub fn put(&mut self, key: K, value: V) {
+        self.held.push_back((key, value));
+        if self.held.len() > self.cap {
+            self.held.pop_front();
+        }
+    }
+
+    /// The value held under `key`.
+    pub fn get(&self, key: &K) -> Option<&V> {
+        self.held
+            .iter()
+            .find(|(held, _)| held == key)
+            .map(|(_, value)| value)
+    }
+
+    /// The oldest key still held.
+    pub fn oldest(&self) -> Option<&K> {
+        self.held.front().map(|(key, _)| key)
+    }
+
+    /// The newest key put.
+    pub fn newest(&self) -> Option<&K> {
+        self.held.back().map(|(key, _)| key)
+    }
+
+    /// The values held under keys above `key`, oldest first.
+    pub fn after<'a>(&'a self, key: &'a K) -> impl Iterator<Item = &'a V> + 'a {
+        self.held
+            .iter()
+            .filter(move |(held, _)| held > key)
+            .map(|(_, value)| value)
+    }
+
+    /// Let go of everything.
+    pub fn clear(&mut self) {
+        self.held.clear();
     }
 }
 

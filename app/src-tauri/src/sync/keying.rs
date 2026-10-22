@@ -7,7 +7,7 @@
 //! key makes first-sync "merge" fall out of the plain diff; the counter keeps genuine duplicates
 //! distinct: two identical unmapped pins are two keys, not one.
 
-use crate::store::engine::IncomingRecords;
+use crate::store::engine::ValueRecord;
 use mma_algebra::Id;
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -202,7 +202,7 @@ pub(crate) fn build_keyed_inputs<P: SyncProvider>(
     local_locs: &[Location],
     remote_locs: &[P::Raw],
     mapping: &[RemoteMappingRow],
-    records: &IncomingRecords,
+    records: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
 ) -> KeyedInputs {
     let mut base: HashMap<IdentityKey, String> = HashMap::new();
     let mut mapped_local: HashSet<Id<Location>> = HashSet::new();

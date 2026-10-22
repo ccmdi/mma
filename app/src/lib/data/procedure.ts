@@ -247,7 +247,7 @@ export const Procedure = {
 			void cmd.runCancel(runId);
 			settle();
 		};
-		const releaseAutosave = Autosave.hold();
+		const releaseAutosave = Autosave.paused.hold();
 		try {
 			await cmd.procedureRun(
 				// An item that sets no force of its own takes the run's.

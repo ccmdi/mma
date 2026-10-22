@@ -7,14 +7,33 @@ use mma_fields::Delta;
 use std::ops::{Index, IndexMut};
 use std::sync::Arc;
 
-/// What one write did to an interned field's records.
-pub(crate) type RecordDelta = Change<(Id<ValueRecord>, ValueRecord)>;
+/// An entry serialized whole, its rows beside the rest, for `#[serde(with = "whole")]`. It
+/// travels without the sender's selections, which stay each store's own.
+pub(crate) mod whole {
+    use super::Entry;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// What one write did to every interned field's records, by field.
-pub(crate) type RecordDeltas = HashMap<String, RecordDelta>;
+    pub(crate) fn serialize<S: Serializer>(
+        entry: &Entry,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        (&entry.locations, &entry.records, &entry.defs, &entry.meta).serialize(serializer)
+    }
 
-/// What one write did to the map's extra-field definitions.
-pub(crate) type DefsDelta = Change<(String, maps::FieldDef)>;
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>, E: From<Entry>>(
+        deserializer: D,
+    ) -> Result<E, D::Error> {
+        let (locations, records, defs, meta) = Deserialize::deserialize(deserializer)?;
+        Ok(Entry {
+            locations,
+            records,
+            defs,
+            meta,
+            selections: Default::default(),
+        }
+        .into())
+    }
+}
 
 /// A change to the map, recorded for undo in the timeline its parts declare.
 #[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize, Delta)]
@@ -24,15 +43,15 @@ pub struct Entry {
     pub locations: Change<Location>,
     /// The edit's changes to the records of interned values such as tags, by field.
     #[serde(alias = "piles")]
-    pub records: RecordDeltas,
+    pub records: HashMap<String, Change<(Id<ValueRecord>, ValueRecord)>>,
     /// The edit's changes to the map's field definitions.
-    pub defs: DefsDelta,
+    pub defs: Change<(String, maps::FieldDef)>,
     /// The edit's changes to the map's details and settings, which are not undone.
     #[serde(default)]
     pub meta: Change<MapMeta>,
     /// The edit's changes to saved selections.
     #[serde(default)]
-    pub selections: SelectionDelta,
+    pub selections: Change<(String, Listing)>,
 }
 
 pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
@@ -133,12 +152,45 @@ pub(crate) struct StepStacks {
 }
 
 /// An undo step and the number it is stored under, never reused within a map, so a stored
-/// row with a live `seq` always holds that same step. `entry` is `None` while the step
-/// is only on disk.
+/// row with a live `seq` always holds that same step. `join` names it to the writes that join
+/// it, and outlives a fold that renumbers `seq`. `entry` is `None` while the step is only on
+/// disk.
 #[derive(Clone)]
 pub(crate) struct LoggedStep {
     pub seq: u64,
+    join: u64,
     pub entry: Option<Arc<Entry>>,
+}
+
+/// Where a write files its undo step.
+pub(crate) enum Recording {
+    /// A step of its own, or the step `join` names while it is the newest.
+    Step(Option<u64>),
+    /// A step being undone or redone, onto `onto` of `timeline` once the write lands.
+    Moving {
+        timeline: Timeline,
+        onto: Stack,
+        step: LoggedStep,
+    },
+    /// Nowhere: the write is not undone here.
+    Off,
+}
+
+impl Default for Recording {
+    fn default() -> Self {
+        Recording::Step(None)
+    }
+}
+
+impl Recording {
+    /// What a write sent elsewhere carries of this recording: the step it joins, which later
+    /// writes here join too, or the moving step itself.
+    pub(crate) fn carried(&mut self) -> Recording {
+        match self {
+            Recording::Step(join) => Recording::Step(*join),
+            moving => mem::replace(moving, Recording::Off),
+        }
+    }
 }
 
 impl StepStacks {
@@ -149,7 +201,14 @@ impl StepStacks {
         let next_seq = rows.last().map_or(0, |(seq, _)| seq + 1);
         let (undo, mut redo): (Vec<_>, Vec<_>) = rows
             .into_iter()
-            .map(|(seq, stack)| (LoggedStep { seq, entry: None }, stack))
+            .map(|(seq, stack)| {
+                let step = LoggedStep {
+                    seq,
+                    join: seq,
+                    entry: None,
+                };
+                (step, stack)
+            })
             .partition(|(_, stack)| *stack == Stack::Undo);
         redo.reverse();
         Self {
@@ -159,26 +218,35 @@ impl StepStacks {
         }
     }
 
-    /// Record a new step: it goes on top of undo, under the cap, and redo is gone.
-    /// Returns the `seq` it was stored under.
-    pub(crate) fn record(&mut self, entry: Arc<Entry>) -> u64 {
+    /// Record a new step joined by `join`, or by its own `seq`: it goes on top of undo, under
+    /// the cap, and redo is gone. Returns its join.
+    pub(crate) fn record(&mut self, entry: Arc<Entry>, join: Option<u64>) -> u64 {
         let seq = self.next_seq;
         self.next_seq += 1;
+        let join = join.unwrap_or(seq);
         self.push(
             Stack::Undo,
             LoggedStep {
                 seq,
+                join,
                 entry: Some(entry),
             },
         );
         self.redo.clear();
-        seq
+        join
     }
 
-    /// Join `later` to the newest step if its sequence and states match.
+    /// A join no step holds, for writes that record their step later.
+    pub(crate) fn fresh_join(&mut self) -> u64 {
+        let join = self.next_seq;
+        self.next_seq += 1;
+        join
+    }
+
+    /// Join `later` to the newest step if `join` names it and their states match.
     /// Assign a fresh sequence so persistence replaces the old entry; return `later` if it cannot join.
-    pub(crate) fn fold_into_newest(&mut self, seq: u64, later: Entry) -> Result<u64, Entry> {
-        let Some(top) = self.undo.last_mut().filter(|top| top.seq == seq) else {
+    pub(crate) fn fold_into_newest(&mut self, join: u64, later: Entry) -> Result<(), Entry> {
+        let Some(top) = self.undo.last_mut().filter(|top| top.join == join) else {
             return Err(later);
         };
         let Some(entry) = top.entry.as_mut() else {
@@ -195,7 +263,7 @@ impl StepStacks {
         top.seq = self.next_seq;
         self.next_seq += 1;
         self.redo.clear();
-        Ok(top.seq)
+        Ok(())
     }
 
     fn stack_mut(&mut self, stack: Stack) -> &mut Vec<LoggedStep> {
@@ -259,13 +327,13 @@ impl StepStacks {
         }
     }
 
-    /// Move the newest step to the other stack, reversing it for undo.
+    /// Take the newest step off `from`, with the change that steps it: its reverse for undo.
     /// Load disk-only entries with `fetch`; a read failure clears history to avoid replaying across a gap.
-    pub(crate) fn step(
+    pub(crate) fn take(
         &mut self,
         from: Stack,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
-    ) -> AppResult<Option<Entry>> {
+    ) -> AppResult<Option<(Entry, LoggedStep)>> {
         let Some(mut step) = self.stack_mut(from).pop() else {
             return Ok(None);
         };
@@ -278,8 +346,7 @@ impl StepStacks {
             Stack::Redo => (*entry).clone(),
         };
         step.entry = Some(entry);
-        self.push(from.other(), step);
-        Ok(Some(changes))
+        Ok(Some((changes, step)))
     }
 }
 
@@ -292,36 +359,89 @@ impl Store {
             .collect()
     }
 
-    /// Move the newest step of `timeline` to its other stack and apply it.
+    /// File `entry`'s undo step as `recording` says, in the entry's timeline for a new step.
+    /// An entry too large to undo clears its timeline instead, and this returns true.
+    pub(super) fn record(&mut self, entry: &Arc<Entry>, recording: &mut Recording) -> bool {
+        match recording {
+            Recording::Off => false,
+            Recording::Moving { .. } => {
+                let Recording::Moving {
+                    timeline,
+                    onto,
+                    step,
+                } = mem::replace(recording, Recording::Off)
+                else {
+                    unreachable!("matched as moving");
+                };
+                self.steps[timeline].edit().push(onto, step);
+                false
+            }
+            Recording::Step(join) => {
+                let Some(timeline) = entry.timeline() else {
+                    return false;
+                };
+                let steps = self.steps[timeline].edit();
+                if too_large_to_undo(entry.locations.len()) {
+                    steps.clear();
+                    return true;
+                }
+                if let Some(held) = *join {
+                    if steps.fold_into_newest(held, (**entry).clone()).is_ok() {
+                        return false;
+                    }
+                }
+                *join = Some(steps.record(Arc::clone(entry), *join));
+                false
+            }
+        }
+    }
+
+    /// Undo or redo the newest step of `timeline`. An edit applies as a change that must still
+    /// stand on the map, and one refused here stays where it was.
     pub(crate) fn step(
         &mut self,
         from: Stack,
         timeline: Timeline,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
-    ) -> AppResult<Option<Mutation>> {
-        let Some(mut changes) = self.steps[timeline].edit().step(from, fetch)? else {
-            return Ok(None);
+    ) -> Reached<Option<Mutation>> {
+        let (mut changes, step) = match self.steps[timeline].edit().take(from, fetch) {
+            Ok(Some(taken)) => taken,
+            taken => return Reached::ready(taken.map(|_| None)),
         };
-        changes.selections = match timeline {
-            // The selections timeline may have moved the list since, so an edit's own
-            // selection change applies only where the list still holds its before-state.
-            Timeline::Edits => changes.selections.if_standing(&self.selections.table()),
-            Timeline::Selections => {
-                let before = self.selections.table();
-                let mut rows = before.clone();
-                changes.selections.apply_to(&mut rows);
-                let after = self.valid_selections(rows);
-                Change::between(&before, &after)
-            }
-        };
-        self.put_entry(&changes);
         log::debug!(
             "[{from:?} {timeline:?}] +{} ~{} -{}",
             changes.locations.added.len(),
             changes.locations.updated.len(),
             changes.locations.removed.len()
         );
-        Ok(Some(self.finish(Finished::Entry(&changes))))
+        let mut moving = Recording::Moving {
+            timeline,
+            onto: from.other(),
+            step,
+        };
+        let stepped = match timeline {
+            Timeline::Edits => self
+                .at(&Target::Map { id: None })
+                .joining(&mut moving)
+                .write(Intent::Entry(Box::new(changes)))
+                .map(|edited| edited.mutation),
+            Timeline::Selections => {
+                let before = self.selections.table();
+                let mut rows = before.clone();
+                changes.selections.apply_to(&mut rows);
+                let after = self.valid_selections(rows);
+                changes.selections = Change::between(&before, &after);
+                let stepped = self
+                    .at(&Target::Map { id: None })
+                    .joining(&mut moving)
+                    .apply(changes);
+                Reached::ready(Ok(stepped))
+            }
+        };
+        if let Recording::Moving { onto, step, .. } = moving {
+            self.steps[timeline].edit().push(onto.other(), step);
+        }
+        stepped.map(Some)
     }
 }
 

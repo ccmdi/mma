@@ -65,7 +65,9 @@ export function googleMapsMock() {
 		getDiv() {
 			return this.div;
 		}
-		addListener() {
+		listeners = new Map<string, (e?: unknown) => void>();
+		addListener(name: string, fn: (e?: unknown) => void) {
+			this.listeners.set(name, fn);
 			return {};
 		}
 	}
@@ -75,7 +77,7 @@ export function googleMapsMock() {
 				Size,
 				ImageMapType,
 				Map: MapMock,
-				event: { trigger: vi.fn(), clearInstanceListeners: vi.fn() },
+				event: { trigger: vi.fn(), clearInstanceListeners: vi.fn(), removeListener: vi.fn() },
 			},
 		},
 	};

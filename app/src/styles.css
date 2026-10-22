@@ -788,6 +788,7 @@ input[type="range"]:focus-visible {
 	outline-color: var(--text-1);
 }
 .icon-button {
+	position: relative;
 	cursor: pointer;
 	text-align: center;
 	color: var(--text-1);
@@ -4433,6 +4434,32 @@ body {
 	width: max-content;
 	margin: auto;
 }
+.map-loading {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 2;
+	display: flex;
+	padding: 0.5rem;
+	border-radius: 50%;
+	background: var(--surface-2);
+	box-shadow: var(--shadow-2);
+	--spinner-size: 1.5rem;
+	pointer-events: none;
+	opacity: 0;
+	visibility: hidden;
+	transition:
+		opacity var(--dur) var(--ease-standard),
+		visibility 0s linear var(--dur);
+}
+/* The delay keeps a load that finishes quickly from flashing the indicator at all. */
+.map-loading.is-loading {
+	opacity: 1;
+	visibility: visible;
+	transition: none;
+	animation: fade-in var(--dur) var(--ease-standard) var(--dur) backwards;
+}
 .map-cursor-crosshair {
 	position: absolute;
 	top: 50%;
@@ -5191,6 +5218,24 @@ body {
 	border: 2px solid var(--border-subtle);
 	border-top-color: var(--accent);
 	border-radius: 50%;
+}
+.avatar {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	overflow: hidden;
+	background: var(--surface-3);
+	color: var(--text-2);
+}
+.avatar > img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.avatar--ring {
+	box-shadow: 0 0 0 2px var(--avatar-ring);
 }
 
 /* Split handle */
@@ -6085,15 +6130,8 @@ body:has([data-plugin-overlay]) .map-meta {
 	font-size: 0.8125rem;
 }
 
-.sync-user__initial {
-	display: inline-flex;
-	flex-shrink: 0;
-	align-items: center;
-	justify-content: center;
-	width: 24px;
-	height: 24px;
-	border-radius: 50%;
-	background: var(--surface-3);
+.sync-user__avatar {
+	color: inherit;
 	font-size: 12px;
 }
 .sync-user__name {
@@ -6544,11 +6582,6 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	flex-wrap: wrap;
 	margin-bottom: 0.5rem;
 }
-.feedback-account__avatar {
-	width: 24px;
-	height: 24px;
-	border-radius: 50%;
-}
 .feedback-reports {
 	list-style: none;
 	padding: 0;
@@ -6648,13 +6681,7 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	align-items: flex-start;
 }
 .report-thread__avatar {
-	display: flex;
-	flex-shrink: 0;
-	width: 28px;
-	height: 28px;
-	align-items: center;
-	justify-content: center;
-	border-radius: 50%;
+	background: none;
 	color: var(--text-3);
 }
 .report-thread__message {

@@ -65,17 +65,15 @@ afterEach(async () => {
 });
 
 describe("map metadata writes", () => {
-	it("fire immediately and whole; ordering is the store's", async () => {
+	it("go out whole and at once, in call order", async () => {
 		const settle = holdWrites();
-		void Edit.meta({ id: "a", name: "first" });
-		void Edit.meta({ id: "b", name: "second" });
+		const sentIds = () => vi.mocked(cmd.storeUpdateMapMeta).mock.calls.map(([patch]) => patch.id);
+		const writes = [Edit.meta({ id: "a", name: "first" }), Edit.meta({ id: "b", name: "second" })];
 		await new Promise((r) => setTimeout(r));
-		expect(vi.mocked(cmd.storeUpdateMapMeta).mock.calls.map(([patch]) => patch.id)).toEqual([
-			"a",
-			"b",
-		]);
+		expect(sentIds()).toEqual(["a", "b"]);
 		await settle();
 		await settle();
+		await Promise.all(writes);
 	});
 
 	it("carry only the settings keys they change, so writes made back to back both land", async () => {

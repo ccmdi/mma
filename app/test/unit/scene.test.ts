@@ -186,6 +186,30 @@ describe("Scene frames", () => {
 		expect((await pending).added).toHaveLength(0);
 	});
 
+	it("the map is loading until its markers are drawn, and again after a clear", async () => {
+		expect(Scene.loading.held()).toBe(true);
+		let repaints = 0;
+		const unsub = subscribeEvent("scene:changed", () => repaints++);
+		await load(scene([], 3));
+		expect(Scene.loading.held()).toBe(false);
+		expect(repaints).toBe(1);
+		unsub();
+		Scene.clear();
+		expect(Scene.loading.held()).toBe(true);
+	});
+
+	it("a hold keeps a drawn map loading until every hold is released", async () => {
+		await load(scene([entry("s", 1, 1, 1)], 3));
+		const first = Scene.loading.hold();
+		const second = Scene.loading.hold();
+		expect(Scene.loading.held()).toBe(true);
+		first();
+		first();
+		expect(Scene.loading.held()).toBe(true);
+		second();
+		expect(Scene.loading.held()).toBe(false);
+	});
+
 	it("a subscription that fails stops following", async () => {
 		h.subscribe = () => Promise.reject(new Error("no map open"));
 		await Scene.load("pin");

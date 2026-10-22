@@ -3,10 +3,11 @@
 use crate::store::engine::Target;
 use crate::store::maps::MapMeta;
 use crate::types::AppResult;
+use crate::util::Lock;
 use mma_algebra::Id;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock};
 use tokio::task;
 
 #[derive(Clone)]
@@ -90,8 +91,7 @@ pub async fn run_cancel(run_id: u32) -> AppResult<()> {
 
 pub(crate) fn pending_writers(map_id: &Id<MapMeta, String>) -> BTreeSet<String> {
     runs()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
+        .locked()
         .values()
         .filter_map(|run| match &run.writer {
             Some((id, Target::Pending { name })) if id == map_id => Some(name.clone()),
@@ -103,8 +103,7 @@ pub(crate) fn pending_writers(map_id: &Id<MapMeta, String>) -> BTreeSet<String> 
 /// Cancel only active procedures that still target this unlanded pending layer.
 pub(crate) fn cancel_pending_writers(map_id: &Id<MapMeta, String>, name: &str) {
     let writers: Vec<RunEntry> = runs()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
+        .locked()
         .values()
         .filter(|run| {
             matches!(&run.writer, Some((id, Target::Pending { name: target })) if id == map_id && target == name)

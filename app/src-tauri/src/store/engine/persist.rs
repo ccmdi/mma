@@ -4,12 +4,14 @@ use super::*;
 use crate::store::maps::MapMeta;
 use crate::store::{arrow, storage};
 use crate::types::{AppError, AppResult, ErrCode, Location};
+use crate::util::Lock;
 use arrow_array::{RecordBatch, UInt32Array};
 use mma_algebra::{by_key, Change, Counts, Id};
 use rusqlite::Connection;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::Path;
+use std::sync::PoisonError;
 use std::time::Instant;
 use tokio::task;
 
@@ -38,43 +40,139 @@ pub(crate) fn set_aside_delta(delta_path: &Path, reason: &AppError) {
     crate::emit_event(StoreWarning::DeltaSetAside);
 }
 
-/// Unbind `label` from its map and, when no other window still has the map open, save what
-/// disk lacks, holding the map's files lock from before the store leaves the manager until the
-/// write lands.
-pub(crate) async fn close_window(state: &StoreState, label: &WindowLabel) -> AppResult<()> {
+/// A hold on a map's store, which keeps it in the manager until the hold is released or
+/// dropped.
+pub(crate) struct Hold {
+    state: &'static StoreState,
+    map: Id<MapMeta, String>,
+    holder: Mutex<Option<Holder>>,
+}
+
+impl Hold {
+    /// Run `f` on the held map's store, refused once the hold lets go.
+    pub(crate) fn store<R>(&self, f: impl FnOnce(&mut Store) -> AppResult<R>) -> AppResult<R> {
+        if self.holder.locked().is_none() {
+            return Err(AppError(format!("map {} is no longer held", self.map)));
+        }
+        f(self.state.locked().store_for_map(&self.map)?)
+    }
+
+    /// Let go of the map's store and save what disk lacks of it. Only the first release lets go.
+    pub(crate) async fn release(&self) -> AppResult<()> {
+        let holder = self.holder.locked().take();
+        match holder {
+            Some(holder) => release(self.state, &holder).await,
+            None => Ok(()),
+        }
+    }
+}
+
+impl Drop for Hold {
+    fn drop(&mut self) {
+        let holder = self
+            .holder
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(holder) = holder.take() {
+            let state = self.state;
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = release(state, &holder).await {
+                    log::warn!("[store] a held map was not saved: {}", error.0);
+                }
+            });
+        }
+    }
+}
+
+/// Keep the map's store in the manager for `holder` until the hold it hands back lets go,
+/// loading it from disk when it is not there yet.
+pub(crate) async fn hold(
+    state: &'static StoreState,
+    holder: Holder,
+    map_id: &Id<MapMeta, String>,
+) -> AppResult<Hold> {
+    let files = state.lock()?.files(map_id);
+    let _writing = files.lock().await;
+    let loaded = if state.lock()?.stores.contains_key(map_id) {
+        None
+    } else {
+        let map_id = map_id.clone();
+        Some(task::spawn_blocking(move || load_store(&map_id)).await??)
+    };
+    let mut mgr = state.lock()?;
+    if let Some(mut store) = loaded {
+        store.dependents = mgr.providers.dependents();
+        mgr.stores.insert(map_id.clone(), store);
+    }
+    mgr.holders.insert(holder.clone(), map_id.clone());
+    Ok(Hold {
+        state,
+        map: map_id.clone(),
+        holder: Mutex::new(Some(holder)),
+    })
+}
+
+/// Save what disk lacks of the map's store, under its files lock. No-op when the store is
+/// not open or nothing changed.
+pub(crate) async fn save(state: &StoreState, map_id: &Id<MapMeta, String>) -> AppResult<()> {
+    let files = state.lock()?.files(map_id);
+    let _writing = files.lock().await;
+    let unsaved = match state.lock()?.stores.get(map_id) {
+        Some(store) => store.unsaved()?,
+        None => None,
+    };
+    flush(state, map_id, unsaved).await
+}
+
+/// Let go of what `holder` keeps here and save what disk lacks of its map, under the map's
+/// files lock from before the store leaves the manager, which it does once nothing else
+/// holds it.
+pub(crate) async fn release(state: &StoreState, holder: &Holder) -> AppResult<()> {
     loop {
-        let Some(map_id) = state.lock()?.window_map.get(label).cloned() else {
+        let Some(map_id) = state.lock()?.holders.get(holder).cloned() else {
             return Ok(());
         };
         let files = state.lock()?.files(&map_id);
         let _writing = files.lock().await;
-        let unbound = {
+        let unsaved = {
             let mut mgr = state.lock()?;
-            if mgr.window_map.get(label) != Some(&map_id) {
+            if mgr.holders.get(holder) != Some(&map_id) {
                 continue;
             }
-            mgr.unbind_window(label)
+            let unsaved = match mgr.stores.get(&map_id) {
+                Some(store) => store.unsaved()?,
+                None => None,
+            };
+            drop(mgr.release(holder));
+            unsaved
         };
-        let Some((map_id, store)) = unbound else {
-            return Ok(());
-        };
-        return task::spawn_blocking(move || {
-            if let Some(unsaved) = store.unsaved()? {
-                unsaved.write(
-                    &storage::open_db()?,
-                    &map_id,
-                    &storage::arrow_delta_path(&map_id)?,
-                )?;
-            }
-            log::debug!(
-                "[close_map] {map_id} flushed: undo={} redo={}",
-                store.steps[Timeline::Edits].len(Stack::Undo),
-                store.steps[Timeline::Edits].len(Stack::Redo)
-            );
-            Ok(())
-        })
-        .await?;
+        return flush(state, &map_id, unsaved).await;
     }
+}
+
+/// Write `unsaved` for the map, then tell its store, when it is still here, that disk holds it.
+async fn flush(
+    state: &StoreState,
+    map_id: &Id<MapMeta, String>,
+    unsaved: Option<Unsaved>,
+) -> AppResult<()> {
+    let Some(unsaved) = unsaved else {
+        return Ok(());
+    };
+    let map = map_id.clone();
+    let unsaved = task::spawn_blocking(move || {
+        unsaved.write(
+            &storage::open_db()?,
+            &map,
+            &storage::arrow_delta_path(&map)?,
+        )?;
+        AppResult::Ok(unsaved)
+    })
+    .await??;
+    if let Some(store) = state.lock()?.stores.get_mut(map_id) {
+        store.saved(&unsaved);
+    }
+    Ok(())
 }
 
 /// A store holding what disk holds for `map_id`: its last commit, uncommitted changes, edit
@@ -211,7 +309,7 @@ pub(crate) fn read_full_state_from_disk(map_id: &Id<MapMeta, String>) -> AppResu
 pub(crate) fn load_value_records(
     conn: &Connection,
     map_id: &Id<MapMeta, String>,
-) -> AppResult<IncomingRecords> {
+) -> AppResult<HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>> {
     let rows = conn
         .prepare("SELECT field, records FROM value_records WHERE map_id = ?1")?
         .query_map([map_id.raw()], |r| {
@@ -492,6 +590,7 @@ impl Store {
     /// Bake the overlay into the map's base file, and only then adopt it, clear the overlay,
     /// drop the stale delta file, and re-map the base. A failed write leaves the store as it was.
     pub(crate) fn bake(&mut self) -> AppResult<()> {
+        self.owned()?;
         let _t = Instant::now();
         let Some(batch) = self.current_batch() else {
             return Ok(());

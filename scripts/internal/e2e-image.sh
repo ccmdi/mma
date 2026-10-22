@@ -7,9 +7,9 @@
 #                    keeps it cheap)
 #   MMA_E2E_DIRTY    1 when the tag carries -dirty
 #
-# Baked inputs are everything the Dockerfile copies that changes the binary or the
-# bundled procedures. Test specs, wdio config and scripts/ are live-mounted, so they
-# never enter the tag.
+# Baked inputs are everything the Dockerfile copies that changes the binary, the bundled
+# procedures or the collab Worker's dependencies. Test specs, wdio config, scripts/ and the
+# Worker's source are live-mounted, so they never enter the tag.
 MMA_E2E_PROFILE="${MMA_E2E_PROFILE:-debug}"
 case "$MMA_E2E_PROFILE" in
 debug | release) ;;
@@ -25,6 +25,8 @@ E2E_BAKED_PATHS=(
 	app/package-lock.json app/public app/procedures app/scripts app/index.html
 	app/vite.config.ts app/tsconfig.json app/tsconfig.app.json app/tsconfig.node.json
 	plugins .nvmrc Dockerfile.e2e docker-compose.e2e.yml .dockerignore
+	workers/collab/package.json workers/collab/package-lock.json workers/collab/wrangler.toml
+	workers/collab/tsconfig.json
 )
 
 sha=$(git rev-parse --short=12 HEAD 2>/dev/null || echo nogit)

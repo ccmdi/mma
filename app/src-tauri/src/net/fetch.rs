@@ -2,11 +2,12 @@
 //! [`Session`] is one caller's share of every endpoint it reaches, and the [`Transport`]
 //! carries the requests.
 
+use crate::util::Lock;
 use std::borrow::Cow;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use futures::executor;
@@ -140,7 +141,7 @@ impl Transport {
 /// each client holds its own connection and requests deal round-robin.
 const HTTP_CONNECTIONS: usize = 8;
 
-fn http_client() -> &'static reqwest::Client {
+pub(crate) fn http_client() -> &'static reqwest::Client {
     static POOL: OnceLock<Vec<reqwest::Client>> = OnceLock::new();
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let pool = POOL.get_or_init(|| {
@@ -233,7 +234,7 @@ impl RateLimiter {
                 return false;
             }
             let wait = {
-                let mut st = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+                let mut st = self.state.locked();
                 let now = Instant::now();
                 let elapsed_ms = now.duration_since(st.1).as_secs_f64() * 1000.0;
                 st.0 = (st.0 + elapsed_ms * self.per_ms).min(self.capacity);
@@ -369,7 +370,7 @@ impl Session {
     }
 
     fn lane(&self, endpoint: &Endpoint) -> Arc<Lane> {
-        let mut lanes = self.lanes.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut lanes = self.lanes.locked();
         if let Some(lane) = lanes.iter().find(|l| l.name == endpoint.name) {
             return lane.clone();
         }
@@ -420,7 +421,7 @@ impl Session {
     }
 
     pub fn usage(&self) -> Usage {
-        let lanes = self.lanes.lock().unwrap_or_else(PoisonError::into_inner);
+        let lanes = self.lanes.locked();
         lanes.iter().fold(Usage::default(), |u, l| Usage {
             inflight: u.inflight + l.outstanding.load(Ordering::Relaxed),
             inflight_limit: u.inflight_limit + l.width,

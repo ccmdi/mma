@@ -41,7 +41,7 @@ describe("autosave debounce", () => {
 
 describe("holdAutosave defers saves until every hold is released", () => {
 	it("schedules nothing while held, then one save on release", () => {
-		const release = Autosave.hold();
+		const release = Autosave.paused.hold();
 		Autosave.schedule();
 		Autosave.schedule();
 		expect(vi.getTimerCount()).toBe(0);
@@ -50,13 +50,13 @@ describe("holdAutosave defers saves until every hold is released", () => {
 	});
 
 	it("releasing with nothing deferred schedules nothing", () => {
-		Autosave.hold()();
+		Autosave.paused.hold()();
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
 	it("nested holds release only when the last one does", () => {
-		const outer = Autosave.hold();
-		const inner = Autosave.hold();
+		const outer = Autosave.paused.hold();
+		const inner = Autosave.paused.hold();
 		Autosave.schedule();
 		inner();
 		expect(vi.getTimerCount()).toBe(0);

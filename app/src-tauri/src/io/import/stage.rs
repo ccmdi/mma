@@ -3,6 +3,7 @@
 use super::*;
 use crate::selections::Selector;
 use crate::store::engine;
+use crate::store::engine::Reached;
 use crate::store::engine::ValueRecord;
 use crate::store::engine::WindowLabel;
 use crate::types::{AppError, AppResult, Location, LocationFlags};
@@ -64,16 +65,16 @@ pub(super) fn import_layer(window: &str) -> String {
     format!("import:{window}")
 }
 
-/// Stage rows and their interned values' records in this window's import layer, replacing any
-/// import it held. A field the file interns and the map does not arrives spelled by name.
-/// Confirm applies them to the map; cancel discards them.
+/// Stage rows at the ids of `run` and their interned values' records in this window's import
+/// layer, replacing any import it held. A field the file interns and the map does not arrives
+/// spelled by name. Confirm applies them to the map; cancel discards them.
 pub(super) fn stage_parsed(
     store: &mut engine::Store,
     window: &str,
     parsed: ParsedMap,
-) -> IdRange<Location> {
+    run: &IdRange<Location>,
+) -> AppResult<()> {
     store.close_layer(&import_layer(window));
-    let run = store.next_id.take_run(parsed.locations.len() as u32);
     let now = util::now_unix();
     let ParsedMap {
         mut locations,
@@ -108,8 +109,10 @@ pub(super) fn stage_parsed(
         .collect();
     store
         .at(&import_target(window))
-        .edit(edits, records, &mut None);
-    run
+        .from(&records)
+        .write(edits)
+        .settled()?;
+    Ok(())
 }
 
 /// A built-in field an import can carry and the preview can drop: its key, whether a row
@@ -309,8 +312,12 @@ pub async fn store_import_preview(
         Ok::<_, AppError>((parsed, preview))
     })
     .await??;
-    engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
-        preview.keys = stage_parsed(store, &label.0, parsed);
+    let map = engine::Target::Map { id: None };
+    let len = parsed.locations.len() as u32;
+    preview.keys =
+        engine::with_target(&state, &label, &map, |store| Ok(store.fresh_ids(len)))?.await?;
+    engine::with_target(&state, &label, &map, |store| {
+        stage_parsed(store, &label.0, parsed, &preview.keys)?;
         Ok(preview)
     })
 }
@@ -340,9 +347,10 @@ pub async fn store_import_file(
 ) -> AppResult<EditorImportResult> {
     let t0 = Instant::now();
     let _ = fs::remove_file(preview_positions_path(&label.0));
-    let result = engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
+    let result = engine::reach_target(&state, &label, &engine::Target::Map { id: None }, |store| {
         confirm_staged(store, &label.0, &dropped_fields, &tag_names, &dropped_tags)
-    });
+    })
+    .await;
     log::debug!("[import] total={:.0}ms", t0.elapsed().as_millis());
     result
 }
@@ -355,7 +363,7 @@ pub(super) fn confirm_staged(
     dropped: &[String],
     tag_names: &[String],
     dropped_tags: &[String],
-) -> AppResult<EditorImportResult> {
+) -> AppResult<Reached<EditorImportResult>> {
     let target = import_target(window);
     let key = import_layer(window);
     let drop_set: HashSet<&str> = dropped.iter().map(String::as_str).collect();
@@ -364,7 +372,7 @@ pub(super) fn confirm_staged(
     }
     let rows = store.at(&target).rows(&Selector::Everything);
 
-    let mut records = engine::IncomingRecords::new();
+    let mut records = HashMap::new();
     let drop_tags = drop_set.contains("tags");
     let mut tags = if drop_tags {
         HashMap::new()
@@ -402,7 +410,7 @@ pub(super) fn confirm_staged(
         .collect();
     let mut edits: Vec<mma_algebra::Edit<Location>> = Vec::new();
     for loc in &rows {
-        let mut patch = Patch::<Location>::default();
+        let mut patch = Patch::<Location>::of(loc.id);
         for (_, _, drop_field) in &drops {
             drop_field(loc, &mut patch);
         }
@@ -431,19 +439,20 @@ pub(super) fn confirm_staged(
                 }
             }
         }
-        if patch != Patch::<Location>::default() {
-            patch.id = loc.id;
+        if patch != Patch::<Location>::of(loc.id) {
             edits.push(Op::Put(patch));
         }
     }
 
-    store.at(&target).edit(edits, records, &mut None);
-    let mutation = store.land(&key, &mut None);
-    Ok(EditorImportResult {
-        imported_count: rows.len() as u32,
+    let mut staged = store.at(&target);
+    staged.from(&records).write(edits).settled()?;
+    let imported_count = rows.len() as u32;
+    let landed = staged.land();
+    Ok(landed.map(move |mutation| EditorImportResult {
+        imported_count,
         auto_commit: mutation.history_cleared,
         mutation,
-    })
+    }))
 }
 
 /// Add a record to `records` for each of `names` it lacks, matching names regardless of case,

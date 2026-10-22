@@ -8,3 +8,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "0.0.12"
+
+[dev-dependencies]
+postcard = { version = "1", default-features = false, features = ["use-std"] }

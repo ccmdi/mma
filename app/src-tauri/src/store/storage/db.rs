@@ -535,4 +535,8 @@ pub(super) const MIGRATIONS: &[(u32, &str)] = &[
             WHERE tag_names NOT IN ('', '{}');
           ALTER TABLE saved_selections DROP COLUMN tag_names;",
     ),
+    (
+        32,
+        "ALTER TABLE maps ADD COLUMN local_plugin_data TEXT NOT NULL DEFAULT '{}';",
+    ),
 ];

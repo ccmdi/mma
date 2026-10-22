@@ -1,9 +1,8 @@
 import type * as bindings from "@/bindings.gen";
 import { Store } from "./store";
-import { Mutation } from "./mutation";
 import { Query } from "./query";
 import { Edit } from "./edit";
-import type { EditResult, Target } from "@/bindings.gen";
+import type { Target } from "@/bindings.gen";
 import type { Patch } from "@/types";
 import type { ReadonlyIdSet } from "@/lib/render/CellManager";
 import { cmd } from "@/lib/commands";
@@ -17,9 +16,9 @@ const MAP: Target = { kind: "map" };
 /** Upload chunk size, targeting roughly 1 MB of JSON per request. */
 const ADD_CHUNK = 5000;
 
-/** Stage `locs` as chunked JSON adds in an upload session, then commit them in one mutation.
+/** Stage `locs` as chunked JSON adds in an upload session and return the session.
  *  Only one chunk is serialized at a time, so peak memory is O(chunk), not O(batch). */
-async function addViaUpload(locs: Location[]): Promise<EditResult> {
+async function upload(locs: Location[]): Promise<string> {
 	const session = await cmd.storeUploadBegin();
 	try {
 		for (let i = 0, n = 0; i < locs.length; i += ADD_CHUNK, n++) {
@@ -33,7 +32,7 @@ async function addViaUpload(locs: Location[]): Promise<EditResult> {
 		await cmd.storeUploadAbort(session).catch(() => {});
 		throw e;
 	}
-	return cmd.storeEditUploaded(MAP, session);
+	return session;
 }
 
 /** Add, update, remove, and inspect map locations. @api */
@@ -42,16 +41,10 @@ export const Location = {
 	add: async (locs: Location[]): Promise<number[]> => {
 		if (locs.length === 0) return [];
 		const t = trace("add");
-		const r =
-			locs.length > ADD_CHUNK
-				? await Mutation.run(() => addViaUpload(locs), {
-						mutation: Mutation.none(),
-						invalidated: [],
-					})
-				: await Edit.locations(
-						MAP,
-						locs.map((l) => ({ add: l })),
-					);
+		const r = await Edit.locations(
+			MAP,
+			locs.length > ADD_CHUNK ? { session: await upload(locs) } : locs.map((add) => ({ add })),
+		);
 		t.end({ added: locs.length });
 		return r.mutation.keys;
 	},

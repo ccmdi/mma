@@ -76,7 +76,13 @@ describe("Staged (chunked) location adds", () => {
 			// A session dir that was never opened: the commit must fail before any mutation.
 			let threw = false;
 			try {
-				await api.cmd.storeEditUploaded({ kind: "map" }, "C:/not/a/session");
+				await api.cmd.storeEdit({
+					locations: {
+						target: { kind: "map" },
+						edits: { session: "C:/not/a/session" },
+						records: {},
+					},
+				});
 			} catch {
 				threw = true;
 			}

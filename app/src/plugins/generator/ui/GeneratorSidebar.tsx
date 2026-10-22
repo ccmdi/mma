@@ -51,6 +51,7 @@ import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { downloadBlob, pickFiles } from "@/lib/util/util";
 import { toast } from "@/lib/util/toast";
 import { readGeneratorPreset, writeGeneratorPreset } from "../presetFile";
+import { Edit } from "@/store/edit";
 
 const GENERATOR_ID = "map-generator";
 /** The setup every map shares until it saves its own. */
@@ -363,7 +364,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			setTagName(preset.tagName);
 			saveProject("tagName", preset.tagName);
 		}
-		await SelectionList.update(
+		await Edit.selections(
 			addSelection(...preset.polygons.map((polygon) => ({ type: "Polygon" as const, polygon }))),
 		);
 	}, [updateSettings]);

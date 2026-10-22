@@ -70,6 +70,11 @@ export function lngSpan(b: Bounds): number {
 	return b.east < b.west ? b.east + 360 - b.west : b.east - b.west;
 }
 
+/** Whether two boxes have the same edges. */
+export function sameBounds(a: Bounds, b: Bounds): boolean {
+	return a.west === b.west && a.south === b.south && a.east === b.east && a.north === b.north;
+}
+
 /** A longitude at fraction `t` along the box, folded back into [-180, 180). */
 export function lerpLng(b: Bounds, t: number): number {
 	return wrapDeg(b.west + lngSpan(b) * t, -180);

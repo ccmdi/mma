@@ -28,6 +28,7 @@ const OWNED = {
 	"color-block": { primitive: "Swatch" },
 	kbd: { primitive: "Kbd" },
 	"search-input": { primitive: "SearchInput" },
+	avatar: { primitive: "Avatar" },
 };
 
 function ownerOf(token) {

@@ -23,6 +23,28 @@ export function textColorFor(bg: string): string {
 	return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? "#000" : "#fff";
 }
 
+/** WCAG relative luminance of a color, from 0 for black to 1 for white. @api @unstable */
+export function luminance(rgb: RGB): number {
+	const [r, g, b] = rgb.map((v) => {
+		const s = v / 255;
+		return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+	});
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** `color` moved toward white on a dark `background`, or black on a light one, until the two
+ *  reach WCAG AA contrast. @api @unstable */
+export function legible(color: RGB, background: RGB): RGB {
+	const floor = luminance(background);
+	const toward = floor > 0.18 ? 0 : 255;
+	for (let step = 0; step <= 10; step++) {
+		const lifted = color.map((v) => Math.round(v + (toward - v) * (step / 10))) as RGB;
+		const [hi, lo] = [luminance(lifted), floor].sort((a, b) => b - a);
+		if ((hi + 0.05) / (lo + 0.05) >= 4.5) return lifted;
+	}
+	return [toward, toward, toward];
+}
+
 /** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
  *  ramp name (legacy stored format). @api @unstable */
 export function resolveSvColorHex(color: string): string {

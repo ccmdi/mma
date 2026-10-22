@@ -22,6 +22,7 @@ import {
 	subscribeMany,
 	useEventValue,
 	type EditorEvent,
+	type PluginEvent,
 } from "@/lib/events";
 import { openWindow } from "@/lib/window";
 import { getSettings } from "@/store/settings";
@@ -42,7 +43,7 @@ export interface BadgeSource {
 	/** Name shown next to its checkbox in settings. */
 	label: string;
 	/** Events after which the badges are collected again. */
-	events: readonly EditorEvent[];
+	events: readonly (EditorEvent | PluginEvent<unknown>)[];
 	/** Yields the badges to show, each paired with its map id. */
 	collect(): Iterable<[mapId: string, badge: MapBadge]>;
 }

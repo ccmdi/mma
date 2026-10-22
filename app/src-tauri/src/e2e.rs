@@ -4,7 +4,7 @@
 use std::sync::OnceLock;
 
 use crate::net::fetch::SendFn;
-use crate::net::geoguessr;
+use crate::net::{geoguessr, github};
 
 fn env_origin(name: &str) -> Option<String> {
     std::env::var(name)
@@ -45,16 +45,20 @@ fn rewrite_origin(url: &str, origin: &str) -> String {
     format!("{}{}", origin.trim_end_matches('/'), path)
 }
 
-/// `builder` driven by the harness: reachable over webdriver, and signed in to GeoGuessr with
-/// the session the harness hands over, since there is no credential store and no interactive
-/// sign-in. Seeded once at startup, so a logout during a run clears it for good exactly as in
-/// production.
+fn env_value(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.is_empty())
+}
+
+/// `builder` driven by the harness: reachable over webdriver, and signed in to GeoGuessr and
+/// GitHub with the sessions the harness hands over, since there is no credential store and no
+/// interactive sign-in. Seeded once at startup, so a logout during a run clears them for good
+/// exactly as in production.
 pub(crate) fn install(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    if let Some(ncfa) = std::env::var("MMA_E2E_GG_NCFA")
-        .ok()
-        .filter(|v| !v.is_empty())
-    {
+    if let Some(ncfa) = env_value("MMA_E2E_GG_NCFA") {
         let _ = geoguessr::set_session(Some(ncfa));
+    }
+    if let Some(token) = env_value("MMA_E2E_GITHUB_TOKEN") {
+        let _ = github::seed_session(token);
     }
     builder.plugin(tauri_plugin_webdriver::init())
 }

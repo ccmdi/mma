@@ -1,12 +1,11 @@
 import { Store } from "./store";
-import { Mutation } from "./mutation";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { ListedSelection, Selection } from "@/bindings.gen";
-import { cmd } from "@/lib/commands";
-import { emit as emitEvent } from "@/lib/events";
+import { emit as emitEvent, subscribe } from "@/lib/events";
 import { selection } from "./selections";
 import type { Selector } from "@/types";
 import { tagIdOf } from "@/store/selections";
+import { Edit } from "@/store/edit";
 
 /** Change the listed selections and inspect their active members. @api @unstable */
 export const SelectionList = {
@@ -59,19 +58,6 @@ export const SelectionList = {
 		(): [ListedSelection[]] => [SelectionList.listed()],
 		(rows) => rows.filter((r) => !r.ghosted).map((r) => r.selection),
 	),
-	/** Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections. @unstable */
-	update: async (op: import("@/bindings.gen").SelectionOp) => {
-		await SelectionList.run(() => cmd.storeEditSelections(op));
-	},
-	/** Run a mutation that may change the listed selections, and announce the change when it
-	 *  does. @unstable */
-	run: async (write: () => Promise<Mutation>) => {
-		if (!Store.get().map) return;
-		const before = SelectionList.listed();
-		await Mutation.run(write);
-		if (SelectionList.listed() === before) return;
-		emitEvent("selection:change", SelectionList.active());
-	},
 	select: async <R extends number[] | { ids: number[] }>(
 		pick: (selector: Selector) => Promise<R>,
 		perSelection = false,
@@ -82,10 +68,18 @@ export const SelectionList = {
 		const results = await Promise.all(buckets.map(pick));
 		const ids = [...new Set(results.flatMap((r) => (Array.isArray(r) ? r : r.ids)))];
 		if (ids.length)
-			await SelectionList.update({
+			await Edit.selections({
 				kind: "active",
 				op: { kind: "set", selections: [selection({ type: "Manual", locations: ids })] },
 			});
 		return { picked: ids.length, results };
 	},
 };
+
+let announced = SelectionList.listed();
+subscribe("snapshot:changed", () => {
+	const listed = SelectionList.listed();
+	if (listed === announced) return;
+	announced = listed;
+	emitEvent("selection:change", SelectionList.active());
+});

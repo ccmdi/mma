@@ -53,3 +53,16 @@ describe("GoogleMapHost.applyPrefs", () => {
 		expect(svOpacity(host, BLOBBY_ZOOM_THRESHOLD + 1)).toBeCloseTo(0.5);
 	});
 });
+
+describe("GoogleMapHost events", () => {
+	it("reports where a click lands", () => {
+		const host = makeHost();
+		const listeners = (
+			host.getHostInstance() as unknown as { listeners: Map<string, (e?: unknown) => void> }
+		).listeners;
+		const click = vi.fn();
+		host.on("click", click);
+		listeners.get("click")!({ latLng: { lat: () => 1, lng: () => 2 } });
+		expect(click).toHaveBeenCalledExactlyOnceWith({ lat: 1, lng: 2 });
+	});
+});

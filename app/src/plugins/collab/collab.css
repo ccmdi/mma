@@ -1,0 +1,163 @@
+.collab__dot {
+	position: absolute;
+	top: 3px;
+	right: 3px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--constructive);
+	box-shadow: 0 0 0 2px var(--surface-2);
+}
+.collab__dot--pending {
+	background: var(--warning);
+}
+.collab__dot--ended {
+	background: var(--text-3);
+}
+
+.collab__body {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+.collab__section {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.collab__section > .eyebrow,
+.collab__section > p {
+	margin: 0;
+}
+.collab__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+}
+.collab__row {
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+	min-width: 0;
+}
+.collab__list > .collab__row,
+.collab__share {
+	padding: 0.5rem 0.625rem;
+	border-radius: var(--radius-2);
+	background: var(--surface-1);
+	border: 1px solid var(--border-subtle);
+}
+.collab__share {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	list-style: none;
+}
+.collab__text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+.collab__meta {
+	font-size: 0.85em;
+	color: var(--text-2);
+}
+.collab__live {
+	color: var(--constructive);
+}
+.collab__people {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+}
+.collab__people:empty {
+	display: none;
+}
+.collab__chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 2px 0.5rem 2px 2px;
+	border-radius: var(--radius-pill);
+	background: var(--surface-3);
+	color: var(--text-2);
+	font-size: 0.85em;
+}
+.collab__chip--here {
+	color: var(--text-1);
+}
+.collab__row > .collab__people {
+	flex: 1;
+	min-width: 0;
+}
+.collab__row > .collab__people:empty {
+	display: flex;
+}
+.collab__crown {
+	display: inline-flex;
+	color: var(--text-2);
+}
+.collab__switches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem 1.25rem;
+	color: var(--text-2);
+	font-size: 0.85em;
+}
+.collab__add {
+	display: flex;
+	gap: 0.5rem;
+}
+.collab__add > .text-input {
+	flex: 1;
+	min-width: 0;
+}
+
+.collab__invite {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+.collab__code {
+	font-family: var(--font-mono);
+	font-size: 0.92em;
+	font-variant-numeric: tabular-nums;
+	padding: 1px 0.375rem;
+	border-radius: var(--radius-1);
+	background: var(--surface-3);
+}
+
+.collab-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+}
+.collab-status__open {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius-pill);
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+}
+.collab-status__faces {
+	display: inline-flex;
+	align-items: center;
+}
+.collab-status__faces > * + * {
+	margin-left: -4px;
+}
+.collab-status__faces > .collab__meta {
+	margin-left: 0.25rem;
+}

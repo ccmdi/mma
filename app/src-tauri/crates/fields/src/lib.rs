@@ -351,6 +351,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let (mut clears, mut key_fields) = (Vec::new(), Vec::new());
     let (mut unique_field, mut sequences, mut fills) = (None, Vec::new(), Vec::new());
     let mut nested = Vec::new();
+    let (mut names, mut elements) = (Vec::new(), Vec::new());
     for f in &data.fields {
         let name = f.ident.as_ref().ok_or_else(|| {
             syn::Error::new_spanned(
@@ -388,6 +389,14 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
         let key_name = camel(&name.to_string());
         let wire = format!("\"{key_name}\"");
+        if !skip {
+            names.push(name);
+            elements.push(if merge {
+                quote!(&::mma_algebra::Encoded(&self.#name))
+            } else {
+                quote!(&self.#name)
+            });
+        }
         if key {
             keys.push(wire);
             key_fields.push((name, ty));
@@ -421,12 +430,10 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let flatten = serde_flatten(f);
         let Some(inner) = option_inner(ty) else {
             if merge {
-                let skip = (!flatten).then(|| {
-                    quote! { #[serde(default, skip_serializing_if = "::mma_algebra::is_default")] }
-                });
+                let default = (!flatten).then(|| quote! { #[serde(default)] });
                 slots.push(quote! {
                     #(#codec)*
-                    #skip
+                    #default
                     pub #name: ::mma_algebra::Patch<#ty>,
                 });
                 whole.push(quote! { #name: ::mma_algebra::Patchable::to_patch(&self.#name), });
@@ -441,7 +448,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
             slots.push(quote! {
                 #(#codec)*
-                #[serde(default, skip_serializing_if = "Option::is_none")] pub #name: Option<#ty>,
+                #[serde(default)] pub #name: Option<#ty>,
             });
             whole.push(quote! { #name: Some(self.#name.clone()), });
             writes.push(quote! { if let Some(v) = &patch.#name { out.#name = v.clone(); } });
@@ -461,7 +468,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         };
         slots.push(quote! {
             #(#codec)*
-            #[serde(default, skip_serializing_if = "::mma_algebra::Field::is_keep")]
+            #[serde(default)]
             pub #name: #slot,
         });
         whole.push(if merge {
@@ -525,6 +532,9 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     });
     let serde = input.attrs.iter().filter(|a| a.path().is_ident("serde"));
+    let count = names.len();
+    let indices = 0..count;
+    let expecting = format!("a {patch}");
     let row = expand_row(input)?;
     let keyed = match key_fields.as_slice() {
         [(name, ty)] => quote! {
@@ -545,6 +555,16 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 }
                 fn set_key(&mut self, key: #ty) {
                     self.#name = key;
+                }
+            }
+
+            impl #patch {
+                /// A patch naming `key` and changing nothing.
+                pub fn of(key: #ty) -> Self {
+                    Self {
+                        #name: key,
+                        ..::std::default::Default::default()
+                    }
                 }
             }
         },
@@ -601,8 +621,45 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         #constrained
         /// A change to some of one value's fields: an absent field is unchanged.
         #[derive(Clone, Debug, Default, PartialEq, serde::Deserialize)]
+        #[serde(remote = "Self")]
         #(#serde)*
         pub struct #patch { #(#slots)* }
+
+        impl ::mma_algebra::Encode for #patch {
+            fn encode<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                use serde::ser::SerializeTuple;
+                let mut slots = s.serialize_tuple(#count)?;
+                #(slots.serialize_element(#elements)?;)*
+                slots.end()
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for #patch {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                struct Slots;
+                impl<'de> serde::de::Visitor<'de> for Slots {
+                    type Value = #patch;
+                    fn expecting(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                        f.write_str(#expecting)
+                    }
+                    fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                        self,
+                        mut seq: A,
+                    ) -> Result<#patch, A::Error> {
+                        Ok(#patch {
+                            #(#names: seq
+                                .next_element()?
+                                .ok_or_else(|| serde::de::Error::invalid_length(#indices, &self))?,)*
+                        })
+                    }
+                }
+                if d.is_human_readable() {
+                    Self::deserialize(d)
+                } else {
+                    d.deserialize_tuple(#count, Slots)
+                }
+            }
+        }
 
         impl PartialEq for #ident {
             fn eq(&self, other: &Self) -> bool {
@@ -835,6 +892,102 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
             pub(crate) const SELECT: &'static str = #select;
             pub(crate) fn read(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
                 Ok(Self { #(#reads,)* })
+            }
+        }
+    })
+}
+
+/// Implement `Serialize` and `Deserialize` from the type's `#[serde]` attributes when they
+/// describe a form only a self-describing format reads (flattened, internally tagged or
+/// untagged): that form in human-readable formats, and its JSON text in binary ones.
+#[proc_macro_derive(Json, attributes(serde))]
+pub fn derive_json(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match expand_json(input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+fn expand_json(mut form: DeriveInput) -> syn::Result<TokenStream2> {
+    let ident = form.ident.clone();
+    let serde_only = |attrs: &mut Vec<syn::Attribute>| attrs.retain(|a| a.path().is_ident("serde"));
+    serde_only(&mut form.attrs);
+    let default = format!("{ident}::default");
+    for attr in &mut form.attrs {
+        let metas = attr.parse_args_with(
+            syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+        )?;
+        let metas = metas.into_iter().map(|meta| match meta {
+            syn::Meta::Path(path) if path.is_ident("default") => {
+                syn::parse_quote!(default = #default)
+            }
+            meta => meta,
+        });
+        *attr = syn::parse_quote!(#[serde(#(#metas),*)]);
+    }
+    match &mut form.data {
+        Data::Struct(data) => data
+            .fields
+            .iter_mut()
+            .for_each(|f| serde_only(&mut f.attrs)),
+        Data::Enum(data) => {
+            for variant in &mut data.variants {
+                serde_only(&mut variant.attrs);
+                variant
+                    .fields
+                    .iter_mut()
+                    .for_each(|f| serde_only(&mut f.attrs));
+            }
+        }
+        Data::Union(_) => {
+            return Err(syn::Error::new_spanned(
+                &form,
+                "Json derives on a struct or enum",
+            ))
+        }
+    }
+    form.ident = format_ident!("{ident}Json");
+    form.vis = syn::Visibility::Inherited;
+    let remote = ident.to_string();
+    let twin = &form.ident;
+    let params: Vec<_> = form
+        .generics
+        .type_params()
+        .map(|p| p.ident.clone())
+        .collect();
+    let (implementation, types, _) = form.generics.split_for_impl();
+    let mut de = form.generics.clone();
+    de.params.insert(0, syn::parse_quote!('de));
+    let (de_implementation, _, _) = de.split_for_impl();
+    Ok(quote! {
+        #[derive(serde::Serialize, serde::Deserialize)]
+        #[serde(remote = #remote)]
+        #form
+
+        impl #implementation serde::Serialize for #ident #types
+        where
+            #(#params: serde::Serialize,)*
+        {
+            fn serialize<__S: serde::Serializer>(&self, s: __S) -> Result<__S::Ok, __S::Error> {
+                if s.is_human_readable() {
+                    #twin::serialize(self, s)
+                } else {
+                    ::mma_algebra::Json(self).serialize(s)
+                }
+            }
+        }
+
+        impl #de_implementation serde::Deserialize<'de> for #ident #types
+        where
+            #(#params: serde::de::DeserializeOwned,)*
+        {
+            fn deserialize<__D: serde::Deserializer<'de>>(d: __D) -> Result<Self, __D::Error> {
+                if d.is_human_readable() {
+                    #twin::deserialize(d)
+                } else {
+                    <::mma_algebra::Json<Self> as serde::Deserialize>::deserialize(d).map(|json| json.0)
+                }
             }
         }
     })

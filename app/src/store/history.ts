@@ -3,7 +3,7 @@ import type { MapState } from "./store";
 import type { Stack, Timeline } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
-import { SelectionList } from "./selectionList";
+import { Mutation } from "./mutation";
 
 export type History = bindings.History;
 
@@ -16,7 +16,7 @@ export const History = {
 	/** Undo the newest edit on `timeline`, or redo the newest undone one. */
 	step: async (stack: Stack, timeline: Timeline) => {
 		try {
-			await SelectionList.run(() => cmd.storeStep(stack, timeline));
+			await Mutation.run(() => cmd.storeStep(stack, timeline));
 		} catch (e) {
 			log.debug(`[${stack} ${timeline}] nothing or failed:`, e);
 		}

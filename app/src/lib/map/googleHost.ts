@@ -30,13 +30,14 @@ const EVENT_NAMES: Record<keyof MapHostEvents, string> = {
 	mousedown: "mousedown",
 	mouseup: "mouseup",
 	mouseout: "mouseout",
+	click: "click",
 	zoom: "zoom_changed",
 	camera: "bounds_changed",
 	idle: "idle",
 	tilesloaded: "tilesloaded",
 };
 
-const LATLNG_EVENTS = new Set<keyof MapHostEvents>(["mousemove", "mousedown", "mouseup"]);
+const LATLNG_EVENTS = new Set<keyof MapHostEvents>(["mousemove", "mousedown", "mouseup", "click"]);
 
 class GoogleDeckOverlay implements DeckOverlayHandle {
 	private overlay: GoogleMapsOverlay | null = null;

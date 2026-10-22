@@ -1,56 +1,47 @@
 import { memo, useState, createElement } from "react";
-import { Store } from "@/store/store";
 import { Editor } from "@/store/editor";
 import { getEnabledPlugins } from "@/plugins/registry";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useEvent } from "@/lib/events";
-import { useDialog } from "@/store/dialogBus";
+import { openDialog, useDialog } from "@/store/dialogBus";
 import { Icon } from "@/components/primitives/Icon";
 import { Section } from "@/components/primitives/Sidebar";
 import { IconButton } from "@/components/primitives/IconButton";
 
-export function PluginToolbar() {
+/** A button for each enabled plugin with a modal or a sidebar, carrying its badge; on the map list,
+ *  only those that open a modal and ask to be there. */
+export function PluginButtons({ mapList }: { mapList?: boolean }) {
 	useEvent("plugins:changed");
-	Store.use((s) => s.map);
+	return getEnabledPlugins()
+		.filter((p) => (mapList ? p.onMapList && p.modal : p.modal || p.sidebar))
+		.map((p) => (
+			<IconButton
+				key={p.id}
+				icon={p.icon}
+				label={p.name}
+				size={mapList ? 18 : undefined}
+				tooltipSide={mapList ? undefined : "bottom"}
+				onClick={() =>
+					!mapList && p.sidebar ? Editor.openPlugin(p.id) : openDialog("plugin-modal", p.id)
+				}
+			>
+				{p.badge && <PluginBoundary pluginId={p.id}>{createElement(p.badge)}</PluginBoundary>}
+			</IconButton>
+		));
+}
 
-	const plugins = getEnabledPlugins();
-	const [modalId, setModalId] = useState<string | null>(null);
-	useDialog("plugin-modal", (id) => setModalId(id));
-
-	if (plugins.length === 0) return null;
-
-	const toolbarPlugins = plugins
-		.filter((p) => p.modal || p.sidebar)
-		.sort((a, b) => a.name.localeCompare(b.name));
-	const modalPlugin = modalId ? plugins.find((p) => p.id === modalId && p.modal) : null;
-
-	if (toolbarPlugins.length === 0 && !modalPlugin) return null;
-
+/** The modal of the plugin the app last asked to show, until it closes. */
+export function PluginModal() {
+	useEvent("plugins:changed");
+	const [id, setId] = useState<string | null>(null);
+	useDialog("plugin-modal", setId);
+	const modal = getEnabledPlugins().find((p) => p.id === id)?.modal;
 	return (
-		<>
-			{toolbarPlugins.map((p) => (
-				<IconButton
-					key={p.id}
-					icon={p.icon}
-					label={p.name}
-					tooltipSide="bottom"
-					onClick={() => {
-						if (p.sidebar) {
-							Editor.openPlugin(p.id);
-						} else if (p.modal) {
-							setModalId(modalId === p.id ? null : p.id);
-						}
-					}}
-				/>
-			))}
-			{modalPlugin && modalPlugin.modal && (
-				<PluginBoundary pluginId={modalPlugin.id}>
-					{createElement(modalPlugin.modal, {
-						onClose: () => setModalId(null),
-					})}
-				</PluginBoundary>
-			)}
-		</>
+		modal && (
+			<PluginBoundary pluginId={id!}>
+				{createElement(modal, { onClose: () => setId(null) })}
+			</PluginBoundary>
+		)
 	);
 }
 
@@ -79,3 +70,18 @@ export const PluginLocationPanels = memo(function PluginLocationPanels() {
 		</>
 	);
 });
+
+/** Each enabled plugin's component for `slot`. */
+export function PluginSlot({ slot }: { slot: "layer" | "headerItem" }) {
+	useEvent("plugins:changed");
+	return getEnabledPlugins().map((p) => {
+		const item = p[slot];
+		return (
+			item && (
+				<PluginBoundary key={p.id} pluginId={p.id}>
+					{createElement(item)}
+				</PluginBoundary>
+			)
+		);
+	});
+}

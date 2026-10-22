@@ -1,13 +1,18 @@
 use super::*;
 use crate::selections::PolygonGeometry;
 use crate::test_util;
+use crate::test_util::{Host, Now};
 use crate::util::now_unix;
+use mma_algebra::{IdRange, Patch};
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use tauri::async_runtime;
 use tauri::ipc::InvokeResponseBody;
+use tokio::time::timeout;
+
+const MAP: Target = Target::Map { id: None };
 
 fn square(w: f64, s: f64, e: f64, n: f64) -> Vec<[f64; 2]> {
     vec![[w, s], [e, s], [e, n], [w, n], [w, s]]
@@ -33,6 +38,29 @@ fn band(west: f64, span: f64, s: f64, n: f64) -> Vec<[f64; 2]> {
     ring.extend(edge.iter().rev().map(|&lng| [lng, n]));
     ring.push([west, s]);
     ring
+}
+
+#[test]
+fn edit_rows_carrying_extra_fields_arrive_whole() {
+    let row = serde_json::json!({
+        "id": 7, "lat": 1, "lng": 2, "heading": 0, "pitch": 0, "zoom": 0, "panoId": null,
+        "flags": 0, "tags": [3], "extra": { "k": "v" }, "createdAt": 0, "modifiedAt": 0,
+    });
+    let Rows::Inline(InlineRows(edits)) =
+        serde_json::from_value(serde_json::json!([{ "add": row }])).unwrap()
+    else {
+        panic!("a list of edits is inline rows");
+    };
+    let [Op::Add(added)] = edits.as_slice() else {
+        panic!("one add");
+    };
+    assert_eq!(
+        serde_json::to_value(added).unwrap()["extra"],
+        serde_json::json!({ "k": "v" })
+    );
+
+    let uploaded: Rows = serde_json::from_value(serde_json::json!({ "session": "s" })).unwrap();
+    assert!(matches!(uploaded, Rows::Uploaded { session } if session == "s"));
 }
 
 #[test]
@@ -138,18 +166,16 @@ fn a_copy_lands_the_same_in_an_open_and_a_closed_target() {
     let mut copies = vec![test_util::loc(0, 1.0, 1.0), test_util::loc(0, 2.0, 2.0)];
     copies[0].tags = test_util::tag_ids([1]);
     copies[1].tags = test_util::tag_ids([1, 2]);
-    let adds = copies.into_iter().map(Op::Add).collect();
-    source
-        .at(&Target::Map { id: None })
-        .edit(adds, IncomingRecords::new(), &mut None);
+    let adds: Vec<_> = copies.into_iter().map(Op::Add).collect();
+    source.at(&Target::Map { id: None }).write(adds).now();
 
     let closed = storage::tests::map_on_disk("copy-closed");
     let open = Id::<MapMeta, String>::new("copy-open".into());
     let window = WindowLabel("w".into());
     let mut mgr = StoreManager::new();
     mgr.stores.insert(source.meta.id.clone(), source);
-    mgr.window_map
-        .insert(window.clone(), Id::new("copy-src".into()));
+    mgr.holders
+        .insert(Holder::Window(window.clone()), Id::new("copy-src".into()));
     mgr.stores
         .insert(open.clone(), tagged_map("copy-open", &[(7, "Shared")]));
     let state = StoreState::new(mgr);
@@ -161,14 +187,25 @@ fn a_copy_lands_the_same_in_an_open_and_a_closed_target() {
             name: Some("Shared".into()),
             ..Default::default()
         };
-        store.edit_values("tags", vec![Op::Add(shared)])
+        store
+            .at(&MAP)
+            .field("tags")
+            .unwrap()
+            .write(vec![Op::Add(shared)])
+            .settled()
     })
     .unwrap();
     let steps = |store: &Store| store.steps[Timeline::Edits].len(Stack::Undo);
     let before = steps(&load_store(&closed).unwrap());
 
     let copy = |to: &Id<MapMeta, String>| {
-        let c = copy_locations_to_map(&state, &window, to.clone(), Selector::Everything).unwrap();
+        let c = async_runtime::block_on(copy_locations_to_map(
+            &state,
+            &window,
+            to.clone(),
+            Selector::Everything,
+        ))
+        .unwrap();
         (c.copied, c.skipped)
     };
     assert_eq!(copy(&open), (2, 0));
@@ -193,33 +230,33 @@ fn a_copy_lands_the_same_in_an_open_and_a_closed_target() {
 }
 
 #[test]
-fn store_edit_is_a_blocking_command_so_edits_apply_in_call_order() {
-    // Sync commands run one at a time on the main thread, in the order they were invoked;
-    // an async one would be spawned and could take the store lock out of order.
+fn every_store_change_is_queued_in_call_order_and_replies_once_it_lands() {
+    let _: for<'a> fn(WindowLabel, tauri::State<'a, Writes>, Edits, Reply<Edited>) = store_edit;
     let _: for<'a> fn(
         WindowLabel,
-        tauri::State<'a, StoreState>,
+        tauri::State<'a, Writes>,
         Target,
-        Vec<Edit<Location>>,
-        IncomingRecords,
-    ) -> AppResult<EditResult> = store_edit;
+        Selector<SelectionInput>,
+        Work,
+        Reply<WorkResult>,
+    ) = store_work;
+    let _: for<'a> fn(WindowLabel, tauri::State<'a, Writes>, Stack, Timeline, Reply<Mutation>) =
+        store_step;
+    let _: for<'a> fn(WindowLabel, tauri::State<'a, Writes>, String, Reply<Mutation>) =
+        store_land_layer;
+    let _: for<'a> fn(
+        WindowLabel,
+        tauri::State<'a, Writes>,
+        String,
+        Option<Id<MapMeta, String>>,
+        Reply<()>,
+    ) = store_close_layer;
+    let _: for<'a> fn(tauri::State<'a, Writes>, Patch<MapMeta>, Reply<Option<Mutation>>) =
+        crate::store::maps::store_update_map_meta;
 }
 
 #[test]
-fn store_work_is_spawned_so_whole_map_work_leaves_the_main_thread_free() {
-    fn spawned(
-        state: tauri::State<'_, StoreState>,
-        target: Target,
-        selector: Selector<SelectionInput>,
-        work: Work,
-    ) -> impl Future<Output = AppResult<WorkResult>> + '_ {
-        store_work(WindowLabel("w".into()), state, target, selector, work)
-    }
-    let _ = spawned;
-}
-
-#[test]
-fn whole_map_reads_and_landing_a_layer_are_spawned_off_the_main_thread() {
+fn whole_map_reads_are_spawned_off_the_main_thread() {
     fn read(
         state: tauri::State<'_, StoreState>,
         target: Target,
@@ -228,13 +265,7 @@ fn whole_map_reads_and_landing_a_layer_are_spawned_off_the_main_thread() {
     ) -> impl Future<Output = AppResult<Answer>> + '_ {
         store_read(WindowLabel("w".into()), state, target, selector, ask)
     }
-    fn land(
-        state: tauri::State<'_, StoreState>,
-        name: String,
-    ) -> impl Future<Output = AppResult<Mutation>> + '_ {
-        store_land_layer(WindowLabel("w".into()), state, name)
-    }
-    let _ = (read, land);
+    let _ = read;
 }
 
 #[test]
@@ -260,7 +291,8 @@ fn spawned_work_applies_on_a_runtime_worker_like_a_blocking_command() {
         test_util::loc(3, 2.0, 2.0),
     ];
     mgr.stores.insert(map.clone(), with_rows("spawned", &rows));
-    mgr.window_map.insert(window.clone(), map.clone());
+    mgr.holders
+        .insert(Holder::Window(window.clone()), map.clone());
     let state = Arc::new(StoreState::new(mgr));
 
     let work = Work::Locations(LocationOp::Set {
@@ -270,11 +302,13 @@ fn spawned_work_applies_on_a_runtime_worker_like_a_blocking_command() {
     let worked = async_runtime::block_on(async_runtime::spawn({
         let state = state.clone();
         async move {
-            run_as!(async; with_target(&state, &window, &Target::Map { id: None }, |store| {
-                store
+            reach_target(&state, &window, &Target::Map { id: None }, |store| {
+                Ok(store
                     .at(&Target::Map { id: None })
-                    .work(&Selector::Everything, &work)
-            }))
+                    .scope(&Selector::Everything)
+                    .write(work))
+            })
+            .await
         }
     }))
     .unwrap()
@@ -291,6 +325,76 @@ fn spawned_work_applies_on_a_runtime_worker_like_a_blocking_command() {
         .map(|row| row.pitch)
         .collect();
     assert_eq!(pitches, [10.0, 10.0, 10.0]);
+}
+
+/// A host that answers only once it holds the manager lock, as a session adopting the
+/// host's change must.
+struct AnsweredUnderLock {
+    host: Arc<Host>,
+    state: Arc<StoreState>,
+    map: Id<MapMeta, String>,
+}
+
+impl Upstream for AnsweredUnderLock {
+    fn send(&self, intent: Intent, recording: &mut Recording) -> Reached<EditResult> {
+        let answer = self.host.send(intent, recording);
+        let (host, state, map) = (self.host.clone(), self.state.clone(), self.map.clone());
+        thread::spawn(move || {
+            let mut mgr = state.lock().unwrap();
+            host.answer(mgr.store_for_map(&map).unwrap());
+        });
+        answer
+    }
+
+    fn lease(&self, len: u32) -> Reached<IdRange<Location>> {
+        self.host.lease(len)
+    }
+}
+
+#[test]
+fn an_edit_waits_for_its_host_with_the_manager_unlocked() {
+    let (host, replica) = Host::pair("hosted", &[test_util::loc(0, 1.0, 1.0)]);
+    let map = replica.meta.id.clone();
+    let window = WindowLabel("w".into());
+    let mut mgr = StoreManager::new();
+    mgr.stores.insert(map.clone(), replica);
+    mgr.holders
+        .insert(Holder::Window(window.clone()), map.clone());
+    let state = Arc::new(StoreState::new(mgr));
+    state
+        .lock()
+        .unwrap()
+        .stores
+        .get_mut(&map)
+        .unwrap()
+        .replicate(Arc::new(AnsweredUnderLock {
+            host,
+            state: state.clone(),
+            map: map.clone(),
+        }));
+
+    let edited = async_runtime::block_on(async_runtime::spawn({
+        let state = state.clone();
+        async move {
+            let editing = reach_target(&state, &window, &Target::Map { id: None }, |store| {
+                Ok(store
+                    .at(&Target::Map { id: None })
+                    .write(vec![Op::Remove(Id::new(1))]))
+            });
+            timeout(Duration::from_secs(10), editing).await
+        }
+    }))
+    .unwrap()
+    .expect("the edit must not wait for its host while it holds the manager lock")
+    .unwrap();
+
+    let mut mgr = state.lock().unwrap();
+    let replica = mgr.store_for_map(&map).unwrap();
+    assert_eq!(edited.mutation.version, replica.version);
+    assert!(replica
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything)
+        .is_empty());
 }
 
 #[test]
@@ -323,10 +427,8 @@ fn opening_a_map_waits_while_its_files_are_being_written() {
 
 fn with_rows(id: &str, rows: &[Location]) -> Store {
     let mut store = tagged_map(id, &[]);
-    let adds = rows.iter().cloned().map(Op::Add).collect();
-    store
-        .at(&Target::Map { id: None })
-        .edit(adds, IncomingRecords::new(), &mut None);
+    let adds: Vec<_> = rows.iter().cloned().map(Op::Add).collect();
+    store.at(&Target::Map { id: None }).write(adds).now();
     store
 }
 
@@ -336,13 +438,19 @@ fn copy_over(existing: &[Location], sources: &[Location]) -> (Vec<Location>, u32
     let mut mgr = StoreManager::new();
     mgr.stores
         .insert(Id::new("src".into()), with_rows("src", sources));
-    mgr.window_map.insert(window.clone(), Id::new("src".into()));
+    mgr.holders
+        .insert(Holder::Window(window.clone()), Id::new("src".into()));
     mgr.stores
         .insert(target.clone(), with_rows("dst", existing));
     let state = StoreState::new(mgr);
     let before = existing.len();
-    let copied =
-        copy_locations_to_map(&state, &window, target.clone(), Selector::Everything).unwrap();
+    let copied = async_runtime::block_on(copy_locations_to_map(
+        &state,
+        &window,
+        target.clone(),
+        Selector::Everything,
+    ))
+    .unwrap();
     let mut mgr = state.lock().unwrap();
     let rows = mgr
         .store_for_map(&target)
@@ -410,11 +518,10 @@ fn a_copied_location_is_created_now() {
 #[test]
 fn a_plain_add_on_the_open_map_never_skips_a_row_it_holds() {
     let mut store = with_rows("m", &[at_pano(10.0, 20.0, "AAA")]);
-    let added = store.at(&Target::Map { id: None }).edit(
-        vec![Op::Add(at_pano(10.0, 20.0, "AAA"))],
-        IncomingRecords::new(),
-        &mut None,
-    );
+    let added = store
+        .at(&Target::Map { id: None })
+        .write(vec![Op::Add(at_pano(10.0, 20.0, "AAA"))])
+        .now();
     assert_eq!(added.mutation.keys.len(), 1);
 }
 
@@ -426,12 +533,11 @@ fn an_edit_at_a_map_this_window_does_not_watch_settles_at_once() {
         id: Some(Id::new("other".into())),
     };
     let edit = |store: &mut Store, target: &Target, lat: f64| {
-        let edited = store.at(target).edit(
-            vec![Op::Add(test_util::loc(0, lat, 2.0))],
-            IncomingRecords::new(),
-            &mut None,
-        );
-        receipt(store, &window, target, edited.mutation)
+        let edited = store
+            .at(target)
+            .write(vec![Op::Add(test_util::loc(0, lat, 2.0))])
+            .now();
+        receipt(store, &window, target)(edited.mutation)
     };
     let there = edit(&mut store, &at_other, 1.0);
     assert_eq!(there.version, 0);
@@ -501,11 +607,10 @@ fn change_versions() -> (Channel<ChangeEvent>, Arc<Mutex<Vec<u64>>>) {
 fn add_one(state: &StoreState, map: &Id<MapMeta, String>) -> u64 {
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map).unwrap();
-    store.at(&Target::Map { id: None }).edit(
-        vec![Op::Add(test_util::loc(0, 1.0, 2.0))],
-        IncomingRecords::new(),
-        &mut None,
-    );
+    store
+        .at(&Target::Map { id: None })
+        .write(vec![Op::Add(test_util::loc(0, 1.0, 2.0))])
+        .now();
     store.version
 }
 

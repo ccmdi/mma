@@ -47,7 +47,7 @@ vi.mock("@/lib/commands", async () => {
 	};
 	const handlers: Record<string, (...args: never[]) => unknown> = {
 		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 5, 2: 5 } }),
-		storeEditSelections: async (rows: unknown[]) => selectionsHeld(rows),
+		storeEdit: async (edits: { selections: unknown }) => selectionsHeld(edits.selections),
 		storeRead: async (
 			_target: unknown,
 			node: TestSelector & {
@@ -79,6 +79,7 @@ vi.mock("@/lib/commands", async () => {
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 import { Maps } from "@/store/maps";
 import { SelectionList } from "@/store/selectionList";
+import { Edit } from "@/store/edit";
 import { Query } from "@/store/query";
 import { addSelection, tagSelector } from "@/store/selections";
 
@@ -118,7 +119,7 @@ function pickedIds(): number[] {
 
 beforeEach(async () => {
 	await Maps.open("m1");
-	await SelectionList.update({ kind: "set", selections: [] });
+	await Edit.selections({ kind: "set", selections: [] });
 	h.sampledSelectors = [];
 	h.spacedSelectors = [];
 	h.evenSelectors = [];
@@ -126,7 +127,7 @@ beforeEach(async () => {
 
 describe("random pick, per selection", () => {
 	it("caps each selection separately instead of the union", async () => {
-		await SelectionList.update(addSelection(tagSelector(1), tagSelector(3)));
+		await Edit.selections(addSelection(tagSelector(1), tagSelector(3)));
 
 		const picked = await sample(2, true);
 
@@ -137,7 +138,7 @@ describe("random pick, per selection", () => {
 	});
 
 	it("unions overlapping selections without double-picking", async () => {
-		await SelectionList.update(addSelection(tagSelector(1), tagSelector(2)));
+		await Edit.selections(addSelection(tagSelector(1), tagSelector(2)));
 
 		// 5 from each of two 5-id selections that share 2 ids.
 		const picked = await sample(5, true);
@@ -147,7 +148,7 @@ describe("random pick, per selection", () => {
 	});
 
 	it("falls back to the whole selection below two selections", async () => {
-		await SelectionList.update(addSelection(tagSelector(1)));
+		await Edit.selections(addSelection(tagSelector(1)));
 
 		const picked = await sample(2, true);
 
@@ -157,9 +158,9 @@ describe("random pick, per selection", () => {
 	});
 
 	it("ignores ghosted selections", async () => {
-		await SelectionList.update(addSelection(tagSelector(1), tagSelector(2)));
+		await Edit.selections(addSelection(tagSelector(1), tagSelector(2)));
 		const ghostKey = selectionFixture(tagSelector(2)).key;
-		await SelectionList.update({ kind: "ghost", index: 1 });
+		await Edit.selections({ kind: "ghost", index: 1 });
 
 		await sample(2, true);
 
@@ -177,7 +178,7 @@ describe("random pick, per selection", () => {
 
 describe("spaced pick, per selection", () => {
 	it("runs once per selection, scoped to that selection's props", async () => {
-		await SelectionList.update(addSelection(tagSelector(1), tagSelector(2)));
+		await Edit.selections(addSelection(tagSelector(1), tagSelector(2)));
 
 		const { picked, distanceM } = await spaced("Spaced", { by: "count", n: 2 }, true);
 
@@ -188,7 +189,7 @@ describe("spaced pick, per selection", () => {
 	});
 
 	it("sends the Selected leaf for a whole-selection pick", async () => {
-		await SelectionList.update(addSelection(tagSelector(1), tagSelector(2)));
+		await Edit.selections(addSelection(tagSelector(1), tagSelector(2)));
 
 		const { distanceM } = await spaced("Spaced", { by: "count", n: 3 }, false);
 
@@ -199,7 +200,7 @@ describe("spaced pick, per selection", () => {
 
 describe("evenly spaced pick, per selection", () => {
 	it("runs once per selection on its own command and claims no spacing across them", async () => {
-		await SelectionList.update(addSelection(tagSelector(1), tagSelector(3)));
+		await Edit.selections(addSelection(tagSelector(1), tagSelector(3)));
 
 		const { picked, distanceM } = await spaced("EvenlySpaced", { by: "count", n: 2 }, true);
 
@@ -210,7 +211,7 @@ describe("evenly spaced pick, per selection", () => {
 	});
 
 	it("reports the spacing of a whole-selection pick", async () => {
-		await SelectionList.update(addSelection(tagSelector(1)));
+		await Edit.selections(addSelection(tagSelector(1)));
 
 		const { distanceM } = await spaced("EvenlySpaced", { by: "metres", m: 250 }, false);
 

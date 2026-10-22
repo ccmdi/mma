@@ -56,7 +56,7 @@ pub enum Order {
 }
 
 /// Selection predicates and composites, serialized with a `type` discriminator.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type, Children)]
+#[derive(Clone, Debug, PartialEq, mma_fields::Json, specta::Type, Children)]
 #[serde(tag = "type")]
 pub enum Selector<S = Selection> {
     Locations {

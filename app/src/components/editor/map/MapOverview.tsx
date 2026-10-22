@@ -23,7 +23,7 @@ import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { TextInput } from "@/components/primitives/TextInput";
 import { NumberInput } from "@/components/primitives/NumberInput";
-import { PluginToolbar } from "@/plugins/PluginPanels";
+import { PluginButtons } from "@/plugins/PluginPanels";
 import { fmt, distanceUnit, formatDistance } from "@/lib/util/format";
 import { useDialog, useDialogState, openDialog } from "@/store/dialogBus";
 import { SelectionRow } from "./SelectionRow";
@@ -215,7 +215,7 @@ function RankedPanel({
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!field || count < 1) return;
-				void SelectionList.update(
+				void Edit.selections(
 					addSelection({
 						type: "Ranked",
 						selection: selection(has(field)),
@@ -366,7 +366,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 					<>
 						<SelectedCount className="selection-manager__count" />
 						<span className="selection-manager__space" />
-						<PluginToolbar />
+						<PluginButtons />
 						<Button onClick={() => openDialog("command-palette")}>{t("Commands...")}</Button>
 					</>
 				}
@@ -391,7 +391,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									className="selection-manager__inline-form"
 									onSubmit={(e) => {
 										e.preventDefault();
-										void SelectionList.update(
+										void Edit.selections(
 											addSelection({ type: "Duplicates", distance: dupDistance }),
 										);
 									}}
@@ -416,7 +416,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									persistKey={map.id}
 									submitLabel={t("Add filter")}
 									onSubmit={(field, test) => {
-										void SelectionList.update(addSelection({ type: "Filter", field, test }));
+										void Edit.selections(addSelection({ type: "Filter", field, test }));
 									}}
 								/>
 							),

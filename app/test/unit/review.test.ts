@@ -40,7 +40,11 @@ vi.mock("@/store/selectionList", () => ({
 	SelectionList: {
 		active: () => store.active,
 		listed: () => [],
-		update: vi.fn(),
+	},
+}));
+vi.mock("@/store/edit", () => ({
+	Edit: {
+		selections: vi.fn(),
 	},
 }));
 
@@ -59,7 +63,7 @@ vi.mock("@/store/selections", () => ({
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 import { Review } from "@/lib/review/review";
 import { cmd } from "@/lib/commands";
-import { SelectionList } from "@/store/selectionList";
+import { Edit } from "@/store/edit";
 import type { ReviewSession } from "@/bindings.gen";
 
 function mk(order: number[], cursorId: number, reviewed: number[] = []): ReviewSession {
@@ -304,15 +308,15 @@ describe("session persistence", () => {
 		await Review.resume(mk([1, 2, 3], 2));
 		vi.useFakeTimers();
 		vi.mocked(cmd.storeReviewEdit).mockClear();
-		vi.mocked(SelectionList.update).mockClear();
+		vi.mocked(Edit.selections).mockClear();
 		await Review.prev();
 		await vi.advanceTimersByTimeAsync(400);
 		expect(saved()).toEqual([1]);
-		expect(SelectionList.update).toHaveBeenCalledTimes(1);
+		expect(Edit.selections).toHaveBeenCalledTimes(1);
 		await Review.next();
 		await vi.advanceTimersByTimeAsync(400);
 		expect(saved()).toEqual([1, 2]);
-		expect(SelectionList.update).toHaveBeenCalledTimes(2);
+		expect(Edit.selections).toHaveBeenCalledTimes(2);
 	});
 
 	it("closing a session lands its pending save at once", async () => {

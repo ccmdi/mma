@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Store } from "@/store/store";
-import { SelectionList } from "@/store/selectionList";
+import { Edit } from "@/store/edit";
 import { Query } from "@/store/query";
 import { Sidebar, Field, SegmentedControl } from "@/components/primitives/Sidebar";
 import { EmptyState } from "@/components/primitives/EmptyState";
@@ -186,7 +186,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 			});
 			if (sels.length === 0) return;
 
-			await SelectionList.update({ kind: "active", op: { kind: "set", selections: sels } });
+			await Edit.selections({ kind: "active", op: { kind: "set", selections: sels } });
 		} finally {
 			setApplying(false);
 		}

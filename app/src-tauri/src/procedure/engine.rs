@@ -9,19 +9,21 @@ use crate::net::fetch::{
 use crate::runs::{register_run, unregister_run};
 use crate::selections::tree::SelectionInput;
 use crate::selections::{neighborhood, RowRef, Selector};
-use crate::store::engine::{Store, StoreState, Target, WindowLabel};
+use crate::store::engine::{Recording, Store, StoreState, Target, WindowLabel};
 use crate::store::maps::MapMeta;
 use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::{wire_str_enum, AppError, AppResult, Location};
-use mma_algebra::{Id, Op, Patch, Patchable};
+use crate::util::Lock;
+use mma_algebra::{Edit, Id, Op, Patch, Patchable};
 use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{mpsc, Arc, Mutex, OnceLock, PoisonError};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use std::{mem, thread};
+use tauri::async_runtime;
 use tokio::task;
 
 /// Locations materialized per lock acquisition. The engine never holds more than
@@ -228,7 +230,7 @@ impl Partials {
 
     pub fn emit(&self, id: Id<Location>, json: String) {
         let page = {
-            let mut buf = self.buf.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut buf = self.buf.locked();
             buf.entries.push(ResultEntry { id, json });
             if buf.entries.len() < PARTIAL_PAGE && buf.last_flush.elapsed() < PARTIAL_INTERVAL {
                 return;
@@ -241,7 +243,7 @@ impl Partials {
 
     pub fn flush(&self) {
         let page = {
-            let mut buf = self.buf.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut buf = self.buf.locked();
             buf.last_flush = Instant::now();
             mem::take(&mut buf.entries)
         };
@@ -408,7 +410,7 @@ impl ProviderProgress {
 
     fn maybe_emit(&self) {
         {
-            let mut last = self.last.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut last = self.last.locked();
             if last.elapsed() < PROGRESS_INTERVAL {
                 return;
             }
@@ -455,10 +457,7 @@ impl<T: 'static> Live<T> {
     fn add(&'static self, cell: T) -> LiveGuard<T> {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let cell = Arc::new(cell);
-        self.cells()
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .insert(id, cell.clone());
+        self.cells().locked().insert(id, cell.clone());
         LiveGuard {
             reg: self,
             id,
@@ -467,12 +466,7 @@ impl<T: 'static> Live<T> {
     }
 
     fn snapshot(&self) -> Vec<Arc<T>> {
-        self.cells()
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .values()
-            .cloned()
-            .collect()
+        self.cells().locked().values().cloned().collect()
     }
 }
 
@@ -484,11 +478,7 @@ struct LiveGuard<T: 'static> {
 
 impl<T: 'static> Drop for LiveGuard<T> {
     fn drop(&mut self) {
-        self.reg
-            .cells()
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .remove(&self.id);
+        self.reg.cells().locked().remove(&self.id);
     }
 }
 
@@ -563,7 +553,7 @@ pub(crate) struct RunCtx<'a> {
     pub progress: Arc<ProgressSink>,
     pub results: Arc<ResultSink>,
     /// The undo entry every provider's pages share, so the whole run undoes as one step.
-    pub undo_group: Arc<Mutex<Option<u64>>>,
+    pub undo_group: Arc<Mutex<Recording>>,
 }
 
 impl RunCtx<'_> {
@@ -586,7 +576,7 @@ impl NeighborCache {
         radius_m: f64,
         fields: &[String],
     ) -> AppResult<Arc<neighborhood::Index>> {
-        let mut held = self.built.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut held = self.built.locked();
         if let Some(b) = held.as_ref() {
             if b.radius_m == radius_m && b.fields == fields {
                 return Ok(b.index.clone());
@@ -596,9 +586,8 @@ impl NeighborCache {
         let index = ctx.with_store(|store| {
             let index = store
                 .at(&ctx.target)
-                .scope(&Selector::Everything, None, |scope| {
-                    neighborhood::Index::build(scope.rows(), radius_m, fields)
-                });
+                .scope(&Selector::Everything)
+                .read(|scope| neighborhood::Index::build(scope.rows(), radius_m, fields));
             Ok(Arc::new(index))
         })?;
         *held = Some(BuiltIndex {
@@ -690,9 +679,10 @@ pub(crate) fn run_all(ctx: &RunCtx, providers: &[ProviderDecl]) {
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let ids: Vec<Id<Location>> = ctx.with_store(|store| {
-        Ok(store.at(&ctx.target).scope(&decl.select, None, |scope| {
-            scope.rows().map(|row| row.id()).collect()
-        }))
+        Ok(store
+            .at(&ctx.target)
+            .scope(&decl.select)
+            .read(|scope| scope.rows().map(|row| row.id()).collect()))
     })?;
     let total = ids.len() as u32;
     let started = Instant::now();
@@ -952,8 +942,8 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
     let mut entries = page.entries;
     if !page.updates.is_empty() {
         let ids: Vec<Id<Location>> = page.updates.iter().map(|(_, u)| u.id).collect();
-        let held_rows = ctx.with_store(|store| {
-            let edits = page
+        let (edited, held_rows) = ctx.with_store(|store| {
+            let edits: Vec<Edit<Location>> = page
                 .updates
                 .iter()
                 .map(|(read, patch)| {
@@ -976,21 +966,20 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                     Op::Put(patch)
                 })
                 .collect();
-            let mut group = ctx
-                .undo_group
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
+            let mut group = ctx.undo_group.locked();
             // Pending edits emit no map change event, so stream the updated rows to the caller.
-            let mut at = store.at(&ctx.target);
+            let mut at = store.at(&ctx.target).joining(&mut group);
             let held = at.held();
-            at.edit(edits, Default::default(), &mut group);
-            Ok(held.then(|| {
+            let edited = at.write(edits);
+            let held_rows = held.then(|| {
                 at.rows(&Selector::Locations {
                     locations: ids.to_vec(),
                     name: None,
                 })
-            }))
+            });
+            Ok((edited, held_rows))
         })?;
+        async_runtime::block_on(edited)?;
         if let Some(rows) = held_rows {
             for row in rows {
                 entries.push(ResultEntry {
@@ -1193,10 +1182,7 @@ fn run_instance(
     config: &str,
 ) {
     loop {
-        let next = batches
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .recv();
+        let next = batches.locked().recv();
         let Ok(Tagged { page, batch }) = next else {
             return;
         };

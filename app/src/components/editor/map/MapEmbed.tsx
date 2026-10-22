@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState, type CSSProperties } from "react";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
+import clsx from "clsx";
 import {
 	mdiGoogleStreetView,
 	mdiMapMarker,
@@ -14,6 +15,8 @@ import { Query } from "@/store/query";
 import { Scene } from "@/lib/render/scene";
 import { useMapSurface } from "@/lib/render/useMapSurface";
 import { Icon } from "@/components/primitives/Icon";
+import { Spinner } from "@/components/primitives/Spinner";
+import { useEventValue } from "@/lib/events";
 import { svThumbnailUrl, svSearchRadius } from "@/lib/sv/lookup";
 import { PanoType } from "@/bindings.consts";
 import { panosAt } from "@/lib/sv/query";
@@ -54,6 +57,7 @@ import {
 import { FpsCounter } from "@/components/editor/map/FpsCounter";
 import { msg, t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
+import { Edit } from "@/store/edit";
 
 const OPACITY_TARGET_ICONS: Record<OpacityLayer, string> = {
 	sv: mdiGoogleStreetView,
@@ -87,6 +91,7 @@ export function MapEmbed({
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [host, setHost] = useState<MapHost | null>(null);
 	const hostRef = useRef<MapHost | null>(null);
+	const loading = useEventValue("scene:changed", Scene.loading.held);
 
 	const [prefs, setPrefs] = useLocalStorage(MAP_EMBED_PREFS);
 	const pref =
@@ -247,10 +252,10 @@ export function MapEmbed({
 			offMove();
 			const center = created.getCenter();
 			if (center) savedCameraRef.current = { center, zoom: created.getZoom() };
+			MapHost.set(null);
 			created.destroy();
 			div.remove();
 			hostRef.current = null;
-			MapHost.set(null);
 			setHost(null);
 		};
 	}, [surface]);
@@ -364,6 +369,9 @@ export function MapEmbed({
 	return (
 		<ContextMenu.Root>
 			<div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+			<div className={clsx("map-loading", loading && "is-loading")} aria-hidden={!loading}>
+				<Spinner />
+			</div>
 			<div className="embed-controls">
 				{/* TopLeft: Map dropdown, Search */}
 				<div
@@ -391,7 +399,7 @@ export function MapEmbed({
 							onDraw={(rings) => {
 								if (rings.length === 0) return;
 								if (MapHost.tryInterceptDraw(rings)) return;
-								void SelectionList.update(
+								void Edit.selections(
 									addSelection({
 										type: "Polygon",
 										polygon: { coordinates: rings as [number, number][][], extraPolygons: null },

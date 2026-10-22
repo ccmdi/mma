@@ -37,7 +37,7 @@ describe("Selections - basic types", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 	});
 
 	// --- Everything ---
@@ -51,7 +51,7 @@ describe("Selections - basic types", () => {
 
 	it("selectPanoIds selects locations with LoadAsPanoId flag", async () => {
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true)));
 			const sels = api.SelectionList.active();
 			return { count: api.Scene.selected().size, selCount: sels.length };
 		});
@@ -61,7 +61,7 @@ describe("Selections - basic types", () => {
 
 	it("selectNotPanoIds selects locations without LoadAsPanoId flag", async () => {
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(false)));
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(false)));
 			return api.Scene.selected().size;
 		});
 		expect(result).toBe(150);
@@ -69,8 +69,8 @@ describe("Selections - basic types", () => {
 
 	it("PanoIds + NotPanoIds = Everything", async () => {
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(false)));
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true)));
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(false)));
 			return api.Scene.selected().size;
 		});
 		expect(result).toBe(200);
@@ -111,9 +111,9 @@ describe("Selections - basic types", () => {
 		const id2 = locIds[2];
 		await withApi(
 			async (api, i0: number, i1: number, i2: number) => {
-				await api.SelectionList.update({ kind: "manual", id: i0 });
-				await api.SelectionList.update({ kind: "manual", id: i1 });
-				await api.SelectionList.update({ kind: "manual", id: i2 });
+				await api.Edit.selections({ kind: "manual", id: i0 });
+				await api.Edit.selections({ kind: "manual", id: i1 });
+				await api.Edit.selections({ kind: "manual", id: i2 });
 			},
 			id0,
 			id1,
@@ -123,7 +123,7 @@ describe("Selections - basic types", () => {
 		expect(ids.length).toBe(3);
 
 		await withApi(async (api, i1: number) => {
-			await api.SelectionList.update({ kind: "manual", id: i1 }); // remove
+			await api.Edit.selections({ kind: "manual", id: i1 }); // remove
 		}, id1);
 		ids = await refreshSelections();
 		expect(ids.length).toBe(2);
@@ -172,8 +172,8 @@ describe("Selections - basic types", () => {
 			extraPolygons: null,
 		};
 		const selected = await withApi(async (api, crossed: PolygonGeometry) => {
-			await api.SelectionList.update({ kind: "set", selections: [] });
-			await api.SelectionList.update(api.addSelection({ type: "Polygon", polygon: crossed }));
+			await api.Edit.selections({ kind: "set", selections: [] });
+			await api.Edit.selections(api.addSelection({ type: "Polygon", polygon: crossed }));
 			return [...api.Scene.selected()];
 		}, bowtie);
 		expect(selected).toContain(left);
@@ -190,7 +190,7 @@ describe("Selections - basic types", () => {
 		]);
 
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update(api.addSelection({ type: "Duplicates", distance: 1 }));
+			await api.Edit.selections(api.addSelection({ type: "Duplicates", distance: 1 }));
 			const ids = api.Scene.selected();
 			return { count: ids.size };
 		});
@@ -215,15 +215,15 @@ describe("Selection operations", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 	});
 
 	it("intersection of two selections", async () => {
 		const result = await withApi(async (api, tagId: number) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30 (flags=1)
-			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 50 (indices 0-49)
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true))); // 30 (flags=1)
+			await api.Edit.selections(api.addSelection(api.tagSelector(tagId))); // 50 (indices 0-49)
 			// PanoIds (0-29) intersect Tag-a (0-49) = 30
-			await api.SelectionList.update({
+			await api.Edit.selections({
 				kind: "active",
 				op: { kind: "combine", group: "Intersection", keys: null },
 			});
@@ -235,10 +235,10 @@ describe("Selection operations", () => {
 
 	it("union of two selections", async () => {
 		const result = await withApi(async (api, tagId: number) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30
-			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 50
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true))); // 30
+			await api.Edit.selections(api.addSelection(api.tagSelector(tagId))); // 50
 			// Union: 0-29 + 0-49 = 0-49 = 50
-			await api.SelectionList.update({
+			await api.Edit.selections({
 				kind: "active",
 				op: { kind: "combine", group: "Union", keys: null },
 			});
@@ -249,8 +249,8 @@ describe("Selection operations", () => {
 
 	it("invert selection", async () => {
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30
-			await api.SelectionList.update({ kind: "active", op: { kind: "complement", keys: null } }); // 100 - 30 = 70
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true))); // 30
+			await api.Edit.selections({ kind: "active", op: { kind: "complement", keys: null } }); // 100 - 30 = 70
 			return api.Scene.selected().size;
 		});
 		expect(result).toBe(70);
@@ -258,11 +258,11 @@ describe("Selection operations", () => {
 
 	it("remove selection by key", async () => {
 		const result = await withApi(async (api, tagId: number) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
-			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId)));
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true)));
+			await api.Edit.selections(api.addSelection(api.tagSelector(tagId)));
 			const before = api.SelectionList.active().length;
 			const key = api.SelectionList.active().find((s) => api.tagIdOf(s.selector) != null)!.key;
-			await api.SelectionList.update({ kind: "remove", keys: [key] });
+			await api.Edit.selections({ kind: "remove", keys: [key] });
 			const after = api.SelectionList.active().length;
 			return { before, after };
 		}, tagAId);
@@ -272,14 +272,14 @@ describe("Selection operations", () => {
 
 	it("resetSelections clears all", async () => {
 		await withApi(async (api, tagId: number) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
-			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId)));
-			await api.SelectionList.update(api.addSelection(api.untaggedSelector()));
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true)));
+			await api.Edit.selections(api.addSelection(api.tagSelector(tagId)));
+			await api.Edit.selections(api.addSelection(api.untaggedSelector()));
 		}, tagAId);
 
 		const result = await withApi(async (api) => {
 			const before = api.SelectionList.active().length;
-			await api.SelectionList.update({ kind: "set", selections: [] });
+			await api.Edit.selections({ kind: "set", selections: [] });
 			const after = api.SelectionList.active().length;
 			return { before, after };
 		});
@@ -289,7 +289,7 @@ describe("Selection operations", () => {
 
 	it("addSelection with custom props", async () => {
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			const sels = api.SelectionList.active();
 			return {
 				count: sels.length,
@@ -318,13 +318,13 @@ describe("Selection correctness after mutations", () => {
 		const locsToFlag = [];
 		for (let i = 0; i < 5; i++) locsToFlag.push(await getLoc(locIds[i]));
 		const result = await withApi(async (api, locs) => {
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true)));
 			const before = api.Scene.selected().size;
 			for (const l of locs) {
 				await api.Location.update([{ id: l.id, flags: 1 }]);
 			}
-			await api.SelectionList.update({ kind: "set", selections: [] });
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
+			await api.Edit.selections({ kind: "set", selections: [] });
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true)));
 			const after = api.Scene.selected().size;
 			return { before, after };
 		}, locsToFlag);
@@ -334,14 +334,14 @@ describe("Selection correctness after mutations", () => {
 
 	it("selection updates after adding locations", async () => {
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update({ kind: "set", selections: [] });
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections({ kind: "set", selections: [] });
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			const before = (await api._test.syncSelections()).ids.length;
 
 			await api.Location.add([api.createLocation({ lat: 50, lng: 50 })]);
 
-			await api.SelectionList.update({ kind: "set", selections: [] });
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections({ kind: "set", selections: [] });
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			const after = (await api._test.syncSelections()).ids.length;
 			return { before, after };
 		});
@@ -350,8 +350,8 @@ describe("Selection correctness after mutations", () => {
 
 	it("selection updates after removing locations", async () => {
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update({ kind: "set", selections: [] });
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections({ kind: "set", selections: [] });
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			const before = (await api._test.syncSelections()).ids;
 			const toRemove = before[before.length - 1];
 			await api.Location.remove(new Set([toRemove]));
@@ -364,8 +364,8 @@ describe("Selection correctness after mutations", () => {
 	it("PanoIds selection correct after undo of flag change", async () => {
 		const loc0 = await getLoc(locIds[0]);
 		await withApi(async (api, loc) => {
-			await api.SelectionList.update({ kind: "set", selections: [] });
-			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
+			await api.Edit.selections({ kind: "set", selections: [] });
+			await api.Edit.selections(api.addSelection(api.panoIdSelector(true)));
 			await api.Location.update([{ id: loc.id, flags: 0 }]);
 		}, loc0);
 
@@ -386,10 +386,10 @@ describe("Selection correctness after mutations", () => {
 		const tagLoc1 = await getLoc(locIds[1]);
 		await withApi(
 			async (api, l0, l1, tagId: number) => {
-				await api.SelectionList.update({ kind: "set", selections: [] });
+				await api.Edit.selections({ kind: "set", selections: [] });
 				await api.Location.update([{ id: l0.id, tags: [tagId] }]);
 				await api.Location.update([{ id: l1.id, tags: [tagId] }]);
-				await api.SelectionList.update(api.addSelection(api.tagSelector(tagId)));
+				await api.Edit.selections(api.addSelection(api.tagSelector(tagId)));
 			},
 			tagLoc0,
 			tagLoc1,
@@ -411,7 +411,7 @@ describe("Selection with Filter", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 	});
 
 	it("filter by string equality", async () => {

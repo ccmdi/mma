@@ -19,13 +19,19 @@ export const Mutation = {
 		await Autosave.waitForInflight();
 		await caughtUp;
 	},
+	/** Send a store write, then wait until the open map shows it. */
+	write: async <R extends Mutation | { mutation: Mutation } | null>(
+		fn: () => Promise<R>,
+	): Promise<R> => {
+		const r = await fn();
+		if (r) await Mutation.settle("mutation" in r ? r.mutation : r);
+		return r;
+	},
 	run: async <R extends Mutation | { mutation: Mutation } = Mutation>(
 		fn: () => Promise<R>,
 		...fallback: Mutation extends R ? [empty?: R] : [empty: R]
 	): Promise<R> => {
 		if (!Store.get().map) return (fallback[0] ?? Mutation.none()) as R;
-		const r = await fn();
-		await Mutation.settle("mutation" in r ? r.mutation : r);
-		return r;
+		return Mutation.write(fn);
 	},
 };

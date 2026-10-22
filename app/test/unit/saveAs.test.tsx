@@ -6,7 +6,7 @@ import { Store } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { goTo } from "@/store/router";
 import { initLocale } from "@/lib/i18n";
-import { mountAsync } from "./fixtures/harness";
+import { mountAsync, typeInto } from "./fixtures/harness";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@tauri-apps/api/event", () => ({ emit: vi.fn(async () => {}), listen: vi.fn() }));
@@ -34,10 +34,7 @@ async function submit() {
 }
 
 function type(value: string) {
-	act(() => {
-		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(), value);
-		input().dispatchEvent(new Event("input", { bubbles: true }));
-	});
+	typeInto(input(), value);
 }
 
 beforeAll(async () => {

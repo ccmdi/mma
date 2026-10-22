@@ -5,6 +5,7 @@
 //! the GitHub App installation key and files the issue on their behalf.
 
 use crate::io::export;
+use crate::net;
 use crate::net::github;
 use crate::net::github::{IssueComment, IssueThread};
 use crate::net::proxy;
@@ -270,8 +271,7 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
         let challenge = fetch_challenge()?;
         let digest = util::sha256_hex(&bytes);
         let nonce = solve_pow(&format!("{challenge}:{digest}"), POW_BITS);
-        let name = percent_encoding::utf8_percent_encode(&name, percent_encoding::NON_ALPHANUMERIC)
-            .to_string();
+        let name = net::encoded(&name);
         let resp = proxy::proxy_client()
             .post(format!(
                 "{}/uploads?name={name}&challenge={challenge}&nonce={nonce}",

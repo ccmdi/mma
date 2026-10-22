@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { debounce, delay, serial } from "@/lib/util/concurrent";
+import { debounce, delay, serial, throttle } from "@/lib/util/concurrent";
 
 describe("delay", () => {
 	it("resolves after its time and rejects with the signal's reason once aborted", async () => {
@@ -80,6 +80,31 @@ describe("debounce", () => {
 			saves.cancel();
 			await vi.advanceTimersByTimeAsync(400);
 			expect(run.mock.calls).toEqual([[2], [3]]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe("throttle", () => {
+	it("runs at once, then once more at the end of each wait with the latest arguments", () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+		try {
+			const run = vi.fn();
+			const sends = throttle(run, 40);
+			sends.schedule(1);
+			sends.schedule(2);
+			sends.schedule(3);
+			expect(run.mock.calls).toEqual([[1]]);
+			vi.advanceTimersByTime(40);
+			expect(run.mock.calls).toEqual([[1], [3]]);
+			vi.advanceTimersByTime(1000);
+			expect(run).toHaveBeenCalledTimes(2);
+			sends.schedule(4);
+			sends.schedule(5);
+			sends.cancel();
+			vi.advanceTimersByTime(1000);
+			expect(run.mock.calls).toEqual([[1], [3], [4]]);
 		} finally {
 			vi.useRealTimers();
 		}

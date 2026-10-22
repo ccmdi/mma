@@ -1,13 +1,17 @@
 use super::*;
 use crate::test_util;
-use crate::test_util::{loc_ids, tag_ids, TempDir};
+use crate::test_util::{loc_ids, tag_ids, Host, Now, TempDir};
 use crate::types::Location;
-use mma_algebra::Id;
+use futures::executor::block_on;
+use mma_algebra::{Id, Patchable};
 use std::collections::HashSet;
 use std::future::Future;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{mem, thread};
 use tauri::async_runtime;
+
+const MAP: Target = Target::Map { id: None };
 
 #[test]
 fn map_settings_never_serializes_absent_keys() {
@@ -826,7 +830,7 @@ fn an_open_maps_meta_lands_on_disk_only_through_the_save_path() {
         name: Some("Renamed".into()),
         ..Default::default()
     };
-    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    update_map_meta(&mut mgr, &conn, patch).unwrap().now();
 
     assert_eq!(mgr.stores[&Id::new("m1".into())].map().name, "Renamed");
     assert_eq!(name_on_disk(&conn), "Real");
@@ -889,7 +893,7 @@ fn a_closed_maps_meta_is_written_directly() {
         name: Some("Renamed".into()),
         ..Default::default()
     };
-    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    update_map_meta(&mut mgr, &conn, patch).unwrap().now();
     assert_eq!(name_on_disk(&conn), "Renamed");
 }
 
@@ -907,13 +911,15 @@ fn a_settings_patch_changes_only_the_keys_it_names_on_open_and_closed_maps() {
             &conn,
             set(serde_json::json!({ "searchRadius": 50 })),
         )
-        .unwrap();
+        .unwrap()
+        .now();
         update_map_meta(
             &mut mgr,
             &conn,
             set(serde_json::json!({ "exportZoom": true })),
         )
-        .unwrap();
+        .unwrap()
+        .now();
         let settings = match mgr.store_for_map(&Id::new("m1".into())) {
             Ok(store) => store.meta.settings.clone(),
             Err(_) => {
@@ -940,10 +946,32 @@ fn an_open_maps_field_definitions_ship_when_patched() {
         ..Default::default()
     };
     let before = mgr.store_for_map(&Id::new("m1".into())).unwrap().version;
-    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    update_map_meta(&mut mgr, &conn, patch).unwrap().now();
     let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
     assert_eq!(*store.field_defs, fields);
     assert!(store.version > before, "the change landed and shipped");
+}
+
+#[test]
+fn an_open_maps_details_patch_lands_as_one_change() {
+    let conn = setup_real_db();
+    let mut mgr = open_m1(&conn);
+    let id = Id::new("m1".into());
+    let before = mgr.store_for_map(&id).unwrap().version;
+    let patch = Patch::<MapMeta> {
+        id: id.clone(),
+        name: Some("Renamed".into()),
+        folder: mma_algebra::Field::Set("Filed".into()),
+        ..Default::default()
+    };
+    let mutation = update_map_meta(&mut mgr, &conn, patch)
+        .unwrap()
+        .now()
+        .unwrap();
+    let store = mgr.store_for_map(&id).unwrap();
+    assert_eq!(store.meta.name, "Renamed");
+    assert_eq!(store.meta.folder.as_deref(), Some("Filed"));
+    assert_eq!((mutation.version, store.version), (before + 1, before + 1));
 }
 
 #[test]
@@ -955,7 +983,7 @@ fn a_duplicate_of_an_open_map_carries_its_unsaved_row_and_records() {
         description: Some("unsaved".into()),
         ..Default::default()
     };
-    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    update_map_meta(&mut mgr, &conn, patch).unwrap().now();
     let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
     store
         .records
@@ -1003,8 +1031,8 @@ fn a_whole_row_as_a_patch_writes_every_column_back() {
     row.settings.plugin_data = HashMap::from([(
         "plugin".into(),
         HashMap::from([
-            ("null".into(), serde_json::Value::Null),
-            ("count".into(), serde_json::json!(2)),
+            ("null".into(), Json(serde_json::Value::Null)),
+            ("count".into(), Json(serde_json::json!(2))),
         ]),
     )]);
     storage::update_row::<MapMeta>(&conn, "maps", "m1", &row).unwrap();
@@ -1075,17 +1103,17 @@ fn a_map_level_interned_field_stores_reloads_and_undoes_its_records() {
         }),
         ..Default::default()
     };
-    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    update_map_meta(&mut mgr, &conn, patch).unwrap().now();
     let store = mgr.store_for_map(&m1).unwrap();
     let plate = store
-        .edit_values(
-            "plates",
-            vec![mma_algebra::Op::Add(engine::ValueRecord {
-                name: Some("AB-123".into()),
-                ..Default::default()
-            })],
-        )
+        .at(&MAP)
+        .field("plates")
         .unwrap()
+        .write(vec![mma_algebra::Op::Add(engine::ValueRecord {
+            name: Some("AB-123".into()),
+            ..Default::default()
+        })])
+        .now()
         .keys[0];
     let dir = TempDir::new("mma_test_interned_map_field");
     let save = |store: &mut engine::Store| {
@@ -1110,7 +1138,7 @@ fn a_map_level_interned_field_stores_reloads_and_undoes_its_records() {
         .step(engine::Stack::Undo, engine::Timeline::Edits, |_| {
             Err("the step is resident".into())
         })
-        .unwrap()
+        .now()
         .unwrap();
     assert!(store.value_record("plates", plate).is_none());
     save(store);
@@ -1123,25 +1151,25 @@ fn plugin_settings_patch_changes_only_named_keys_and_keeps_null_values() {
     old.plugin_data.insert(
         "first".into(),
         HashMap::from([
-            ("keep".into(), serde_json::json!(1)),
-            ("remove".into(), serde_json::json!(2)),
+            ("keep".into(), Json(serde_json::json!(1))),
+            ("remove".into(), Json(serde_json::json!(2))),
         ]),
     );
     old.plugin_data.insert(
         "other".into(),
-        HashMap::from([("keep".into(), serde_json::json!(true))]),
+        HashMap::from([("keep".into(), Json(serde_json::json!(true)))]),
     );
 
     let mut new = old.clone();
     new.plugin_data
         .get_mut("first")
         .unwrap()
-        .insert("nullable".into(), serde_json::Value::Null);
+        .insert("nullable".into(), Json(serde_json::Value::Null));
     new.plugin_data.get_mut("first").unwrap().remove("remove");
     new.plugin_data
         .get_mut("other")
         .unwrap()
-        .insert("keep".into(), serde_json::json!(false));
+        .insert("keep".into(), Json(serde_json::json!(false)));
 
     let wire = serde_json::json!({ "pluginData": {
         "first": { "put": {
@@ -1160,11 +1188,11 @@ fn an_open_maps_view_uses_its_current_locations_and_owned_records() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
     let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
-    store.write(
-        [mma_algebra::Op::Set(test_util::loc(1, 1.0, 1.0))],
-        &mut None,
-        engine::Entry::default(),
-    );
+    store
+        .at(&Target::Map { id: None })
+        .write(vec![mma_algebra::Op::Set(test_util::loc(1, 1.0, 1.0))])
+        .now()
+        .mutation;
     let current = store.map();
     assert_eq!(current.location_count, 1);
     assert_eq!(current.pending.added, 1);
@@ -1243,7 +1271,8 @@ fn an_open_map_saves_the_updated_time_it_holds_and_only_a_change_moves_it() {
             ..Default::default()
         },
     )
-    .unwrap();
+    .unwrap()
+    .now();
     let store = mgr.store_for_map(&id).unwrap();
     let edited = store.map();
     assert_ne!(edited.updated_at, "2020-01-01");
@@ -1271,7 +1300,8 @@ fn patching_a_closed_map_stamps_its_updated_time() {
             ..Default::default()
         },
     )
-    .unwrap();
+    .unwrap()
+    .now();
     let saved = read_map_meta(&conn, &Id::new("m1".into())).unwrap();
     assert_eq!(saved.name, "Renamed");
     assert_ne!(saved.updated_at, "2020-01-01");
@@ -1318,4 +1348,87 @@ fn no_interned_field_may_take_a_key_the_map_file_keeps_for_itself() {
         };
         assert!(update_map_meta(&mut mgr, &conn, patch).is_err());
     }
+}
+
+fn hosted() -> (Arc<Host>, StoreManager, Id<MapMeta, String>) {
+    let (host, replica) = Host::pair("shared", &[]);
+    let id = replica.meta.id.clone();
+    let mut mgr = StoreManager::new();
+    mgr.stores.insert(id.clone(), replica);
+    (host, mgr, id)
+}
+
+#[test]
+fn a_replica_refiles_its_map_itself_and_sends_its_host_only_the_rest() {
+    let (host, mut mgr, id) = hosted();
+    let patch = Patch::<MapMeta> {
+        id: id.clone(),
+        name: Some("Renamed".into()),
+        folder: mma_algebra::Field::Set("Mine".into()),
+        ..Default::default()
+    };
+
+    let renamed = update_map_meta(&mut mgr, &Connection::open_in_memory().unwrap(), patch).unwrap();
+    let replica = mgr.store_for_map(&id).unwrap();
+    assert_eq!(replica.meta.folder.as_deref(), Some("Mine"));
+    host.answer(replica);
+    let renamed = block_on(renamed).unwrap().unwrap();
+
+    assert_eq!(renamed.version, replica.version);
+    let held = host.store.lock().unwrap();
+    assert_eq!(
+        (held.meta.name.as_str(), held.meta.folder.as_deref()),
+        ("Renamed", None)
+    );
+    assert_eq!(
+        (replica.meta.name.as_str(), replica.meta.folder.as_deref()),
+        ("Renamed", Some("Mine"))
+    );
+}
+
+#[test]
+fn a_replica_refiling_its_map_sends_its_host_nothing() {
+    let (host, mut mgr, id) = hosted();
+    let host_version = host.store.lock().unwrap().version;
+    let patch = Patch::<MapMeta> {
+        id: id.clone(),
+        folder: mma_algebra::Field::Set("Mine".into()),
+        ..Default::default()
+    };
+
+    let refiled = update_map_meta(&mut mgr, &Connection::open_in_memory().unwrap(), patch)
+        .unwrap()
+        .now()
+        .unwrap();
+
+    let replica = mgr.store_for_map(&id).unwrap();
+    assert_eq!(refiled.version, replica.version);
+    assert_eq!(replica.meta.folder.as_deref(), Some("Mine"));
+    assert_eq!(host.store.lock().unwrap().version, host_version);
+}
+
+#[test]
+fn a_replica_keeps_what_plugins_hold_on_this_device_and_sends_its_host_nothing() {
+    let (host, mut mgr, id) = hosted();
+    let host_version = host.store.lock().unwrap().version;
+    let held = (*mgr.store_for_map(&id).unwrap().meta).clone();
+    let mut kept = held.clone();
+    kept.local_plugin_data.insert(
+        "collab".into(),
+        [("origin".into(), Json(serde_json::json!("here")))].into(),
+    );
+
+    update_map_meta(
+        &mut mgr,
+        &Connection::open_in_memory().unwrap(),
+        MapMeta::between(&held, &kept),
+    )
+    .unwrap()
+    .now();
+
+    let replica = mgr.store_for_map(&id).unwrap();
+    assert_eq!(replica.meta.local_plugin_data, kept.local_plugin_data);
+    let host = host.store.lock().unwrap();
+    assert_eq!(host.version, host_version);
+    assert!(host.meta.local_plugin_data.is_empty());
 }

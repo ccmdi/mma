@@ -2,7 +2,6 @@ use super::*;
 use crate::test_util::tag_ids;
 use mma_algebra::{Id, Patch, Patchable};
 use std::collections::HashSet;
-use std::marker::PhantomData;
 
 type ExtraField = mma_algebra::Field<RawExtra>;
 
@@ -116,10 +115,7 @@ fn rows_are_equal_exactly_when_the_patch_between_them_is_empty() {
     assert_eq!(row, stamped);
     assert_eq!(
         Location::between(&row, &stamped),
-        Patch::<Location> {
-            id: Id::new(1),
-            ..Default::default()
-        }
+        Patch::<Location>::of(Id::new(1))
     );
     assert_ne!(row, turned);
     assert_eq!(Location::between(&row, &turned).heading, Some(20.0));
@@ -422,24 +418,6 @@ fn derived_whole_value_policies_and_field_overrides() {
 }
 
 #[test]
-fn a_location_patch_can_be_read_but_not_written() {
-    struct Probe<T>(PhantomData<T>);
-    trait Unwritable {
-        fn writable(&self) -> bool {
-            false
-        }
-    }
-    impl<T> Unwritable for Probe<T> {}
-    impl<T: serde::Serialize> Probe<T> {
-        fn writable(&self) -> bool {
-            true
-        }
-    }
-    assert!(Probe::<Location>(PhantomData).writable());
-    assert!(!Probe::<Patch<Location>>(PhantomData).writable());
-}
-
-#[test]
 fn raw_extra_derived_merge_is_recursive_and_replacement_preserves_null() {
     let before = Location {
         extra: Some(extra(r#"{"nested":{"keep":1,"change":2}}"#)),
@@ -545,22 +523,13 @@ fn an_extra_that_is_an_empty_object_reads_as_no_extra() {
             .unwrap()
             .extra
     };
-    let binary = |extra| {
-        rmp_serde::from_slice::<Location>(&rmp_serde::to_vec_named(&row(extra)).unwrap())
-            .unwrap()
-            .extra
-    };
-    let reads: [&dyn Fn(Option<serde_json::Value>) -> Option<RawExtra>; 3] =
-        [&readable, &text, &binary];
+    let reads: [&dyn Fn(Option<serde_json::Value>) -> Option<RawExtra>; 2] = [&readable, &text];
     for read in reads {
         assert_eq!(read(None), None);
         assert_eq!(read(Some(serde_json::Value::Null)), None);
         assert_eq!(read(Some(serde_json::json!({}))), None);
         let kept = read(Some(serde_json::json!({ "a": 1 }))).unwrap();
         assert_eq!(kept.get("a"), Some(serde_json::json!(1)));
-    }
-    for empty in [serde_json::json!("{}"), serde_json::json!(" { } ")] {
-        assert_eq!(binary(Some(empty)), None);
     }
     assert!(serde_json::from_value::<Location>(serde_json::json!({ "extra": {} })).is_err());
     assert!(serde_json::from_str::<RawExtra>("{}").is_err());

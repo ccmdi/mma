@@ -39,6 +39,7 @@ import { initRemoteHost } from "@/lib/remote/host";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import "@/plugins";
+import { PluginButtons, PluginModal, PluginSlot } from "@/plugins/PluginPanels";
 import { t } from "@/lib/i18n";
 import { ReportDialog } from "@/components/dialogs/ReportDialog";
 import { ReportThread } from "@/components/dialogs/ReportThread";
@@ -86,6 +87,8 @@ export default function App() {
 				)
 			)}
 			{!closing && <AppChrome />}
+			{!closing && <PluginSlot slot="layer" />}
+			{!closing && <PluginModal />}
 			<AccentSync />
 			<ToastContainer />
 		</TooltipProvider>
@@ -193,6 +196,7 @@ function AppChrome() {
 						label={t("Scratch map")}
 						onClick={() => void Maps.openScratch()}
 					/>
+					<PluginButtons mapList />
 				</div>
 			)}
 			<WelcomeDialog

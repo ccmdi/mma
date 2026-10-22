@@ -20,12 +20,12 @@ import {
 } from "@/lib/feedback/body";
 import { uploadImages, useStagedImages } from "@/lib/feedback/attachments";
 import { collectDiagnostics, type Diagnostics } from "@/lib/diagnostics";
-import { useAsync, useSticky } from "@/lib/hooks/useAsync";
-import { isSignedIn, submitReport } from "@/lib/feedback/submit";
+import { useAsync } from "@/lib/hooks/useAsync";
+import { submitReport } from "@/lib/feedback/submit";
+import { Account } from "@/lib/account";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
 import { errText } from "@/lib/util/format";
-import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { ATTACHMENT_LABELS, ATTACHMENT_PREFS } from "@/store/feedback";
 import { openDialog } from "@/store/dialogBus";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
@@ -56,9 +56,8 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const [sending, setSending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	const account = useAsync(() => isSignedIn(), []);
-	const known = useSticky(account);
-	const signedIn = known.ok() ?? false;
+	const user = Account.use();
+	const signedIn = !!user;
 	const gathered = useAsync(async () => {
 		const [diagnostics, logTail] = await Promise.all([
 			collectDiagnostics().catch((e) => {
@@ -129,22 +128,20 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const signIn = async () => {
 		setError(null);
 		try {
-			const info = await cmd.githubStartLogin();
-			await openExternal(info.verificationUri);
 			// The code has to be visible while the browser tab is open, so it goes in the
 			// error slot's calmer sibling rather than a toast that would vanish.
-			setError(
-				t("Enter code {code} in your browser to finish signing in.", { code: info.userCode }),
+			await Account.signIn((code) =>
+				setError(
+					t("Enter code {code} in your browser to finish signing in.", { code: code.userCode }),
+				),
 			);
-			await cmd.githubPollLogin();
-			await account.rerun();
 			setError(null);
 		} catch (e) {
 			setError(errText(e));
 		}
 	};
 
-	if (gathered.status !== "ok" || known.status === "loading") return null;
+	if (gathered.status !== "ok" || user === undefined) return null;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

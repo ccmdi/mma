@@ -47,17 +47,6 @@ fn add(session: ReviewSession) -> ReviewSession {
     edit(vec![Op::Add(session)]).unwrap().remove(0)
 }
 
-fn patch(id: &str) -> ReviewSessionPatch {
-    ReviewSessionPatch {
-        id: id.into(),
-        name: None,
-        cursor_id: None,
-        reviewed: None,
-        order: None,
-        status: None,
-    }
-}
-
 fn put(patch: ReviewSessionPatch) {
     edit(vec![Op::Put(patch)]).unwrap();
 }
@@ -112,7 +101,7 @@ fn a_patch_persists_cursor_reviewed_and_ordering() {
     put(ReviewSessionPatch {
         cursor_id: Some(Id::new(3)),
         reviewed: Some(loc_ids([1, 2])),
-        ..patch(&s.id)
+        ..ReviewSessionPatch::of(s.id.clone())
     });
     let got = resumable(&map, "tag:1").unwrap();
     assert_eq!(got.cursor_id, Id::new(3));
@@ -127,12 +116,12 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
     put(ReviewSessionPatch {
         cursor_id: Some(Id::new(3)),
         reviewed: Some(loc_ids([1, 2])),
-        ..patch(&s.id)
+        ..ReviewSessionPatch::of(s.id.clone())
     });
     put(ReviewSessionPatch {
         reviewed: Some(loc_ids([1])),
         order: Some(loc_ids([1, 3, 5])),
-        ..patch(&s.id)
+        ..ReviewSessionPatch::of(s.id.clone())
     });
     let got = resumable(&map, "tag:1").unwrap();
     assert_eq!(got.cursor_id, Id::new(3));
@@ -146,7 +135,7 @@ fn done_sessions_do_not_resume_but_are_listable() {
     let s = add(session(&map, "tag:1", vec![1, 2]));
     put(ReviewSessionPatch {
         status: Some("done".into()),
-        ..patch(&s.id)
+        ..ReviewSessionPatch::of(s.id.clone())
     });
     assert!(resumable(&map, "tag:1").is_none());
     assert_eq!(sessions(&map, Some("done"), None).len(), 1);
@@ -171,7 +160,7 @@ fn a_removed_session_is_gone_and_a_later_patch_to_it_writes_nothing() {
     edit(vec![Op::Remove(s.id.clone())]).unwrap();
     put(ReviewSessionPatch {
         name: Some("late".into()),
-        ..patch(&s.id)
+        ..ReviewSessionPatch::of(s.id.clone())
     });
     assert!(sessions(&map, None, None).is_empty());
 }
@@ -189,7 +178,7 @@ fn a_patch_stamps_a_new_updated_time() {
         .unwrap();
     put(ReviewSessionPatch {
         cursor_id: Some(Id::new(2)),
-        ..patch(&s.id)
+        ..ReviewSessionPatch::of(s.id.clone())
     });
     let got = resumable(&map, "tag:1").unwrap();
     assert_eq!(got.cursor_id, Id::new(2));

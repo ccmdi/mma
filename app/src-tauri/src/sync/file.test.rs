@@ -1,11 +1,12 @@
 use super::*;
-use crate::store::engine::{IncomingRecords, ValueRecord};
+use crate::store::engine::ValueRecord;
 use crate::sync::engine::{plan, ReconcileInput};
 use crate::sync::remote_mapping::RemoteMappingRow;
 use crate::sync::sync_hash;
 use crate::types::{Location, RawExtra};
 use mma_algebra::Id;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -133,7 +134,7 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
         local_locs: &[],
         remote: FileProvider.pull(path.to_str().unwrap()).unwrap(),
         mapping: &[],
-        records: &IncomingRecords::new(),
+        records: &HashMap::new(),
         first_sync: None,
         resolutions: &[],
     })
@@ -167,7 +168,7 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
         local_locs: &[local],
         remote: FileProvider.pull(path.to_str().unwrap()).unwrap(),
         mapping: &mapping,
-        records: &IncomingRecords::new(),
+        records: &HashMap::new(),
         first_sync: None,
         resolutions: &[],
     })

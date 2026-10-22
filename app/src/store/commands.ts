@@ -6,7 +6,7 @@ export interface CommandDef {
 	group: CommandGroup;
 	defaultBinding?: string;
 	aliases?: string[];
-	execute: () => void | Promise<void>;
+	execute: () => unknown;
 	enabled?: () => boolean;
 }
 

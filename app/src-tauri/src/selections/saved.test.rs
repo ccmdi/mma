@@ -1,15 +1,17 @@
 use super::*;
 use crate::selections::tree::SelectionOp;
 use crate::selections::{FilterOp, PolygonGeometry, Selection, Selector};
-use crate::store::engine::{Tracked, ValueRecord};
+use crate::store::engine::{Target, Tracked, ValueRecord};
 use crate::store::maps::{FieldDef, FieldType};
 use crate::test_util;
-use crate::test_util::{loc_ids, tag_ids};
+use crate::test_util::{loc_ids, tag_ids, Now};
 use crate::types::{Location, RawExtra};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use rusqlite::Connection;
 use std::collections::HashMap;
+
+const MAP: Target = Target::Map { id: None };
 
 /// In-memory DB with the current `saved_selections` schema.
 fn setup() -> Connection {
@@ -320,7 +322,11 @@ fn map_with_records() -> Store {
     store.records.insert("tags".into(), Tracked::new(records));
     let mut row = test_util::loc(1, 0.0, 0.0);
     row.tags = tag_ids([9]);
-    store.write([mma_algebra::Op::Set(row)], &mut None, Default::default());
+    store
+        .at(&Target::Map { id: None })
+        .write(vec![mma_algebra::Op::Set(row)])
+        .now()
+        .mutation;
     store
 }
 
@@ -453,7 +459,11 @@ fn map_with_plates(records: &[(u32, &str)], held: &[u32]) -> Store {
         extra: RawExtra::from_value(&serde_json::json!({ "plates": held, "codes": [4] })),
         ..test_util::loc(1, 0.0, 0.0)
     };
-    store.write([mma_algebra::Op::Set(row)], &mut None, Default::default());
+    store
+        .at(&Target::Map { id: None })
+        .write(vec![mma_algebra::Op::Set(row)])
+        .now()
+        .mutation;
     store
 }
 
@@ -513,7 +523,7 @@ fn adding_a_saved_selection_reads_it_and_adds_its_parts() {
             .unwrap();
     let mut store = Store::new();
     let op = edit.resolved(&mut store).unwrap();
-    store.edit_selections(&op);
+    store.at(&MAP).write(op).now();
     let listed = store.selections.list();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].selection.selector, Selector::Everything);

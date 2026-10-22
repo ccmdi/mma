@@ -39,3 +39,11 @@ export async function mountAsync(node: ReactNode, opts: { attach?: boolean } = {
 	await act(async () => {});
 	return mounted;
 }
+
+/** Type `text` into `field` the way a user does, through the native value setter React listens behind. */
+export function typeInto(field: HTMLInputElement | HTMLTextAreaElement, text: string): void {
+	act(() => {
+		Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field), "value")!.set!.call(field, text);
+		field.dispatchEvent(new Event("input", { bubbles: true }));
+	});
+}

@@ -40,6 +40,8 @@ const ROUTES: Record<string, string> = {
 	"bulk-add": "mutation",
 	"update-location": "mutation",
 	"bulk-update": "mutation",
+	"update-burst": "mutation",
+	"update-burst-concurrent": "mutation",
 	"remove-location": "mutation",
 	"delete-tagged": "mutation",
 	"remove-all": "mutation",
@@ -125,6 +127,7 @@ function parseRouteFilter(): Set<string> | null {
 const SCALES = parseScales();
 const ITERATIONS = parseInteger("MMA_BENCH_SAMPLES", 5, 1);
 const WARMUPS = parseInteger("MMA_BENCH_WARMUPS", 1, 0);
+const BURST_EDITS = 200;
 const ROUTE_FILTER = parseRouteFilter();
 const GPU_ENABLED = process.env.MMA_BENCH_GPU === "1";
 
@@ -541,14 +544,14 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		bench(route, scale, {
 			setup: async () => {
 				await ensureOpen(mapId, sceneFloor);
-				await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+				await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 			},
 			run: () =>
 				withApi(
 					async (api, selectionProps, minimum) => {
 						const start = performance.now();
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any -- props are passed as plain JSON across the bridge
-						await api.SelectionList.update(api.addSelection(selectionProps as any));
+						await api.Edit.selections(api.addSelection(selectionProps as any));
 						const operationMs = performance.now() - start;
 						await new Promise<void>((resolve) =>
 							requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
@@ -583,10 +586,9 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await ensureOpen(mapId, sceneFloor);
 				await withApi(
 					async (api, id, op) => {
-						await api.SelectionList.update({ kind: "set", selections: [] });
-						await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
-						if (op !== "invert")
-							await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
+						await api.Edit.selections({ kind: "set", selections: [] });
+						await api.Edit.selections(api.addSelection(api.panoIdSelector(true)));
+						if (op !== "invert") await api.Edit.selections(api.addSelection(api.tagSelector(id)));
 					},
 					tagId,
 					operation,
@@ -596,17 +598,17 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				withApi(async (api, op) => {
 					const start = performance.now();
 					if (op === "intersection")
-						await api.SelectionList.update({
+						await api.Edit.selections({
 							kind: "active",
 							op: { kind: "combine", group: "Intersection", keys: null },
 						});
 					else if (op === "union")
-						await api.SelectionList.update({
+						await api.Edit.selections({
 							kind: "active",
 							op: { kind: "combine", group: "Union", keys: null },
 						});
 					else
-						await api.SelectionList.update({
+						await api.Edit.selections({
 							kind: "active",
 							op: { kind: "complement", keys: null },
 						});
@@ -627,8 +629,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api) => {
-				await api.SelectionList.update({ kind: "set", selections: [] });
-				await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+				await api.Edit.selections({ kind: "set", selections: [] });
+				await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			});
 		},
 		run: () =>
@@ -645,7 +647,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			}),
 	});
 	await unwind(mapId, sceneFloor);
-	await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+	await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 
 	// --- mutation ---
 
@@ -732,6 +734,53 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			}),
 	});
 
+	for (const [route, concurrent] of [
+		["update-burst", false],
+		["update-burst-concurrent", true],
+	] as const) {
+		await bench(route, scale, {
+			setup: async () => {
+				await ensureOpen(mapId, sceneFloor);
+				await settleBaseline(`Bench ${route} baseline`);
+			},
+			run: () =>
+				withApi(
+					async (api, id, count, together) => {
+						const perEdit: number[] = [];
+						const edit = async (i: number) => {
+							const t = performance.now();
+							await api.Location.update([{ id, heading: (i * 7) % 360 }]);
+							perEdit.push(performance.now() - t);
+						};
+						const start = performance.now();
+						if (together) await Promise.all(Array.from({ length: count }, (_, i) => edit(i)));
+						else for (let i = 0; i < count; i += 1) await edit(i);
+						const operationMs = performance.now() - start;
+						api.Autosave.cancel();
+						const sorted = perEdit.sort((a, b) => a - b);
+						const at = (q: number) =>
+							sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+						const [loc] = await api.Query.read(
+							{ type: "Locations", locations: [id], name: null },
+							{ kind: "locations" },
+						);
+						if (loc?.heading !== ((count - 1) * 7) % 360) {
+							throw new Error(`burst ended at heading ${loc?.heading}`);
+						}
+						return {
+							durationMs: performance.now() - start,
+							operationMs,
+							metrics: { editP50: at(0.5), editP95: at(0.95), editMax: sorted[sorted.length - 1] },
+						};
+					},
+					helperA,
+					BURST_EDITS,
+					concurrent,
+				),
+		});
+	}
+	await settleBaseline("Bench burst done");
+
 	await bench("remove-location", scale, {
 		setup: () => unwind(mapId, sceneFloor),
 		run: () =>
@@ -757,8 +806,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
-				await api.SelectionList.update({ kind: "set", selections: [] });
-				await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
+				await api.Edit.selections({ kind: "set", selections: [] });
+				await api.Edit.selections(api.addSelection(api.tagSelector(id)));
 				if (api.Scene.selected().size === 0) {
 					throw new Error("delete setup selected nothing");
 				}
@@ -807,8 +856,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
-				await api.SelectionList.update({ kind: "set", selections: [] });
-				await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
+				await api.Edit.selections({ kind: "set", selections: [] });
+				await api.Edit.selections(api.addSelection(api.tagSelector(id)));
 				await api.Location.remove(api.Scene.selected());
 				api.Autosave.cancel();
 				if (!api.History.available(api.Store.get().history, "undo", "edits"))
@@ -834,8 +883,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
-				await api.SelectionList.update({ kind: "set", selections: [] });
-				await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
+				await api.Edit.selections({ kind: "set", selections: [] });
+				await api.Edit.selections(api.addSelection(api.tagSelector(id)));
 				await api.Location.remove(api.Scene.selected());
 				await api.History.step("undo", "edits");
 				api.Autosave.cancel();
@@ -858,7 +907,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			}, baseline),
 	});
 	await unwind(mapId, sceneFloor);
-	await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+	await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 
 	// --- persistence ---
 
@@ -1060,7 +1109,7 @@ async function runPolygonScenarios(): Promise<void> {
 	const set = (count: number | null) =>
 		withApi(async (api, n) => {
 			const rings = (window as unknown as { __benchRings: Ring[] }).__benchRings;
-			await api.SelectionList.update({
+			await api.Edit.selections({
 				kind: "set",
 				selections: rings.slice(0, n ?? rings.length).map((ring) => ({
 					selector: {
@@ -1097,12 +1146,12 @@ async function runPolygonScenarios(): Promise<void> {
 			perf.reset();
 			const start = performance.now();
 			if (which === "load") {
-				await api.SelectionList.update({ kind: "set", selections: rings.map(polygon) });
+				await api.Edit.selections({ kind: "set", selections: rings.map(polygon) });
 			} else if (which === "add") {
-				await api.SelectionList.update({ kind: "add", selections: [polygon(rings.at(-1)!)] });
+				await api.Edit.selections({ kind: "add", selections: [polygon(rings.at(-1)!)] });
 			} else {
 				const last = api.SelectionList.listed().at(-1)!.selection.key;
-				await api.SelectionList.update({ kind: "remove", keys: [last] });
+				await api.Edit.selections({ kind: "remove", keys: [last] });
 			}
 			const operationMs = performance.now() - start;
 			// The change schedules a rebuild on the next frame and deck draws on the one after.

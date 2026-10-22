@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::store::engine::{IncomingRecords, Mutation, Store, StoreState, ValueRecord};
+use crate::store::engine::{Mutation, Store, StoreState, ValueRecord};
 use crate::store::storage;
 use crate::sync::diff::{compute_sync_plan, summarize};
 use crate::sync::file::FileProvider;
@@ -96,7 +96,7 @@ pub(crate) struct ReconcileInput<'a, P: SyncProvider> {
     pub remote: RemoteSnapshot<P::Raw>,
     pub mapping: &'a [RemoteMappingRow],
     /// Every field the open map interns, with its records.
-    pub records: &'a IncomingRecords,
+    pub records: &'a HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
     pub first_sync: Option<FirstSyncMode>,
     pub resolutions: &'a [(IdentityKey, ResolutionSide)],
 }
@@ -651,7 +651,7 @@ pub(crate) struct ReconcileRequest<'a> {
     pub remote_map_id: &'a str,
     pub local_locs: &'a [Location],
     /// Every field the open map interns, with its records.
-    pub records: &'a IncomingRecords,
+    pub records: &'a HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
     pub first_sync: Option<FirstSyncMode>,
     pub resolutions: &'a [(IdentityKey, ResolutionSide)],
 }
@@ -749,7 +749,7 @@ pub async fn sync_reconcile(
         .any(|s| s.id == provider && s.shape.keeps(MapPart::AppData));
     let (local_locs, records) = {
         let mut mgr = state.lock()?;
-        let store = mgr.store_for_map(&map_id)?;
+        let store = mgr.store_for_map(&map_id)?.owned()?;
         let t = Instant::now();
         let mut pins: Vec<Location> = Vec::new();
         for row in store.all().rows() {
@@ -764,7 +764,7 @@ pub async fn sync_reconcile(
             pins.len(),
             t.elapsed().as_secs_f64()
         );
-        let records: IncomingRecords = store
+        let records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> = store
             .registry()
             .interned()
             .map(|field| (field.to_string(), store.records(field)))
@@ -835,6 +835,7 @@ fn apply_pull(
     out: &ReconcileOutcome,
 ) -> AppResult<(Option<Mutation>, Vec<RemoteMappingRow>)> {
     use crate::store::engine::Target;
+    let store = store.owned()?;
     let edit_count = out.pull_creates.len()
         + out.pull_updates.len()
         + out.pull_delete_ids.len()
@@ -843,7 +844,7 @@ fn apply_pull(
         return Ok((None, Vec::new()));
     }
     let interned: HashSet<String> = store.registry().interned().map(str::to_string).collect();
-    let mut records = IncomingRecords::new();
+    let mut records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> = HashMap::new();
     let mut piled: HashMap<(String, String), Id<ValueRecord>> = HashMap::new();
     let mut value_of = |field: &str, name: &str| -> Option<Id<ValueRecord>> {
         if !interned.contains(field) {
@@ -895,7 +896,9 @@ fn apply_pull(
 
     let result = store
         .at(&Target::Map { id: None })
-        .edit(edits, records, &mut None)
+        .from(&records)
+        .write(edits)
+        .settled()?
         .mutation;
     let rows = result
         .keys

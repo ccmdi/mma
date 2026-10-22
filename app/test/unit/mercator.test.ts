@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { latLngToWorld, worldToLatLng, worldToTile, pixelToLatLng } from "@/lib/geo/mercator";
+import {
+	latLngToWorld,
+	middleOf,
+	pixelToLatLng,
+	unwrapWorldX,
+	worldToLatLng,
+	worldToTile,
+} from "@/lib/geo/mercator";
 
 describe("mercator world projection (Google 256px world)", () => {
 	it("maps the origin to the world center", () => {
@@ -55,5 +62,22 @@ describe("pixelToLatLng", () => {
 		const back = pixelToLatLng(w.x * scale, w.y * scale, zoom);
 		expect(back.lat).toBeCloseTo(p.lat, 6);
 		expect(back.lng).toBeCloseTo(p.lng, 6);
+	});
+});
+
+describe("unwrapWorldX and middleOf", () => {
+	it("picks the copy of a world x nearest another, across the antimeridian", () => {
+		expect(unwrapWorldX(250, 10)).toBe(-6);
+		expect(unwrapWorldX(6, 250)).toBe(262);
+		expect(unwrapWorldX(100, 120)).toBe(100);
+	});
+
+	it("centers bounds in world space, across the antimeridian too", () => {
+		const middle = middleOf({ west: 170, south: 0, east: -170, north: 0 });
+		expect(middle.lat).toBeCloseTo(0);
+		expect(Math.abs(middle.lng)).toBeCloseTo(180);
+		const north = middleOf({ west: 0, south: 0, east: 10, north: 60 });
+		expect(north.lng).toBeCloseTo(5);
+		expect(north.lat).toBeGreaterThan(30);
 	});
 });

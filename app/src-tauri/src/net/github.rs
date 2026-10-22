@@ -30,7 +30,10 @@ pub(crate) const CLIENT_ID: &str = "Iv23liRIs8ykMt8IFai2";
 fn repo() -> String {
     crate::env::var("MMA_FEEDBACK_REPO").unwrap_or_else(|| "ccmdi/mma".into())
 }
-const API: &str = "https://api.github.com";
+/// The GitHub API origin, or the one `MMA_GITHUB_API` names.
+fn api() -> String {
+    crate::env::var("MMA_GITHUB_API").unwrap_or_else(|| "https://api.github.com".into())
+}
 const SECRET_NAME: &str = "github";
 
 const DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
@@ -83,6 +86,12 @@ fn load_session() -> AppResult<Option<Session>> {
     Ok(SESSION.get()?.map(parse_session))
 }
 
+/// Sign in with `token` as if the device flow had issued it.
+#[cfg(feature = "e2e")]
+pub(crate) fn seed_session(token: String) -> AppResult<()> {
+    store_session(Some(&parse_session(token)))
+}
+
 fn store_session(session: Option<&Session>) -> AppResult<()> {
     SESSION.set(match session {
         Some(s) => Some(serde_json::to_string(s)?),
@@ -97,7 +106,7 @@ fn expiring(session: &Session) -> bool {
 }
 
 /// The token to send, refreshed first if it is near expiry.
-fn require_token() -> AppResult<String> {
+pub(crate) fn require_token() -> AppResult<String> {
     let session = load_session()?.ok_or("not signed in to GitHub")?;
     if !expiring(&session) {
         return Ok(session.access_token);
@@ -358,7 +367,7 @@ fn detail_from(body: &serde_json::Value, status: &str) -> String {
 }
 
 /// Send an authenticated request, renewing the session once if GitHub rejects the token.
-fn authed(build: impl Fn(&str) -> RequestBuilder) -> AppResult<Response> {
+pub(crate) fn authed(build: impl Fn(&str) -> RequestBuilder) -> AppResult<Response> {
     let token = require_token()?;
     let resp = build(&token).send()?;
     if resp.status() != reqwest::StatusCode::UNAUTHORIZED {
@@ -394,7 +403,7 @@ fn fetch_me() -> AppResult<Option<GhUser>> {
         return Ok(None);
     }
     // A dead session is cleared inside `get`; report signed out rather than an error.
-    match get(&format!("{API}/user")) {
+    match get(&format!("{}/user", api())) {
         Ok(v) => Ok(Some(GhUser {
             login: v
                 .get("login")
@@ -537,7 +546,7 @@ pub(crate) fn create_issue(title: &str, body: &str) -> AppResult<ReportRef> {
     let payload = serde_json::json!({ "title": title, "body": body });
     let resp = authed(|token| {
         proxy::proxy_client()
-            .post(format!("{API}/repos/{}/issues", repo()))
+            .post(format!("{}/repos/{}/issues", api(), repo()))
             .header("Accept", "application/vnd.github+json")
             .header("Authorization", format!("Bearer {token}"))
             .header("User-Agent", user_agent())
@@ -563,10 +572,10 @@ pub(crate) fn create_issue(title: &str, body: &str) -> AppResult<ReportRef> {
 
 /// The thread of an issue the signed-in user filed.
 pub(crate) fn issue_thread(number: u32) -> AppResult<IssueThread> {
-    let repo = repo();
-    let issue = get(&format!("{API}/repos/{repo}/issues/{number}"))?;
+    let (api, repo) = (api(), repo());
+    let issue = get(&format!("{api}/repos/{repo}/issues/{number}"))?;
     let comments = get(&format!(
-        "{API}/repos/{repo}/issues/{number}/comments?per_page=100"
+        "{api}/repos/{repo}/issues/{number}/comments?per_page=100"
     ))?;
     Ok(parse_thread(&issue, &comments))
 }
@@ -576,7 +585,11 @@ pub(crate) fn comment(number: u32, body: &str) -> AppResult<IssueComment> {
     let payload = serde_json::json!({ "body": body });
     let resp = authed(|token| {
         proxy::proxy_client()
-            .post(format!("{API}/repos/{}/issues/{number}/comments", repo()))
+            .post(format!(
+                "{}/repos/{}/issues/{number}/comments",
+                api(),
+                repo()
+            ))
             .header("Accept", "application/vnd.github+json")
             .header("Authorization", format!("Bearer {token}"))
             .header("User-Agent", user_agent())
@@ -590,4 +603,4 @@ pub(crate) fn comment(number: u32, body: &str) -> AppResult<IssueComment> {
 
 #[cfg(test)]
 #[path = "github.test.rs"]
-mod tests;
+pub(crate) mod tests;

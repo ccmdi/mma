@@ -11,3 +11,8 @@ pub(crate) mod remote_api;
 #[cfg(feature = "web-serve")]
 pub mod serve;
 pub(crate) mod update;
+
+/// `text` percent-encoded to stand alone as one part of a URL.
+pub(crate) fn encoded(text: &str) -> String {
+    percent_encoding::utf8_percent_encode(text, percent_encoding::NON_ALPHANUMERIC).to_string()
+}

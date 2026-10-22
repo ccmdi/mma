@@ -46,10 +46,10 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 	});
 
 	it("domain object members carry their doc and unstable tag on the property", () => {
-		const hold = membersOf("Autosave").find((member) => member.member === "hold");
-		expect(hold).toBeDefined();
-		expect(hold?.doc).toContain("@unstable");
-		expect(dts).toMatch(/@unstable \*\/\n\s*hold: \(\) =>/);
+		const schedule = membersOf("Autosave").find((member) => member.member === "schedule");
+		expect(schedule).toBeDefined();
+		expect(schedule?.doc).toContain("@unstable");
+		expect(dts).toMatch(/@unstable \*\/\n\s*schedule: \(\) =>/);
 	});
 
 	it("a type only unstable members reach is unstable", () => {

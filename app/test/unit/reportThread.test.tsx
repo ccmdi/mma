@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { act } from "react";
-import { mountAsync } from "./fixtures/harness";
+import { mountAsync, typeInto } from "./fixtures/harness";
 import { initLocale } from "@/lib/i18n";
 import { cmd } from "@/lib/commands";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
@@ -62,13 +62,6 @@ async function open(r: SubmittedReport) {
 	await act(async () => {});
 }
 
-function type(el: HTMLTextAreaElement, value: string) {
-	act(() => {
-		Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(el, value);
-		el.dispatchEvent(new Event("input", { bubbles: true }));
-	});
-}
-
 beforeAll(async () => {
 	await initLocale("en");
 });
@@ -106,7 +99,7 @@ describe("ReportThread", () => {
 			createdAt: "2026-09-05T00:00:00Z",
 		});
 		await open(report());
-		type(q(".report-thread__draft") as HTMLTextAreaElement, "here");
+		typeInto(q(".report-thread__draft") as HTMLTextAreaElement, "here");
 		act(() => (q('[aria-label="Attach recent log"]') as HTMLElement).click());
 		await act(async () => {
 			(q(".report-thread__tools .button--primary") as HTMLElement).click();

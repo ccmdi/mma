@@ -51,6 +51,7 @@ type MlEventName =
 	| "mousedown"
 	| "mouseup"
 	| "mouseout"
+	| "click"
 	| "zoom"
 	| "move"
 	| "idle"
@@ -61,13 +62,14 @@ const EVENT_NAMES: Record<keyof MapHostEvents, MlEventName> = {
 	mousedown: "mousedown",
 	mouseup: "mouseup",
 	mouseout: "mouseout",
+	click: "click",
 	zoom: "zoom",
 	camera: "move",
 	idle: "idle",
 	tilesloaded: "load",
 };
 
-const LATLNG_EVENTS = new Set<keyof MapHostEvents>(["mousemove", "mousedown", "mouseup"]);
+const LATLNG_EVENTS = new Set<keyof MapHostEvents>(["mousemove", "mousedown", "mouseup", "click"]);
 
 // MapboxOverlay builds mock mjolnir events with MapLibre's wrapper as srcEvent, so
 // mjolnir.js's own event types (srcEvent: DOM event) are wrong here - don't import them.

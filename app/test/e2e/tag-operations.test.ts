@@ -94,12 +94,12 @@ describe("Tag visibility affecting selections", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 	});
 
 	it("tag selection works for visible tag", async () => {
 		await withApi(
-			async (api, tagId) => api.SelectionList.update(api.addSelection(api.tagSelector(tagId))),
+			async (api, tagId) => api.Edit.selections(api.addSelection(api.tagSelector(tagId))),
 			visTagId,
 		);
 		const ids = await refreshSelections();
@@ -108,7 +108,7 @@ describe("Tag visibility affecting selections", () => {
 
 	it("deleting tag clears its selection", async () => {
 		await withApi(
-			async (api, tagId) => api.SelectionList.update(api.addSelection(api.tagSelector(tagId))),
+			async (api, tagId) => api.Edit.selections(api.addSelection(api.tagSelector(tagId))),
 			visTagId,
 		);
 		const beforeIds = await refreshSelections();
@@ -141,7 +141,7 @@ describe("Bulk tag add", () => {
 	});
 	it("bulkAddTag adds tag to all selected locations", async () => {
 		const result = await withApi(async (api, tagId) => {
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			await api.addTagToLocations(tagId, [...api.Scene.selected()]);
 			const counts = api.Tag.counts();
 			return (counts as any)[String(tagId)] ?? 0;
@@ -152,7 +152,7 @@ describe("Bulk tag add", () => {
 	it("bulkAddTag is idempotent (no duplicates in tags array)", async () => {
 		const result = await withApi(
 			async (api, tagId, firstLocId) => {
-				await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+				await api.Edit.selections(api.addSelection({ type: "Everything" }));
 				await api.addTagToLocations(tagId, [...api.Scene.selected()]);
 				const loc = await api.fetchLocation(firstLocId);
 				return loc!.tags.filter((t: number) => t === tagId).length;
@@ -175,7 +175,7 @@ describe("Bulk tag add", () => {
 		// First add a new bulk tag so we can undo it cleanly
 		const newTag = await createTag("UndoBulk");
 		await withApi(async (api, tagId) => {
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			await api.addTagToLocations(tagId, [...api.Scene.selected()]);
 		}, newTag.id);
 

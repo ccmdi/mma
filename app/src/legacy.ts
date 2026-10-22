@@ -211,19 +211,19 @@ export function fetchLocations(selector: Selector): Promise<Location[]> {
  *  own; set `defaultOff` on the provider to make them opt-in. @api @unstable */
 export function registerEnrichFields(_fields: EnrichFieldOption[]): void {}
 
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`. @api @unstable */
+/** @deprecated v0.11.3. Use `MMA.Edit.selections(MMA.addSelection(...selectors))`. @api @unstable */
 export function addSelections(selectors: Selector[]) {
-	return SelectionList.update(addSelection(...selectors));
+	return Edit.selections(addSelection(...selectors));
 }
 
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "remove", keys })`. @api @unstable */
+/** @deprecated v0.11.3. Use `MMA.Edit.selections({ kind: "remove", keys })`. @api @unstable */
 export function removeSelections(keys: string[]) {
-	return SelectionList.update({ kind: "remove", keys });
+	return Edit.selections({ kind: "remove", keys });
 }
 
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "set", selections: [] })`. @api @unstable */
+/** @deprecated v0.11.3. Use `MMA.Edit.selections({ kind: "set", selections: [] })`. @api @unstable */
 export function resetSelections() {
-	return SelectionList.update({ kind: "set", selections: [] });
+	return Edit.selections({ kind: "set", selections: [] });
 }
 
 /** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @api @unstable */
@@ -368,8 +368,8 @@ export const deleteField: typeof Field.remove = Field.remove;
 /** @deprecated v0.12.0. Use `MMA.SelectionList.active`. @api */
 export const getActiveSelections: typeof SelectionList.active = SelectionList.active;
 
-/** @deprecated v0.12.0. Use `MMA.SelectionList.update`. @api @unstable */
-export const applySelectionUpdate: typeof SelectionList.update = SelectionList.update;
+/** @deprecated v0.12.0. Use `MMA.Edit.selections`. @api @unstable */
+export const applySelectionUpdate: typeof Edit.selections = Edit.selections;
 
 /** @deprecated v0.12.0. Use `MMA.SelectionList.select`. @api */
 export const select: typeof SelectionList.select = SelectionList.select;

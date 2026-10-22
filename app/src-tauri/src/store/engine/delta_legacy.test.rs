@@ -5,7 +5,7 @@ use mma_algebra::Id;
 use std::collections::HashMap;
 use std::fs;
 
-type ExtraField = mma_algebra::Field<RawExtra>;
+type ExtraField = Option<RawExtra>;
 
 fn extra(json: &str) -> RawExtra {
     RawExtra::from_string_uncanonicalized(json).unwrap()
@@ -145,9 +145,9 @@ fn a_missing_sidecar_stays_missing() {
 
 #[test]
 fn binary_string_encoding_round_trips() {
-    let field: ExtraField = mma_algebra::Field::Set(extra(r#"{"a":1,"b":"x"}"#));
+    let field: ExtraField = Some(extra(r#"{"a":1,"b":"x"}"#));
     let bytes = rmp_serde::to_vec_named(&field).unwrap();
-    let mma_algebra::Field::Set(back) = rmp_serde::from_slice::<ExtraField>(&bytes).unwrap() else {
+    let Some(back) = rmp_serde::from_slice::<ExtraField>(&bytes).unwrap() else {
         panic!("the extra round-trips as a value");
     };
     assert_eq!(back.as_str(), r#"{"a":1,"b":"x"}"#);
@@ -162,7 +162,7 @@ fn reads_legacy_map_encoded_extra() {
         Some(Some(legacy));
     let bytes = rmp_serde::to_vec_named(&legacy_field).unwrap();
 
-    let mma_algebra::Field::Set(back) = rmp_serde::from_slice::<ExtraField>(&bytes).unwrap() else {
+    let Some(back) = rmp_serde::from_slice::<ExtraField>(&bytes).unwrap() else {
         panic!("the extra round-trips as a value");
     };
     assert_eq!(back.to_map(), extra(r#"{"a":1,"b":"x"}"#).to_map());
@@ -172,9 +172,9 @@ fn reads_legacy_map_encoded_extra() {
 fn escaped_keys_in_the_binary_string_form_are_canonicalized() {
     let bs = '\\';
     let escaped = format!("{{\"caf{bs}u00e9\":\"au lait\"}}");
-    let field: ExtraField = mma_algebra::Field::Set(extra(&escaped));
+    let field: ExtraField = Some(extra(&escaped));
     let bytes = rmp_serde::to_vec_named(&field).unwrap();
-    let mma_algebra::Field::Set(back) = rmp_serde::from_slice::<ExtraField>(&bytes).unwrap() else {
+    let Some(back) = rmp_serde::from_slice::<ExtraField>(&bytes).unwrap() else {
         panic!("the extra round-trips as a value");
     };
     assert_eq!(back.get("café"), Some(serde_json::json!("au lait")));

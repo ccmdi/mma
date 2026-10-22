@@ -11,8 +11,8 @@ use std::fs::File;
 use std::future::Future;
 use std::path::PathBuf;
 
-fn tags_named(names: &[(u32, &str)]) -> IncomingRecords {
-    IncomingRecords::from([(
+fn tags_named(names: &[(u32, &str)]) -> HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> {
+    HashMap::from([(
         "tags".to_string(),
         names
             .iter()
@@ -107,7 +107,7 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
 #[test]
 fn unknown_tag_id_falls_back_to_stringified_id() {
     let l = make_loc(LocationFlags::empty(), vec![7], None);
-    let records = IncomingRecords::new();
+    let records = HashMap::new();
     let co = CoordOpts {
         export_zoom: true,
         export_unpanned: false,
@@ -168,7 +168,7 @@ fn rows_spell_every_interned_field_by_name() {
     extra.insert("habitat".into(), json!([2, 9]));
     extra.insert("score".into(), json!([2, 9]));
     let l = make_loc(LocationFlags::empty(), vec![], Some(extra));
-    let records = IncomingRecords::from([(
+    let records = HashMap::from([(
         "habitat".to_string(),
         HashMap::from([(Id::new(2), record("Forest", None, json!({})))]),
     )]);

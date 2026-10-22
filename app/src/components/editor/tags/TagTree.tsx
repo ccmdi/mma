@@ -9,7 +9,7 @@ import {
 	createContext,
 	useContext,
 } from "react";
-import { SelectionList } from "@/store/selectionList";
+import { Edit } from "@/store/edit";
 import type { Tag } from "@/types";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
@@ -431,7 +431,7 @@ export function TagTreeView({
 					effectiveSelected ? selectedTagIds.has(id) : !selectedTagIds.has(id),
 				);
 			}
-			void SelectionList.update(toggleSelection(...ids.map(tagSelector)));
+			void Edit.selections(toggleSelection(...ids.map(tagSelector)));
 			anchorPathRef.current = node.fullPath;
 		},
 	);

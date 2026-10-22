@@ -4303,10 +4303,7 @@ fn written(
     flags: LocationFlags,
     value: serde_json::Value,
 ) -> AppResult<mma_algebra::Patch<Location>> {
-    let mut patch = mma_algebra::Patch::<Location> {
-        id: Id::new(1),
-        ..Default::default()
-    };
+    let mut patch = mma_algebra::Patch::<Location>::of(Id::new(1));
     writer?.write(&mut patch, flags, &value)?;
     Ok(patch)
 }
@@ -4361,10 +4358,7 @@ fn map_fields_and_undeclared_keys_write_into_extra_key_by_key() {
     let loose = fields.clear("loose").unwrap();
     assert!(camera.is_extra() && loose.is_extra());
 
-    let mut patch = mma_algebra::Patch::<Location> {
-        id: Id::new(1),
-        ..Default::default()
-    };
+    let mut patch = mma_algebra::Patch::<Location>::of(Id::new(1));
     camera
         .write(&mut patch, LocationFlags::empty(), &"gen4".into())
         .unwrap();

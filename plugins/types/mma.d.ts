@@ -530,18 +530,6 @@ declare const VALI_COUNTRIES: readonly ["AE", "AF", "AL", "AM", "AR", "AT", "AU"
 
 /** Commands @unstable */
 declare const commands: {
-    /** Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing. @unstable */
-    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key_1 in number]: ValueRecord; }; }) => Promise<EditResult>;
-    /** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. @unstable */
-    storeLandLayer: (name: string) => Promise<Mutation<Location>>;
-    /** Run work over the target's locations matched by selector; an open pending layer holds the edits until it lands. @unstable */
-    storeWork: (target: Target, selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
-    /** Edit an interned field's value records; membership uses ordinary location edits. @unstable */
-    storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<Mutation<ValueRecord>>;
-    /** Edit the selection tree. @unstable */
-    storeEditSelections: (op: SelectionEdit) => Promise<Mutation<ListedSelection>>;
-    /** Answer one question about the target's locations matched by selector. @unstable */
-    storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
     /**  Reports the window ready and returns the app's startup time and uptime. @unstable */
     appReady: () => Promise<AppReady>;
     /**  Fails with the reason the app could not start, and succeeds when it started normally. @unstable */
@@ -628,6 +616,39 @@ declare const commands: {
     githubLogout: () => Promise<null>;
     /**  Local-only check: is a token stored? Says nothing about its validity. @unstable */
     githubHasSession: () => Promise<boolean>;
+    /**  Every collab session this app is in, and every map it copied from another app's. @unstable */
+    collabSessions: () => Promise<CollabSessions>;
+    /**  The maps the signed-in user shares, and the maps others share with them. @unstable */
+    collabShares: () => Promise<Shares>;
+    /**
+     *  Share map `map` with exactly `logins`, or stop sharing it when there are none. Anyone left
+     *  out is turned away from the map's session.
+     *  @unstable
+     */
+    collabShare: (map: string, logins: string[]) => Promise<null>;
+    /**  Host map `map` for everyone it is shared with, until it is left. @unstable */
+    collabHost: (map: string) => Promise<null>;
+    /**
+     *  Join the map `via` reaches, as an account it is shared with or as a guest with an invite
+     *  code, following it into this app's copy of it. A copy edited since its last session is
+     *  reported instead, unless `replace` says to replace those edits.
+     *  @unstable
+     */
+    collabJoin: (via: Via, replace: boolean) => Promise<JoinOutcome>;
+    /**
+     *  Leave the session on this app's map `map`: a host ends it for everyone, a peer keeps its
+     *  copy. An ended session is dismissed.
+     *  @unstable
+     */
+    collabLeave: (map: string) => Promise<null>;
+    /**  Show `data` to everyone else in the session on this app's map `map`. @unstable */
+    collabPresent: (map: string, data: Shown) => Promise<null>;
+    /**
+     *  Turn on the code that lets guests without a GitHub account join this app's shared map
+     *  `map`, returning it, or turn it off, which turns away every guest in its session.
+     *  @unstable
+     */
+    collabInvite: (map: string, on: boolean) => Promise<string | null>;
     /**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. @unstable */
     feedbackLogTail: () => Promise<string>;
     /**  File a report anonymously under this install id, or as the signed-in GitHub user when it is null. @unstable */
@@ -663,18 +684,32 @@ declare const commands: {
     storeOpenMap: (mapId: string, changes: Channel<ChangeEvent>) => Promise<StoreStatus>;
     /**  Close the open map, saving unsaved changes first. @unstable */
     storeCloseMap: () => Promise<null>;
-    /**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. @unstable */
-    storeCloseLayer: (name: string, mapId: string | null) => Promise<null>;
     /**  Save uncommitted changes to disk. No-op when nothing has changed. @unstable */
     storeSaveDirty: () => Promise<null>;
+    /**  Edit the map; an open pending layer holds location edits until it lands. @unstable */
+    storeEdit: <V extends Edits>(edits: V) => Promise<ReplyTo<Edited, V>>;
+    /**
+     *  Run work over the target's locations matched by selector; an open pending layer holds the
+     *  edits until it lands.
+     *  @unstable
+     */
+    storeWork: (target: Target, selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
+    /**
+     *  Land a pending layer's edits on the map as one undoable step; later edits to it join that
+     *  step.
+     *  @unstable
+     */
+    storeLandLayer: (name: string) => Promise<Mutation<Location>>;
+    /**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. @unstable */
+    storeCloseLayer: (name: string, mapId: string | null) => Promise<null>;
+    /**  Answer one question about the target's locations matched by selector. @unstable */
+    storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
     /**
      *  Copy the locations that `selector` matches into another map, skipping ones it already has.
      *  Extra fields carry over, and interned values such as tags are matched to the target's by name.
      *  @unstable
      */
     storeCopyLocationsToMap: (targetMapId: string, selector: Selector$1<SelectionInput>) => Promise<CopyToMapResult>;
-    /**  Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change. @unstable */
-    storeEditUploaded: (target: Target, session: string) => Promise<EditResult>;
     /**
      *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
      *  one entry per row of points.
@@ -723,10 +758,12 @@ declare const commands: {
      *  A closed map writes straight to disk and returns null.
      *  @unstable
      */
-    storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & {
+    storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings" | "localPluginData">> & Pick<MapMeta, "id"> & {
         settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & {
             pluginData?: { [key in string]: Op<{ [key_1 in string]: unknown; }, { [key_1 in string]: Op<unknown, unknown, null>; }, null>; };
         };
+    } & {
+        localPluginData?: { [key in string]: Op<{ [key_1 in string]: unknown; }, { [key_1 in string]: Op<unknown, unknown, null>; }, null>; };
     }) => Promise<Mutation<Location> | null>;
     /**  Move every map in folder `from` to folder `to`, or to the root when `to` is null. @unstable */
     storeMoveFolder: (from: string, to: string | null) => Promise<null>;
@@ -947,6 +984,24 @@ declare const events: {
         listen: (cb: __TAURI_EVENT.EventCallback<ImportProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
         once: (cb: __TAURI_EVENT.EventCallback<ImportProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
         emit: (payload: ImportProgress) => Promise<void>;
+    };
+    collabPresence: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
+        listen: (cb: __TAURI_EVENT.EventCallback<CollabPresence>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<CollabPresence>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: (payload: CollabPresence) => Promise<void>;
+    }) & {
+        listen: (cb: __TAURI_EVENT.EventCallback<CollabPresence>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<CollabPresence>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: (payload: CollabPresence) => Promise<void>;
+    };
+    collabSessions: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
+        listen: (cb: __TAURI_EVENT.EventCallback<CollabSessions>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<CollabSessions>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: (payload: CollabSessions) => Promise<void>;
+    }) & {
+        listen: (cb: __TAURI_EVENT.EventCallback<CollabSessions>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<CollabSessions>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: (payload: CollabSessions) => Promise<void>;
     };
     procedureProgress: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
         listen: (cb: __TAURI_EVENT.EventCallback<ProcedureProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
@@ -1221,6 +1276,52 @@ type ChangeEvent = {
     /**  How the derived state moved, as a JSON Patch over what the window holds. */
     patch: PatchOp[];
 } & Keys<number>;
+/**  A map in this app copied from another app's, and where it came from. @unstable */
+type CollabCopy = {
+    /**  This app's map. */
+    map: string;
+    /**  Where it came from. */
+    origin: Origin;
+};
+/**
+ *  What someone else in the session on this app's map `map` shows everyone, sent each time
+ *  they show something new.
+ *  @unstable
+ */
+type CollabPresence = {
+    /**  This app's map the session edits. */
+    map: string;
+    /**  Who shows it. */
+    login: string;
+    /**  What they show. */
+    data: Shown;
+};
+/**  A map this app hosts or follows, as the people in it see it. @unstable */
+type CollabSession = {
+    /**  This app's map the session edits. */
+    map: string;
+    /**  The login hosting the map. */
+    host: string;
+    /**  The login this app is in the session as. */
+    you: string;
+    /**  Whether this app is the host. */
+    hosting: boolean;
+    /**  Everyone in the session, the host first. */
+    roster: Member[];
+    /**  How this app's connection to the session stands. */
+    link: SessionLink;
+};
+/**
+ *  Every collab session this app is in and every map it copied from another app's, sent
+ *  whenever a session changes.
+ *  @unstable
+ */
+type CollabSessions = {
+    /**  The sessions, each on one of this app's maps. */
+    sessions: CollabSession[];
+    /**  The copies of other apps' maps. */
+    copies: CollabCopy[];
+};
 /**  Metadata for a single commit. @unstable */
 type CommitInfo = {
     id: string;
@@ -1355,7 +1456,7 @@ type Derived = {
     /**  Whether the map has changes not yet saved to disk. */
     unsaved: boolean;
 };
-/**  What the user needs in order to authorize: the code to type and where to type it. @unstable */
+/**  What the user needs in order to authorize: the code to type and where to type it. */
 type DeviceCodeInfo = {
     userCode: string;
     verificationUri: string;
@@ -1369,6 +1470,29 @@ type EditResult = {
     /**  Derived fields the edit cleared because a field they are computed from changed. */
     invalidated: string[];
 };
+/**  What an edit did, answering the `Edits` variant it was. @unstable */
+type Edited = 
+/**  What the location edit did. */
+(({
+    locations: EditResult;
+}) & {
+    selections?: never;
+    values?: never;
+}) | (
+/**  The version the value edit reached and the keys its new records took. */
+({
+    values: Mutation<ValueRecord>;
+}) & {
+    locations?: never;
+    selections?: never;
+}) | (
+/**  The version the selection edit reached. */
+({
+    selections: Mutation<ListedSelection>;
+}) & {
+    locations?: never;
+    values?: never;
+});
 /**
  *  Preview data for importing a file into the currently open map.
  *  Unlike bulk import, this shows per-field counts so the user can
@@ -1409,6 +1533,43 @@ type EditorImportResult = {
     /**  True when the import was too large to undo; the caller commits it. */
     autoCommit: boolean;
 };
+/**  A change to the map: its locations, an interned field's values, or the selection list. */
+type Edits = 
+/**
+ *  Locations where `target` says. Rows refer to interned values such as tags by their ids
+ *  in `records`; each is matched to the map's value of the same name, created when missing.
+ */
+(({
+    locations: {
+        target: Target;
+        edits: Rows;
+        records: {
+            [key in string]: {
+                [key in number]: ValueRecord;
+            };
+        };
+    };
+}) & {
+    selections?: never;
+    values?: never;
+}) | (
+/**  One interned field's value records; membership uses location edits. */
+({
+    values: {
+        field: string;
+        edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[];
+    };
+}) & {
+    locations?: never;
+    selections?: never;
+}) | (
+/**  The selection list. */
+({
+    selections: SelectionEdit;
+}) & {
+    locations?: never;
+    values?: never;
+});
 /**  The kind of file an export writes, with what that kind needs. @unstable */
 type ExportFormat = 
 /**  A `{name, customCoordinates}` map file with its interned values' records and field definitions. */
@@ -1572,7 +1733,6 @@ type GgUser = {
     /**  Avatar pin path (e.g. `pin/<hash>.png`), served under `/images/` on geoguessr.com. */
     pin: string | null;
 };
-/** @unstable */
 type GhUser = {
     login: string;
     avatarUrl: string | null;
@@ -1688,6 +1848,21 @@ type IssueThread = {
     body?: string;
     /**  Oldest first. */
     comments: IssueComment[];
+};
+/**  What happened when this app tried to join a map. @unstable */
+type JoinOutcome = 
+/**  Joined, following the host into this app's map `map`. */
+{
+    outcome: "following";
+    map: string;
+} | 
+/**
+ *  This app's copy `map` was edited since its last session, so joining would replace those
+ *  edits; join again with `replace` to go ahead.
+ */
+{
+    outcome: "edited";
+    map: string;
 };
 /**  A map-making JSON export: how its coordinates render, and the map they belong to. @unstable */
 type JsonExport = {
@@ -1857,6 +2032,12 @@ type MapMeta = {
     scoreBounds: ScoreBounds;
     extra: MapExtra;
     labels: string[];
+    /**  What each plugin keeps with this map on this device alone, by plugin id and then key. */
+    localPluginData: {
+        [key in string]: {
+            [key in string]: unknown;
+        };
+    };
     locationCount: number;
     /**  Location changes since the last commit. */
     pending: Counts;
@@ -1916,6 +2097,17 @@ type MapSettings = {
         };
     };
 } & MapPreferences;
+/**
+ *  Someone in a session: the login their room vouched for, and whether they joined as a guest
+ *  with an invite code rather than an account.
+ *  @unstable
+ */
+type Member = {
+    /**  Their login. */
+    login: string;
+    /**  Whether they joined with an invite code. */
+    guest: boolean;
+};
 /**  A map the key holder can link to. @unstable */
 type MmMapSummary = {
     id: string;
@@ -1963,7 +2155,7 @@ type NumericBinning = {
     by: "width";
     w: number;
 };
-/**  An edit to one keyed row: add it, replace it, patch it, or remove it. @unstable */
+/**  An edit to one keyed row: add it, replace it, patch it, or remove it. */
 type Op<T, P, K> = 
 /**  A new row, given the next free key in place of the one it carries. */
 (({
@@ -1997,6 +2189,19 @@ type Op<T, P, K> =
     put?: never;
     set?: never;
 });
+/**  Where a copy of another app's map came from. @unstable */
+type Origin = {
+    /**  The login of the app that hosts the map. */
+    host: string;
+    /**  The map's id on its host. */
+    map: string;
+    /**  The login this app followed it as. */
+    login: string;
+    /**  What the copy held when its last session ended. */
+    parted: string | null;
+    /**  How this app joins the map again. */
+    via: Via;
+};
 /**  A decoded Street View panorama: flat data with no live objects. @unstable */
 type Pano = {
     /**  This image's own pano id, "" when the response carries no key. */
@@ -2424,6 +2629,14 @@ type ReviewSession = {
     createdAt: string;
     updatedAt: string;
 };
+/**  A location edit's rows: sent with it, or uploaded beforehand in chunks. */
+type Rows = 
+/**  The rows themselves. */
+(Op<Location, Partial<Location> & Pick<Location, "id">, number>)[] | 
+/**  The rows uploaded to the session `storeUploadBegin` opened. */
+{
+    session: string;
+};
 /**  One item of a run: a registered provider, or a procedure that is not one. @unstable */
 type RunItem = 
 /**  A registered provider, with what this run sets on it. */
@@ -2544,7 +2757,7 @@ type Selection = {
     color: RGB;
     selector: Selector$1;
 };
-/**  An edit of the selection tree as asked for: a saved selection to add, or a plain edit. @unstable */
+/**  An edit of the selection tree as asked for: a saved selection to add, or a plain edit. */
 type SelectionEdit = 
 /**  Add a saved selection's parts, with its value names resolved against the open map. */
 {
@@ -2553,12 +2766,10 @@ type SelectionEdit =
 } | 
 /**  Any other edit of the selection tree. */
 SelectionOp;
-/** @unstable */
 type SelectionInput = {
     selector: Selector$1<SelectionInput>;
     color?: RGB | null;
 };
-/** @unstable */
 type SelectionOp = {
     kind: "add";
     selections: SelectionInput[];
@@ -2723,6 +2934,33 @@ type Selector$1<S = Selection> = {
     lat: number;
     lng: number;
 };
+/**  How a session's connection stands. @unstable */
+type SessionLink = 
+/**  Waiting for the host to come online. */
+{
+    state: "waiting";
+} | 
+/**  Connecting to the host. */
+{
+    state: "connecting";
+} | 
+/**  Connected, and receiving the map from the host. */
+{
+    state: "syncing";
+} | 
+/**  Connected. */
+{
+    state: "live";
+} | 
+/**  The connection dropped and is being made again. */
+{
+    state: "reconnecting";
+} | 
+/**  The session is over, and why. */
+{
+    state: "ended";
+    reason: string;
+};
 /**  Operations computed over the selected locations as a group. @unstable */
 type SetOp = 
 /**
@@ -2743,6 +2981,37 @@ type SetOp =
     distance: number;
     score: string | null;
 };
+/**  A map the signed-in user shares, and with whom. @unstable */
+type Share = {
+    /**  The shared map. */
+    map: string;
+    /**  The map's name as it was shared. */
+    name: string;
+    /**  The GitHub logins it is shared with. */
+    logins: string[];
+    /**  The code that lets guests without a GitHub account join, while it is on. */
+    invite?: string | null;
+};
+/**  A map someone shares with the signed-in user, and whether they host it now. @unstable */
+type Shared = {
+    /**  The GitHub login sharing the map. */
+    host: string;
+    /**  The shared map, as its host knows it. */
+    map: string;
+    /**  The map's name as it was shared. */
+    name: string;
+    /**  Whether the host is online with the map now. */
+    live: boolean;
+};
+/**  The maps the signed-in user shares, and the maps shared with them. @unstable */
+type Shares = {
+    /**  The maps the signed-in user shares. */
+    mine: Share[];
+    /**  The maps others share with the signed-in user. */
+    withMe: Shared[];
+};
+/**  What someone shows everyone else in a session, which only the plugin reads. @unstable */
+type Shown = unknown;
 /** @unstable */
 type SideCounts = {
     create: number;
@@ -2918,6 +3187,22 @@ type ValueRecord = {
 } & {
     [key in string]: unknown;
 };
+/**  How this app reaches a map another app hosts. @unstable */
+type Via = 
+/**  By its host and its id there, as an account the map is shared with. */
+(({
+    host: string;
+    map: string;
+}) & {
+    code?: never;
+}) | (
+/**  By the invite code its host gave, as a guest. */
+({
+    code: string;
+}) & {
+    host?: never;
+    map?: never;
+});
 /**
  *  Per-map config for a virtual tag-tree node - a folder node with no underlying
  *  tag (e.g. "a" when only "a/b" and "a/c" exist). Keyed by the node's full slash
@@ -2938,6 +3223,12 @@ type WorkResult = {
     /**  Locations an expression could not evaluate. */
     failed: number[];
 };
+/** @unstable */
+export type __TAURI_VARIANT<V> = {
+    [K in keyof V]-?: [V[K]] extends [undefined] ? never : K;
+}[keyof V];
+/** The member of `R` answering the variant `V` was sent as. @unstable */
+type ReplyTo<R, V> = Extract<R, Record<__TAURI_VARIANT<V>, unknown>>[__TAURI_VARIANT<V> & keyof Extract<R, Record<__TAURI_VARIANT<V>, unknown>>];
 
 /**
  * The global `mma` API available inside procedure modules. Calls are synchronous;
@@ -3005,10 +3296,25 @@ declare global {
     const mma: ProcedureHost;
 }
 
+/** The GitHub account the user is signed in with, and signing in or out of it. @api */
+declare const Account: {
+    /** The signed-in GitHub account, or null when signed out or unreachable. */
+    me: () => Promise<GhUser | null>;
+    /** React hook: the signed-in GitHub account, null when signed out, and undefined until first known. */
+    use: () => GhUser | null | undefined;
+    /** Sign in with GitHub: `onCode` receives the code the user enters in the browser page this opens, which is also copied to the clipboard. */
+    signIn: (onCode: (code: DeviceCodeInfo) => void) => Promise<GhUser>;
+    /** Sign out of GitHub and forget the stored session. */
+    signOut: () => Promise<void>;
+};
+
 /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. @api */
 declare const Autosave: {
-    /** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
-    hold: () => (() => void);
+    /** What defers autosave while held. Useful for batches that land many mutations. @unstable */
+    paused: {
+        hold: () => (() => void);
+        held: () => boolean;
+    };
     /** Schedule a debounced autosave. Mutations call this automatically. @unstable */
     schedule: () => void;
     /** Cancel any pending autosave timer. @unstable */
@@ -3034,6 +3340,11 @@ export type HSL = {
 declare function hexToRgb(hex: string): RGB;
 /** Return "#000" or "#fff" for readable text on the given hex background. @api @unstable */
 declare function textColorFor(bg: string): string;
+/** WCAG relative luminance of a color, from 0 for black to 1 for white. @api @unstable */
+declare function luminance(rgb: RGB): number;
+/** `color` moved toward white on a dark `background`, or black on a light one, until the two
+ *  reach WCAG AA contrast. @api @unstable */
+declare function legible(color: RGB, background: RGB): RGB;
 /** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
  *  ramp name (legacy stored format). @api @unstable */
 declare function resolveSvColorHex(color: string): string;
@@ -3248,22 +3559,43 @@ declare const CommitDiff: {
     end: () => void;
 };
 
+export type Of<K extends string> = Extract<Edits, Record<K, unknown>>[K];
 /** Edit map locations, metadata, value records, and selections. @api */
 declare const Edit: {
-    /** Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
+    /** Edit locations on a map or in a pending layer, with the rows themselves or the session
+     *  they were uploaded to (see `storeUploadBegin`). Rows refer to interned values such as tags
      *  by their ids in `records`, matched to the map's by name. Map changes are undoable in that
      *  map. @unstable */
-    locations: (target: Target, edits: Parameters<typeof cmd.storeEdit>[1], records?: Parameters<typeof cmd.storeEdit>[2]) => Promise<EditResult>;
+    locations: (target: Target, edits: Of<"locations">["edits"], records?: Of<"locations">["records"]) => Promise<EditResult>;
     /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
      *  Settings merge key by key, so send only the keys that change. */
     meta: (patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
         id?: string;
     }) => Promise<void>;
     /** Edit an interned field's value records in one undoable step. */
-    values: (...[field, edits]: Parameters<typeof cmd.storeEditValues>) => Promise<Mutation<ValueRecord>>;
+    values: (field: string, edits: Of<"values">["edits"]) => Promise<Mutation<ValueRecord>>;
+    /** Edit the selection list. Wrap an op in `{ kind: "active", op }` to affect only active
+     *  selections. @unstable */
+    selections: (op: Of<"selections">) => Promise<Mutation<ListedSelection>>;
     /** Run `op` across every location `selector` matches on a map or in a pending layer. Map
      *  changes are one undoable step. @unstable */
     work: (selector: Selector, op: Work, target?: Target) => Promise<WorkResult>;
+};
+
+/** Run mutations and wait for their state and display updates. @api */
+declare const Mutation: {
+    /** The result of a mutation that reached no map. */
+    none: () => Mutation;
+    /** Resolves once the open map's state and its markers both show `m`. A mutation that reached
+     *  no map (version 0) settles at once. */
+    settle: (m: Mutation) => Promise<void>;
+    /** Send a store write, then wait until the open map shows it. */
+    write: <R extends Mutation | {
+        mutation: Mutation;
+    } | null>(fn: () => Promise<R>) => Promise<R>;
+    run: <R extends Mutation | {
+        mutation: Mutation;
+    } = Mutation>(fn: () => Promise<R>, ...fallback: Mutation extends R ? [empty?: R] : [empty: R]) => Promise<R>;
 };
 
 export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
@@ -3693,38 +4025,38 @@ declare const COMMANDS: {
         icon: string;
         group: "Selections";
         defaultBinding: string;
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "select-untagged": {
         label: "Select untagged locations";
         icon: string;
         group: "Selections";
         aliases: string[];
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "select-unpanned": {
         label: "Select unpanned locations";
         icon: string;
         group: "Selections";
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "select-panoid": {
         label: "Select Pano ID locations";
         icon: string;
         group: "Selections";
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "select-no-panoid": {
         label: "Select non-Pano ID locations";
         icon: string;
         group: "Selections";
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "select-uncommitted": {
         label: "Select uncommitted locations";
         icon: string;
         group: "Selections";
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "select-reviewed": {
         label: "Select reviewed locations";
@@ -3737,19 +4069,19 @@ declare const COMMANDS: {
         label: "Invert selection";
         icon: string;
         group: "Selections";
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "intersect-selections": {
         label: "Intersect (AND) selections";
         icon: string;
         group: "Selections";
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "union-selections": {
         label: "Union (OR) selections";
         icon: string;
         group: "Selections";
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
     };
     "load-geojson": {
         label: "Load shapes from GeoJSON as selection";
@@ -3770,7 +4102,7 @@ declare const COMMANDS: {
         icon: string;
         group: "Selections";
         defaultBinding: string;
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
         enabled: typeof hasAnySelections;
     };
     reselect: {
@@ -3859,7 +4191,7 @@ declare const COMMANDS: {
         icon: string;
         group: "Selections";
         aliases: string[];
-        execute: () => Promise<void>;
+        execute: () => Promise<Mutation<ListedSelection>>;
         enabled: typeof hasAnySelections;
     };
     "save-selections": {
@@ -4530,6 +4862,8 @@ export interface MapHostEvents {
     mousedown: LatLng;
     mouseup: LatLng;
     mouseout: void;
+    /** A click on the map that did not drag it. */
+    click: LatLng;
     zoom: void;
     camera: void;
     /** The camera came to rest after a pan/zoom (Google `idle`, maplibre `idle`). */
@@ -4594,6 +4928,9 @@ declare const MapHost: {
     get: () => MapHost | null;
     /** Wait for the main editor map to be ready. @unstable */
     wait: () => Promise<MapHost>;
+    /** Run `attach` on the main editor map host and on every host that replaces it, undoing each
+     *  run with what it returns once its host goes. Returns the stop. @unstable */
+    each: (attach: (host: MapHost) => () => void) => (() => void);
     /** Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas. @unstable */
     fitToBounds: (bounds: Bounds | null, padding?: number, minExtent?: number) => void;
     /** Register a map-click interceptor. Returns a removal function. The most recently
@@ -4944,6 +5281,7 @@ declare const EVENT_DEFS: {
     /** @unstable */
     "trail:changed": void;
     "seen:changed": void;
+    "account:changed": void;
     /** @unstable */
     "update:changed": void;
     /** @unstable */
@@ -4984,7 +5322,7 @@ export interface BadgeSource {
     /** Name shown next to its checkbox in settings. */
     label: string;
     /** Events after which the badges are collected again. */
-    events: readonly EditorEvent[];
+    events: readonly (EditorEvent | PluginEvent<unknown>)[];
     /** Yields the badges to show, each paired with its map id. */
     collect(): Iterable<[mapId: string, badge: MapBadge]>;
 }
@@ -5062,18 +5400,6 @@ declare const Tag: {
     assign: (selector: Selector, records: TagCreate[]) => Promise<WorkResult>;
 };
 
-/** Run mutations and wait for their state and display updates. @api */
-declare const Mutation: {
-    /** The result of a mutation that reached no map. */
-    none: () => Mutation;
-    /** Resolves once the open map's state and its markers both show `m`. A mutation that reached
-     *  no map (version 0) settles at once. */
-    settle: (m: Mutation) => Promise<void>;
-    run: <R extends Mutation | {
-        mutation: Mutation;
-    } = Mutation>(fn: () => Promise<R>, ...fallback: Mutation extends R ? [empty?: R] : [empty: R]) => Promise<R>;
-};
-
 /** Add, update, remove, and inspect map locations. @api */
 declare const Location: {
     /** Add locations to the map and return their new ids, in order. Undoable. */
@@ -5102,11 +5428,6 @@ declare const SelectionList: {
     tagIdsDeep: () => readonly number[];
     /** Listed selections that are not ghosted. @unstable */
     active: () => Selection[];
-    /** Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections. @unstable */
-    update: (op: SelectionOp) => Promise<void>;
-    /** Run a mutation that may change the listed selections, and announce the change when it
-     *  does. @unstable */
-    run: (write: () => Promise<Mutation>) => Promise<void>;
     /** @unstable */
     select: <R extends number[] | {
         ids: number[];
@@ -5143,6 +5464,11 @@ declare const Scene: {
     load: (markerStyle?: MarkerStyle, mc?: RGB) => Promise<void>;
     /** Clear all marker data from the scene and stop following the map. @unstable */
     clear: () => void;
+    /** What keeps the map showing as loading; the scene itself holds it until its markers are first drawn. @unstable */
+    loading: {
+        hold: () => (() => void);
+        held: () => boolean;
+    };
     /** The ids of the locations the listed selections select. @unstable */
     selected: () => SelectedIds;
     /** Reactive {@link Scene.selected}. @unstable */
@@ -5390,12 +5716,12 @@ declare function fetchLocations(selector: Selector): Promise<Location[]>;
 /** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
  *  own; set `defaultOff` on the provider to make them opt-in. @api @unstable */
 declare function registerEnrichFields(_fields: EnrichFieldOption[]): void;
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`. @api @unstable */
-declare function addSelections(selectors: Selector[]): Promise<void>;
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "remove", keys })`. @api @unstable */
-declare function removeSelections(keys: string[]): Promise<void>;
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "set", selections: [] })`. @api @unstable */
-declare function resetSelections(): Promise<void>;
+/** @deprecated v0.11.3. Use `MMA.Edit.selections(MMA.addSelection(...selectors))`. @api @unstable */
+declare function addSelections(selectors: Selector[]): Promise<Mutation<ListedSelection>>;
+/** @deprecated v0.11.3. Use `MMA.Edit.selections({ kind: "remove", keys })`. @api @unstable */
+declare function removeSelections(keys: string[]): Promise<Mutation<ListedSelection>>;
+/** @deprecated v0.11.3. Use `MMA.Edit.selections({ kind: "set", selections: [] })`. @api @unstable */
+declare function resetSelections(): Promise<Mutation<ListedSelection>>;
 /** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @api @unstable */
 declare function currentSelection(): Selector;
 /** @deprecated v0.12.0. Use MMA.Query.read(selector, ask) instead. @api @unstable */
@@ -5485,8 +5811,8 @@ declare const renameField: typeof Field$1.rename;
 declare const deleteField: typeof Field$1.remove;
 /** @deprecated v0.12.0. Use `MMA.SelectionList.active`. @api */
 declare const getActiveSelections: typeof SelectionList.active;
-/** @deprecated v0.12.0. Use `MMA.SelectionList.update`. @api @unstable */
-declare const applySelectionUpdate: typeof SelectionList.update;
+/** @deprecated v0.12.0. Use `MMA.Edit.selections`. @api @unstable */
+declare const applySelectionUpdate: typeof Edit.selections;
 /** @deprecated v0.12.0. Use `MMA.SelectionList.select`. @api */
 declare const select: typeof SelectionList.select;
 /** @deprecated v0.12.0. Use `MMA.History.available`. @api @unstable */
@@ -5604,8 +5930,6 @@ declare function createPano(): {
     canvas: () => HTMLCanvasElement | null;
     /** Cover-crop the live frame into an exact image, or null until real imagery renders. */
     captureImage: (width: number, height: number) => HTMLCanvasElement | null;
-    /** Point the camera now. */
-    look: (frame: PanoFrame) => void;
     /** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. */
     reserveLook: () => (frame: PanoFrame) => boolean;
     /** Nudge heading and pitch by a delta, keeping pitch in range. */
@@ -5681,8 +6005,6 @@ declare const Pano: {
     canvas: () => HTMLCanvasElement | null;
     /** Cover-crop the live frame into an exact image, or null until real imagery renders. @unstable */
     captureImage: (width: number, height: number) => HTMLCanvasElement | null;
-    /** Point the camera now. @unstable */
-    look: (frame: PanoFrame) => void;
     /** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. @unstable */
     reserveLook: () => (frame: PanoFrame) => boolean;
     /** Nudge heading and pitch by a delta, keeping pitch in range. @unstable */
@@ -5786,6 +6108,14 @@ export interface Plugin extends PluginIdentity {
      *  Only for plugins whose state can't be serialized (e.g. an iframe). */
     keepAlive?: boolean;
     activate(): void | (() => void);
+    /** Mounted once at the root of every window while the plugin is enabled, such as a dialog it raises itself. */
+    layer?: ComponentType;
+    /** Drawn on the plugin's button wherever it appears, such as a status dot. */
+    badge?: ComponentType;
+    /** Show the plugin's button on the map list too, opening its modal. */
+    onMapList?: boolean;
+    /** Shown in the editor header beside the map name, such as a status pill. */
+    headerItem?: ComponentType;
     modal?: ComponentType<{
         onClose: () => void;
     }>;
@@ -6171,6 +6501,14 @@ declare const _test: typeof testApi;
 
 /** Show a brief toast notification. Optionally scoped to a `container` element. @api */
 declare function toast(message: string, duration?: number, container?: HTMLElement): void;
+
+/** A round picture `size` pixels wide, showing `fallback` (a plain figure by default) when there is no `src` or it fails to load, ringed in `ring` when given. */
+declare function Avatar({ src, size, fallback, ring, className, style, ...props }: ComponentPropsWithRef<"span"> & {
+    src?: string | null;
+    size?: number;
+    fallback?: ReactNode;
+    ring?: string;
+}): react.JSX.Element;
 
 export type BarSize = "sm" | "md" | "lg";
 export type BarTone = "accent" | "complete" | "incomplete";
@@ -6599,6 +6937,7 @@ declare function Tooltip({ content, side, align, children, }: {
 
 /** Shared UI primitives for plugin sidebars and dialogs. @api */
 declare const ui: {
+    Avatar: typeof Avatar;
     Bar: typeof Bar;
     Button: typeof Button;
     Checkbox: typeof Checkbox;
@@ -6763,6 +7102,9 @@ declare const STANDARD_VALIDATION_CATEGORIES: string[];
 /** The category a key names, or null for one this version does not know. @api @unstable */
 declare function validationCategory(key: string): ValidationCategory | null;
 
+export type AccountApi = {
+    Account: typeof Account;
+};
 export type AutosaveApi = {
     Autosave: typeof Autosave;
 };
@@ -6824,6 +7166,10 @@ export type ColorApi = {
     hslToRgb: typeof hslToRgb;
     /** @unstable */
     labelColor: typeof labelColor;
+    /** @unstable */
+    legible: typeof legible;
+    /** @unstable */
+    luminance: typeof luminance;
     /** @unstable */
     resolveSvColorHex: typeof resolveSvColorHex;
     /** @unstable */
@@ -7403,7 +7749,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {
@@ -7414,4 +7760,4 @@ declare global {
 }
 
 export type { MMA, MMA as MMAApi, commands, events };
-export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueNames, ValueRecord, VirtualTag, Work, WorkResult };
+export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CollabCopy, CollabPresence, CollabSession, CollabSessions, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, Edited, EditorImportPreview, EditorImportResult, Edits, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JoinOutcome, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, Member, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Origin, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReplyTo, ReportRef, ResultEntry, RetrySpec, ReviewSession, Rows, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SessionLink, SetOp, Share, Shared, Shares, Shown, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueNames, ValueRecord, Via, VirtualTag, Work, WorkResult };

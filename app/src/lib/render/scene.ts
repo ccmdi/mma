@@ -10,6 +10,7 @@ import { mapOpen } from "@/lib/util/debug";
 import { emit as emitEvent, subscribe as subscribeEvent, track, useEventValue } from "@/lib/events";
 import type { MarkerStyle } from "@/types";
 import { watermark } from "@/lib/util/watermark";
+import { holds } from "@/lib/util/holds";
 import { serial } from "@/lib/util/concurrent";
 
 // Owns marker/scene data for every map surface. The editor map drives the engine (the
@@ -32,6 +33,8 @@ const drawnUpTo = watermark<FrameSummary>(
 /** The map row open in the editor, which a clear forgets and the next load hides again. */
 let openRow: number | null = null;
 let selected = SelectedIds.EMPTY;
+const loading = holds(() => emitEvent("scene:changed"));
+let undrawn: (() => void) | null = loading.hold();
 
 subscribeEvent("open:change", (id) => {
 	openRow = id;
@@ -67,7 +70,10 @@ function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary 
 	if (s.replace) drawnUpTo.reset(s.version, () => s);
 	else drawnUpTo.pass(s.version, s);
 	t.end({ added: s.added.length, removed: s.removed.length, bytes: buf.byteLength });
-	if (scene.version !== drawn) emitEvent("scene:changed");
+	if (s.replace && undrawn) {
+		undrawn();
+		undrawn = null;
+	} else if (scene.version !== drawn) emitEvent("scene:changed");
 	return s;
 }
 
@@ -158,8 +164,11 @@ export const Scene = {
 		follow(null);
 		scene.clear();
 		selected = SelectedIds.EMPTY;
-		emitEvent("scene:changed");
+		if (undrawn) emitEvent("scene:changed");
+		else undrawn = loading.hold();
 	},
+	/** What keeps the map showing as loading; the scene itself holds it until its markers are first drawn. */
+	loading,
 	/** The ids of the locations the listed selections select. */
 	selected: (): SelectedIds => {
 		track("scene:changed");

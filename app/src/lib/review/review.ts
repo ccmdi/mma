@@ -14,6 +14,7 @@ import type { Selector } from "@/types";
 import type { ReviewSession, Selection } from "@/bindings.gen";
 import { ReviewMode } from "@/bindings.consts";
 import { t } from "@/lib/i18n";
+import { Edit } from "@/store/edit";
 
 export interface PruneResult {
 	session: ReviewSession | null;
@@ -110,7 +111,7 @@ const HISTORY_SESSION_ID = "history";
 function refreshProjection(): void {
 	const s = session;
 	if (!s) return;
-	void SelectionList.update(addSelection(...REVIEW_MODES.map((mode) => Review.selector(s, mode))));
+	void Edit.selections(addSelection(...REVIEW_MODES.map((mode) => Review.selector(s, mode))));
 }
 
 const projections = debounce(refreshProjection, 40);
@@ -119,7 +120,7 @@ function clearProjection(id: string): void {
 	const keys = SelectionList.listed()
 		.filter(({ selection: s }) => s.selector.type === "Reviewed" && s.selector.sessionId === id)
 		.map(({ selection: s }) => s.key);
-	void SelectionList.update({ kind: "remove", keys });
+	void Edit.selections({ kind: "remove", keys });
 }
 
 function reconcile(removed: number[]): void {
@@ -401,7 +402,7 @@ export const Review = {
 	selectReviewed: async (): Promise<void> => {
 		const ids = Review.reviewedIds(await Review.sessions());
 		if (ids.length === 0) return;
-		await SelectionList.update(addSelection(reviewSelector(HISTORY_SESSION_ID, "reviewed", ids)));
+		await Edit.selections(addSelection(reviewSelector(HISTORY_SESSION_ID, "reviewed", ids)));
 	},
 	/** The locations of review session `s` that are reviewed, or still to review. */
 	selector: (s: ReviewSession, mode: ReviewMode): Selector => {

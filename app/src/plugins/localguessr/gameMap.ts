@@ -5,7 +5,7 @@ import { mdiFlagVariant } from "@mdi/js";
 import { MapHost, type DeckOverlayHandle } from "@/lib/map/host";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { getLocal } from "@/lib/hooks/useLocalStorage";
-import { cmd } from "@/lib/commands";
+import { Account } from "@/lib/account";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { usePluginState } from "@/plugins/pluginStorage";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
@@ -243,7 +243,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 /** The signed-in GitHub account's avatar, or null when signed out. */
 export function useGitHubAvatar(): string | null {
-	return useAsync(() => cmd.githubMe().then((user) => user?.avatarUrl ?? null), []).ok();
+	return Account.use()?.avatarUrl ?? null;
 }
 
 export function useAvatarPinSetting() {

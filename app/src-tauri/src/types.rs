@@ -534,6 +534,12 @@ impl From<&str> for AppError {
     }
 }
 
+impl From<mma_algebra::Exhausted> for AppError {
+    fn from(_: mma_algebra::Exhausted) -> Self {
+        AppError::from("every id the map's host lent for new locations is taken")
+    }
+}
+
 macro_rules! impl_app_error_from {
     ($($t:ty),* $(,)?) => {$(
         impl From<$t> for AppError {
@@ -546,6 +552,7 @@ impl_app_error_from!(
     io::Error,
     rusqlite::Error,
     serde_json::Error,
+    postcard::Error,
     arrow_schema::ArrowError,
     tauri::Error,
     JoinError,

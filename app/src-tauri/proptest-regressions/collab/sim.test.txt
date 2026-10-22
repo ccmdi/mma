@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 2f15a720824238877af2094ed4562129226c1c26972e59f086531db87aea195e # shrinks to steps = [Lose { peer: 0, at: 0 }, Commit, Add { by: Peer(0), at: 0 }, Lose { peer: 0, at: 0 }, Commit]
+cc 2ba059eee03fde3a01f8703cfc2340a897d3229c58d6d4bf3820e8a49071b8d5 # shrinks to steps = [Commit, Add { by: Host, at: 0 }]

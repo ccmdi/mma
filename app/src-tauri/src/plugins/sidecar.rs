@@ -13,6 +13,7 @@ use crate::plugins::user::{validate_plugin_id, validate_sidecar_command, validat
 use crate::runs;
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
+use crate::util::Lock;
 use reqwest::blocking::Client;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -27,7 +28,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 use tokio::task;
@@ -145,7 +146,8 @@ fn fetch_expected_sha(
 /// first act -- `remove_dir_all` on the staging dir -- lands mid-extraction.
 fn install_gate(plugin_id: &str) -> Arc<Mutex<()>> {
     static G: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
-    lock(G.get_or_init(|| Mutex::new(HashMap::new())))
+    G.get_or_init(|| Mutex::new(HashMap::new()))
+        .locked()
         .entry(plugin_id.to_string())
         .or_default()
         .clone()
@@ -153,7 +155,7 @@ fn install_gate(plugin_id: &str) -> Arc<Mutex<()>> {
 
 pub(crate) fn install_blocking(plugin_id: &str, name: &str, version: &str) -> AppResult<()> {
     let gate = install_gate(plugin_id);
-    let _installing = lock(&gate);
+    let _installing = gate.locked();
     // The sibling that held the gate may have just installed this exact version;
     // re-checking under the lock makes the second pass a no-op, not a re-download.
     if sidecar_installed_version(plugin_id.to_string())?.as_deref() == Some(version) {
@@ -402,12 +404,6 @@ fn build_command(
 
 // --- Process registry ---
 
-/// Ignore mutex poisoning: these locks guard plain process bookkeeping, and a panic
-/// in one request must not leave a plugin permanently unkillable.
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
 struct Resident {
     child: Arc<Mutex<Child>>,
     port: u16,
@@ -435,14 +431,15 @@ fn registry() -> &'static Mutex<HashMap<String, PluginSlot>> {
 }
 
 fn plugin_slot(plugin_id: &str) -> PluginSlot {
-    lock(registry())
+    registry()
+        .locked()
         .entry(plugin_id.to_string())
         .or_default()
         .clone()
 }
 
 fn kill_child(child: &Arc<Mutex<Child>>) {
-    let mut c = lock(child);
+    let mut c = child.locked();
     let _ = c.kill();
     let _ = c.wait();
 }
@@ -460,9 +457,9 @@ fn kill_procs(plugin_id: &str, procs: &mut PluginProcs) {
 
 /// Kill the one-shot child working `run_id`, whichever plugin it belongs to.
 fn kill_run(run_id: u32) {
-    let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
+    let slots: Vec<PluginSlot> = registry().locked().values().cloned().collect();
     for slot in slots {
-        let child = lock(&slot).children.get(&run_id).cloned();
+        let child = slot.locked().children.get(&run_id).cloned();
         if let Some(child) = child {
             kill_child(&child);
             return;
@@ -474,7 +471,7 @@ fn kill_run(run_id: u32) {
 /// still held. Directory deletes/swaps go in `f`, where no new process can appear.
 pub fn with_plugin_stopped<R>(plugin_id: &str, f: impl FnOnce() -> AppResult<R>) -> AppResult<R> {
     let slot = plugin_slot(plugin_id);
-    let mut procs = lock(&slot);
+    let mut procs = slot.locked();
     kill_procs(plugin_id, &mut procs);
     f()
 }
@@ -483,12 +480,13 @@ pub fn with_plugin_stopped<R>(plugin_id: &str, f: impl FnOnce() -> AppResult<R>)
 pub fn kill_all_sidecars() {
     // Snapshot, then lock slots one at a time: a plugin mid-spawn holds its slot for
     // up to the handshake budget, and that must not stall the other plugins' kills.
-    let slots: Vec<(String, PluginSlot)> = lock(registry())
+    let slots: Vec<(String, PluginSlot)> = registry()
+        .locked()
         .iter()
         .map(|(id, slot)| (id.clone(), slot.clone()))
         .collect();
     for (plugin_id, slot) in slots {
-        kill_procs(&plugin_id, &mut lock(&slot));
+        kill_procs(&plugin_id, &mut slot.locked());
     }
 }
 
@@ -577,10 +575,10 @@ fn resident_port(
     stale: Option<u64>,
 ) -> AppResult<ResidentAddr> {
     let slot = plugin_slot(plugin_id);
-    let mut procs = lock(&slot);
+    let mut procs = slot.locked();
     if let Some(r) = procs.resident.take() {
         // try_wait also reaps a process that exited on its own (idle timeout).
-        let alive = matches!(lock(&r.child).try_wait(), Ok(None));
+        let alive = matches!(r.child.locked().try_wait(), Ok(None));
         if alive && stale != Some(r.epoch) {
             let addr = ResidentAddr {
                 port: r.port,
@@ -722,7 +720,7 @@ fn run_oneshot_inner(
     let slot = plugin_slot(plugin_id);
     // Spawn and register under the plugin lock: a concurrent stop or install either
     // runs first (and this spawns from whatever it left installed) or sees this child.
-    let mut guard = lock(&slot);
+    let mut guard = slot.locked();
     let mut child = build_command(plugin_id, spec, command, input)?
         .spawn()
         .map_err(|e| AppError(format!("Failed to spawn {} {command}: {e}", spec.name)))?;
@@ -761,17 +759,17 @@ fn run_oneshot_inner(
     // stdout is closed, so exit is imminent. The child guard is dropped before each
     // sleep, so cancel/kill can still reach the process between polls.
     let status = loop {
-        let polled = lock(&child).try_wait();
+        let polled = child.locked().try_wait();
         match polled {
             Ok(Some(status)) => break status,
             Ok(None) => thread::sleep(Duration::from_millis(5)),
             Err(e) => {
-                lock(&slot).children.remove(&run_id);
+                slot.locked().children.remove(&run_id);
                 return Err(e.into());
             }
         }
     };
-    lock(&slot).children.remove(&run_id);
+    slot.locked().children.remove(&run_id);
 
     if !status.success() {
         let code = status

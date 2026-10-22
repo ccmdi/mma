@@ -2,7 +2,7 @@ import { startTransition, useOptimistic, useRef, useState } from "react";
 import { useAsync, useSticky } from "@/lib/hooks/useAsync";
 import { toast } from "@/lib/util/toast";
 import { Notice } from "@/components/primitives/Hint";
-import { SelectionList } from "@/store/selectionList";
+import { Edit } from "@/store/edit";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { SegmentedControl } from "@/components/primitives/Sidebar";
@@ -52,7 +52,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 		);
 
 	const handleSelect = (s: ReviewSession, mode: ReviewMode) => {
-		void SelectionList.update(addSelection(Review.selector(s, mode)));
+		void Edit.selections(addSelection(Review.selector(s, mode)));
 		onOpenChange(false);
 	};
 

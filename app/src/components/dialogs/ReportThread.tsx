@@ -12,6 +12,7 @@ import type { IssueThread } from "@/bindings.gen";
 import { Button } from "@/components/primitives/Button";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Hint, Notice } from "@/components/primitives/Hint";
+import { Avatar } from "@/components/primitives/Avatar";
 import { Icon } from "@/components/primitives/Icon";
 import { IconButton } from "@/components/primitives/IconButton";
 import { Spinner } from "@/components/primitives/Spinner";
@@ -59,12 +60,15 @@ function Entry({
 	return (
 		<article className="report-thread__entry">
 			{avatarUrl && !mine ? (
-				<img className="report-thread__avatar" src={avatarUrl} alt="" />
+				<Avatar className="report-thread__avatar" src={avatarUrl} />
 			) : (
 				<Tooltip content={mine && report.anonymous ? t("Anonymous") : author}>
-					<span className="report-thread__avatar">
-						<Icon path={mine && report.anonymous ? mdiIncognito : mdiAccountCircle} size={24} />
-					</span>
+					<Avatar
+						className="report-thread__avatar"
+						fallback={
+							<Icon path={mine && report.anonymous ? mdiIncognito : mdiAccountCircle} size={24} />
+						}
+					/>
 				</Tooltip>
 			)}
 			<div className="report-thread__message">

@@ -6,18 +6,6 @@ import type { CameraType, CapturePick, DatePart, FieldType, Group, FirstSyncMode
 
 /** Commands */
 export const commands = {
-	/** Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing. */
-	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key in number]: ValueRecord } }) => __TAURI_INVOKE<EditResult>("store_edit", { target, edits, records }),
-	/** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. */
-	storeLandLayer: (name: string) => __TAURI_INVOKE<Mutation>("store_land_layer", { name }),
-	/** Run work over the target's locations matched by selector; an open pending layer holds the edits until it lands. */
-	storeWork: (target: Target, selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { target, selector, work }),
-	/** Edit an interned field's value records; membership uses ordinary location edits. */
-	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<Mutation<ValueRecord>>("store_edit_values", { field, edits }),
-	/** Edit the selection tree. */
-	storeEditSelections: (op: SelectionEdit) => __TAURI_INVOKE<Mutation<ListedSelection>>("store_edit_selections", { op }),
-	/** Answer one question about the target's locations matched by selector. */
-	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
 	/**  Reports the window ready and returns the app's startup time and uptime. */
 	appReady: () => __TAURI_INVOKE<AppReady>("app_ready"),
 	/**  Fails with the reason the app could not start, and succeeds when it started normally. */
@@ -96,6 +84,35 @@ export const commands = {
 	githubLogout: () => __TAURI_INVOKE<null>("github_logout"),
 	/**  Local-only check: is a token stored? Says nothing about its validity. */
 	githubHasSession: () => __TAURI_INVOKE<boolean>("github_has_session"),
+	/**  Every collab session this app is in, and every map it copied from another app's. */
+	collabSessions: () => __TAURI_INVOKE<CollabSessions>("collab_sessions"),
+	/**  The maps the signed-in user shares, and the maps others share with them. */
+	collabShares: () => __TAURI_INVOKE<Shares>("collab_shares"),
+	/**
+	 *  Share map `map` with exactly `logins`, or stop sharing it when there are none. Anyone left
+	 *  out is turned away from the map's session.
+	 */
+	collabShare: (map: string, logins: string[]) => __TAURI_INVOKE<null>("collab_share", { map, logins }),
+	/**  Host map `map` for everyone it is shared with, until it is left. */
+	collabHost: (map: string) => __TAURI_INVOKE<null>("collab_host", { map }),
+	/**
+	 *  Join the map `via` reaches, as an account it is shared with or as a guest with an invite
+	 *  code, following it into this app's copy of it. A copy edited since its last session is
+	 *  reported instead, unless `replace` says to replace those edits.
+	 */
+	collabJoin: (via: Via, replace: boolean) => __TAURI_INVOKE<JoinOutcome>("collab_join", { via, replace }),
+	/**
+	 *  Leave the session on this app's map `map`: a host ends it for everyone, a peer keeps its
+	 *  copy. An ended session is dismissed.
+	 */
+	collabLeave: (map: string) => __TAURI_INVOKE<null>("collab_leave", { map }),
+	/**  Show `data` to everyone else in the session on this app's map `map`. */
+	collabPresent: (map: string, data: Shown) => __TAURI_INVOKE<null>("collab_present", { map, data }),
+	/**
+	 *  Turn on the code that lets guests without a GitHub account join this app's shared map
+	 *  `map`, returning it, or turn it off, which turns away every guest in its session.
+	 */
+	collabInvite: (map: string, on: boolean) => __TAURI_INVOKE<string | null>("collab_invite", { map, on }),
 	/**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. */
 	feedbackLogTail: () => __TAURI_INVOKE<string>("feedback_log_tail"),
 	/**  File a report anonymously under this install id, or as the signed-in GitHub user when it is null. */
@@ -128,17 +145,29 @@ export const commands = {
 	storeOpenMap: (mapId: string, changes: Channel<ChangeEvent>) => __TAURI_INVOKE<StoreStatus>("store_open_map", { mapId, changes }),
 	/**  Close the open map, saving unsaved changes first. */
 	storeCloseMap: () => __TAURI_INVOKE<null>("store_close_map"),
-	/**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. */
-	storeCloseLayer: (name: string, mapId: string | null) => __TAURI_INVOKE<null>("store_close_layer", { name, mapId }),
 	/**  Save uncommitted changes to disk. No-op when nothing has changed. */
 	storeSaveDirty: () => __TAURI_INVOKE<null>("store_save_dirty"),
+	/**  Edit the map; an open pending layer holds location edits until it lands. */
+	storeEdit: <V extends Edits>(edits: V) => __TAURI_MATCH(edits, __TAURI_REPLY<Edited>("store_edit", "reply", { edits })),
+	/**
+	 *  Run work over the target's locations matched by selector; an open pending layer holds the
+	 *  edits until it lands.
+	 */
+	storeWork: (target: Target, selector: Selector<SelectionInput>, work: Work) => __TAURI_REPLY<WorkResult>("store_work", "reply", { target, selector, work }),
+	/**
+	 *  Land a pending layer's edits on the map as one undoable step; later edits to it join that
+	 *  step.
+	 */
+	storeLandLayer: (name: string) => __TAURI_REPLY<Mutation>("store_land_layer", "reply", { name }),
+	/**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. */
+	storeCloseLayer: (name: string, mapId: string | null) => __TAURI_REPLY<null>("store_close_layer", "reply", { name, mapId }),
+	/**  Answer one question about the target's locations matched by selector. */
+	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
 	/**
 	 *  Copy the locations that `selector` matches into another map, skipping ones it already has.
 	 *  Extra fields carry over, and interned values such as tags are matched to the target's by name.
 	 */
 	storeCopyLocationsToMap: (targetMapId: string, selector: Selector<SelectionInput>) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
-	/**  Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change. */
-	storeEditUploaded: (target: Target, session: string) => __TAURI_INVOKE<EditResult>("store_edit_uploaded", { target, session }),
 	/**
 	 *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
 	 *  one entry per row of points.
@@ -161,7 +190,7 @@ export const commands = {
 	 */
 	storeCountryDistribution: (selector: Selector<SelectionInput>, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
 	/**  Undo the newest edit, or redo the newest undone one. */
-	storeStep: (stack: Stack, timeline: Timeline) => __TAURI_INVOKE<Mutation>("store_step", { stack, timeline }),
+	storeStep: (stack: Stack, timeline: Timeline) => __TAURI_REPLY<Mutation>("store_step", "reply", { stack, timeline }),
 	/**  Compile unaddressed selections into keyed store inputs. */
 	selectionBuild: (selections: SelectionInput[]) => __TAURI_INVOKE<Selection[]>("selection_build", { selections }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
@@ -182,7 +211,7 @@ export const commands = {
 	 *  Open maps save through their store; value records are edited separately.
 	 *  A closed map writes straight to disk and returns null.
 	 */
-	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<Mutation | null>("store_update_map_meta", { patch }),
+	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings" | "localPluginData">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } } & { localPluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } }) => __TAURI_REPLY<Mutation | null>("store_update_map_meta", "reply", { patch }),
 	/**  Move every map in folder `from` to folder `to`, or to the root when `to` is null. */
 	storeMoveFolder: (from: string, to: string | null) => __TAURI_INVOKE<null>("store_move_folder", { from, to }),
 	/**  Return aggregate database statistics: counts, file size, and configuration. */
@@ -368,6 +397,8 @@ export const commands = {
 export const events = {
 	bulkExportProgress: makeEvent<ExportProgress>("bulk-export-progress"),
 	bulkImportProgress: makeEvent<ImportProgress>("bulk-import-progress"),
+	collabPresence: makeEvent<CollabPresence>("collab-presence"),
+	collabSessions: makeEvent<CollabSessions>("collab-sessions"),
 	procedureProgress: makeEvent<ProcedureProgress>("procedure-progress"),
 	procedureResult: makeEvent<ProcedureResult>("procedure-result"),
 	sidecarDone: makeEvent<SidecarDone>("sidecar-done"),
@@ -494,6 +525,54 @@ export type ChangeEvent = {
 	/**  How the derived state moved, as a JSON Patch over what the window holds. */
 	patch: PatchOp[],
 } & Keys<number>;
+
+/**  A map in this app copied from another app's, and where it came from. */
+export type CollabCopy = {
+	/**  This app's map. */
+	map: string,
+	/**  Where it came from. */
+	origin: Origin,
+};
+
+/**
+ *  What someone else in the session on this app's map `map` shows everyone, sent each time
+ *  they show something new.
+ */
+export type CollabPresence = {
+	/**  This app's map the session edits. */
+	map: string,
+	/**  Who shows it. */
+	login: string,
+	/**  What they show. */
+	data: Shown,
+};
+
+/**  A map this app hosts or follows, as the people in it see it. */
+export type CollabSession = {
+	/**  This app's map the session edits. */
+	map: string,
+	/**  The login hosting the map. */
+	host: string,
+	/**  The login this app is in the session as. */
+	you: string,
+	/**  Whether this app is the host. */
+	hosting: boolean,
+	/**  Everyone in the session, the host first. */
+	roster: Member[],
+	/**  How this app's connection to the session stands. */
+	link: SessionLink,
+};
+
+/**
+ *  Every collab session this app is in and every map it copied from another app's, sent
+ *  whenever a session changes.
+ */
+export type CollabSessions = {
+	/**  The sessions, each on one of this app's maps. */
+	sessions: CollabSession[],
+	/**  The copies of other apps' maps. */
+	copies: CollabCopy[],
+};
 
 /**  Metadata for a single commit. */
 export type CommitInfo = {
@@ -637,6 +716,15 @@ export type EditResult = {
 	invalidated: string[],
 };
 
+/**  What an edit did, answering the `Edits` variant it was. */
+export type Edited = 
+/**  What the location edit did. */
+({ locations: EditResult }) & { selections?: never; values?: never } | 
+/**  The version the value edit reached and the keys its new records took. */
+({ values: Mutation<ValueRecord> }) & { locations?: never; selections?: never } | 
+/**  The version the selection edit reached. */
+({ selections: Mutation<ListedSelection> }) & { locations?: never; values?: never };
+
 /**
  *  Preview data for importing a file into the currently open map.
  *  Unlike bulk import, this shows per-field counts so the user can
@@ -672,6 +760,25 @@ export type EditorImportResult = {
 	/**  True when the import was too large to undo; the caller commits it. */
 	autoCommit: boolean,
 };
+
+/**  A change to the map: its locations, an interned field's values, or the selection list. */
+export type Edits = 
+/**
+ *  Locations where `target` says. Rows refer to interned values such as tags by their ids
+ *  in `records`; each is matched to the map's value of the same name, created when missing.
+ */
+({ locations: {
+	target: Target,
+	edits: Rows,
+	records: { [key in string]: { [key in number]: ValueRecord } },
+} }) & { selections?: never; values?: never } | 
+/**  One interned field's value records; membership uses location edits. */
+({ values: {
+	field: string,
+	edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[],
+} }) & { locations?: never; selections?: never } | 
+/**  The selection list. */
+({ selections: SelectionEdit }) & { locations?: never; values?: never };
 
 /**  The kind of file an export writes, with what that kind needs. */
 export type ExportFormat = 
@@ -877,6 +984,16 @@ export type IssueThread = {
 	comments: IssueComment[],
 };
 
+/**  What happened when this app tried to join a map. */
+export type JoinOutcome = 
+/**  Joined, following the host into this app's map `map`. */
+{ outcome: "following"; map: string } | 
+/**
+ *  This app's copy `map` was edited since its last session, so joining would replace those
+ *  edits; join again with `replace` to go ahead.
+ */
+{ outcome: "edited"; map: string };
+
 /**  A map-making JSON export: how its coordinates render, and the map they belong to. */
 export type JsonExport = {
 	mapName: string,
@@ -1009,6 +1126,8 @@ export type MapMeta = {
 	scoreBounds: ScoreBounds,
 	extra: MapExtra,
 	labels: string[],
+	/**  What each plugin keeps with this map on this device alone, by plugin id and then key. */
+	localPluginData: { [key in string]: { [key in string]: unknown } },
 	locationCount: number,
 	/**  Location changes since the last commit. */
 	pending: Counts,
@@ -1064,6 +1183,17 @@ export type MapSettings = {
 } & MapPreferences;
 
 
+/**
+ *  Someone in a session: the login their room vouched for, and whether they joined as a guest
+ *  with an invite code rather than an account.
+ */
+export type Member = {
+	/**  Their login. */
+	login: string,
+	/**  Whether they joined with an invite code. */
+	guest: boolean,
+};
+
 
 /**  A map the key holder can link to. */
 export type MmMapSummary = {
@@ -1118,6 +1248,20 @@ export type Op<T, P, K> =
 ({ put: P }) & { add?: never; remove?: never; set?: never } | 
 /**  The row at this key removed. */
 ({ remove: K }) & { add?: never; put?: never; set?: never };
+
+/**  Where a copy of another app's map came from. */
+export type Origin = {
+	/**  The login of the app that hosts the map. */
+	host: string,
+	/**  The map's id on its host. */
+	map: string,
+	/**  The login this app followed it as. */
+	login: string,
+	/**  What the copy held when its last session ended. */
+	parted: string | null,
+	/**  How this app joins the map again. */
+	via: Via,
+};
 
 /**  A decoded Street View panorama: flat data with no live objects. */
 export type Pano = {
@@ -1536,6 +1680,13 @@ export type ReviewSession = {
 	updatedAt: string,
 };
 
+/**  A location edit's rows: sent with it, or uploaded beforehand in chunks. */
+export type Rows = 
+/**  The rows themselves. */
+(Op<Location, Partial<Location> & Pick<Location, "id">, number>)[] | 
+/**  The rows uploaded to the session `storeUploadBegin` opened. */
+{ session: string };
+
 /**  One item of a run: a registered provider, or a procedure that is not one. */
 export type RunItem = 
 /**  A registered provider, with what this run sets on it. */
@@ -1712,6 +1863,21 @@ selection: S | null; lat: number; lng: number; radiusM: number } |
 /**  Where to look; `null` looks over the whole map. */
 selection: S | null; lat: number; lng: number };
 
+/**  How a session's connection stands. */
+export type SessionLink = 
+/**  Waiting for the host to come online. */
+{ state: "waiting" } | 
+/**  Connecting to the host. */
+{ state: "connecting" } | 
+/**  Connected, and receiving the map from the host. */
+{ state: "syncing" } | 
+/**  Connected. */
+{ state: "live" } | 
+/**  The connection dropped and is being made again. */
+{ state: "reconnecting" } | 
+/**  The session is over, and why. */
+{ state: "ended"; reason: string };
+
 /**  Operations computed over the selected locations as a group. */
 export type SetOp = 
 /**
@@ -1724,6 +1890,41 @@ export type SetOp =
  *  survivor per cluster.
  */
 { kind: "pruneDuplicates"; distance: number; score: string | null };
+
+/**  A map the signed-in user shares, and with whom. */
+export type Share = {
+	/**  The shared map. */
+	map: string,
+	/**  The map's name as it was shared. */
+	name: string,
+	/**  The GitHub logins it is shared with. */
+	logins: string[],
+	/**  The code that lets guests without a GitHub account join, while it is on. */
+	invite?: string | null,
+};
+
+/**  A map someone shares with the signed-in user, and whether they host it now. */
+export type Shared = {
+	/**  The GitHub login sharing the map. */
+	host: string,
+	/**  The shared map, as its host knows it. */
+	map: string,
+	/**  The map's name as it was shared. */
+	name: string,
+	/**  Whether the host is online with the map now. */
+	live: boolean,
+};
+
+/**  The maps the signed-in user shares, and the maps shared with them. */
+export type Shares = {
+	/**  The maps the signed-in user shares. */
+	mine: Share[],
+	/**  The maps others share with the signed-in user. */
+	withMe: Shared[],
+};
+
+/**  What someone shows everyone else in a session, which only the plugin reads. */
+export type Shown = unknown;
 
 export type SideCounts = {
 	create: number,
@@ -1867,6 +2068,13 @@ export type ValueRecord = {
 	order?: number | null,
 } & { [key in string]: unknown };
 
+/**  How this app reaches a map another app hosts. */
+export type Via = 
+/**  By its host and its id there, as an account the map is shared with. */
+({ host: string; map: string }) & { code?: never } | 
+/**  By the invite code its host gave, as a guest. */
+({ code: string }) & { host?: never; map?: never };
+
 /**
  *  Per-map config for a virtual tag-tree node - a folder node with no underlying
  *  tag (e.g. "a" when only "a/b" and "a/c" exist). Keyed by the node's full slash
@@ -1891,6 +2099,22 @@ export type WorkResult = {
 };
 
 /* Tauri Specta runtime */
+type __TAURI_VARIANT<V> = { [K in keyof V]-?: [V[K]] extends [undefined] ? never : K }[keyof V];
+
+/** The member of `R` answering the variant `V` was sent as. */
+export type ReplyTo<R, V> = Extract<R, Record<__TAURI_VARIANT<V>, unknown>>[__TAURI_VARIANT<V> & keyof Extract<R, Record<__TAURI_VARIANT<V>, unknown>>];
+
+function __TAURI_MATCH<V extends object, R>(request: V, reply: Promise<R>): Promise<ReplyTo<R, V>> {
+    return reply.then((r) => (r as Record<string, any>)[Object.keys(request)[0]]);
+}
+
+function __TAURI_REPLY<T>(command: string, reply: string, args: Record<string, unknown> = {}): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const channel = new Channel<{ ok: T } | { err: unknown }>((a) => ("ok" in a ? resolve(a.ok) : reject(a.err)));
+        __TAURI_INVOKE(command, { ...args, [reply]: channel }).catch(reject);
+    });
+}
+
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;
 
 function makeEvent<T>(name: string, serialize?: (payload: T) => unknown, deserialize?: (payload: T) => T) {

@@ -16,6 +16,15 @@ export async function withApi<A extends unknown[], R>(
 	fn: (api: MMA, ...args: A) => R,
 	...args: A
 ): Promise<Awaited<R>> {
+	return withApiOn(browser, fn, ...args);
+}
+
+/** `withApi` in app `app`, for a run that drives several. */
+export async function withApiOn<A extends unknown[], R>(
+	app: WebdriverIO.Browser,
+	fn: (api: MMA, ...args: A) => R,
+	...args: A
+): Promise<Awaited<R>> {
 	// Arguments and result cross as one JSON string each: WebDriver BiDi serializes
 	// structured values node by node, which makes a large batch take minutes.
 	const wrapped = new Function(
@@ -25,7 +34,7 @@ export async function withApi<A extends unknown[], R>(
      (async () => { try { const r = await (${fn.toString()})(api, ...JSON.parse(___json)); ___d({ __withApiJson: r === undefined ? null : JSON.stringify(r) }); } catch(e) { ___d({ __withApiError: (e && e.message) || String(e) }); } })();`,
 	);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback is serialized and re-evaluated in the browser; this bridge can't be statically typed
-	const result = (await browser.executeAsync(wrapped as any, JSON.stringify(args))) as {
+	const result = (await app.executeAsync(wrapped as any, JSON.stringify(args))) as {
 		__withApiJson?: string | null;
 		__withApiError?: unknown;
 	};
@@ -217,13 +226,13 @@ export const unpannedSelector = (): Selector => ({
 
 /** Add selections to the live map. */
 export async function select(...selector: Selector[]) {
-	await withApi(async (api, p) => api.SelectionList.update(api.addSelection(...p)), selector);
+	await withApi(async (api, p) => api.Edit.selections(api.addSelection(...p)), selector);
 }
 
 /** Add selections and return how many locations they resolve to. */
 export async function selectCount(...selector: Selector[]): Promise<number> {
 	return withApi(async (api, p) => {
-		await api.SelectionList.update(api.addSelection(...p));
+		await api.Edit.selections(api.addSelection(...p));
 		return api.Scene.selected().size;
 	}, selector);
 }

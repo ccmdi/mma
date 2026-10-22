@@ -35,6 +35,8 @@ export interface MapHostEvents {
 	mousedown: LatLng;
 	mouseup: LatLng;
 	mouseout: void;
+	/** A click on the map that did not drag it. */
+	click: LatLng;
 	zoom: void;
 	camera: void;
 	/** The camera came to rest after a pan/zoom (Google `idle`, maplibre `idle`). */
@@ -92,6 +94,7 @@ export interface CreateHostOpts extends BasemapOpts {
 
 let mapHost: MapHost | null = null;
 let hostReady: PromiseWithResolvers<MapHost> | null = null;
+const bindings = new Set<{ attach: (host: MapHost) => () => void; detach?: () => void }>();
 
 /** Expand any axis narrower than `2 * minExtent` (degrees) to that span, centered.
  *  A single-point paste has zero-area bounds; without this, fitBounds maxes out the zoom. */
@@ -116,7 +119,9 @@ let drawInterceptor: DrawInterceptor | null = null;
 export const MapHost = {
 	/** Set or clear the main editor map host. @unstable */
 	set: (host: MapHost | null) => {
+		for (const binding of bindings) binding.detach?.();
 		mapHost = host;
+		for (const binding of bindings) binding.detach = host ? binding.attach(host) : undefined;
 		if (host) {
 			hostReady?.resolve(host);
 			hostReady = null;
@@ -131,6 +136,16 @@ export const MapHost = {
 		if (mapHost) return Promise.resolve(mapHost);
 		hostReady ??= Promise.withResolvers<MapHost>();
 		return hostReady.promise;
+	},
+	/** Run `attach` on the main editor map host and on every host that replaces it, undoing each
+	 *  run with what it returns once its host goes. Returns the stop. */
+	each: (attach: (host: MapHost) => () => void): (() => void) => {
+		const binding = { attach, detach: mapHost ? attach(mapHost) : undefined };
+		bindings.add(binding);
+		return () => {
+			bindings.delete(binding);
+			binding.detach?.();
+		};
 	},
 	/** Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas. */
 	fitToBounds: (bounds: Bounds | null, padding = 0, minExtent?: number) => {

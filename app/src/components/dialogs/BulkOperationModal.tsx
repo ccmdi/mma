@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useMemo } from "react";
 import { Store } from "@/store/store";
-import { SelectionList } from "@/store/selectionList";
 import { Query } from "@/store/query";
 import { Edit } from "@/store/edit";
 import {
@@ -168,7 +167,7 @@ function ValidateSetup({ picker, onReady }: SetupProps) {
 								locations,
 								category,
 							}));
-							if (batch.length > 0) void SelectionList.update(addSelection(...batch));
+							if (batch.length > 0) void Edit.selections(addSelection(...batch));
 							const n = result.succeeded;
 							return {
 								outcome: result,
@@ -815,7 +814,7 @@ function SelectFailedButton({
 		<Button
 			style={style}
 			onClick={() => {
-				void SelectionList.update(addSelection({ type: "Manual", locations: outcome.failed }));
+				void Edit.selections(addSelection({ type: "Manual", locations: outcome.failed }));
 				toast(
 					t(
 						{ one: "Selected {n} failed location", other: "Selected {n} failed locations" },

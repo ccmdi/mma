@@ -6,7 +6,7 @@ import { Autosave } from "@/store/autosave";
 import type { MapMeta } from "@/bindings.gen";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { normalizeGeneratorSettings } from "@/plugins/generator/engine/types";
-import { mount, type Mounted } from "./fixtures/harness";
+import { mount, typeInto, type Mounted } from "./fixtures/harness";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@/lib/sv/opensv", () => ({ google: {} }));
@@ -42,13 +42,6 @@ function sidebar(): Mounted {
 
 const tagInput = (m: Mounted) => m.container.querySelector("input") as HTMLInputElement;
 
-async function type(input: HTMLInputElement, value: string) {
-	await act(async () => {
-		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
-		input.dispatchEvent(new Event("input", { bubbles: true }));
-	});
-}
-
 beforeEach(() => {
 	localStorage.clear();
 	setLocal(SHARED_KEY, { tagName: "Shared", settings: { defaultTarget: 7 } });
@@ -69,7 +62,8 @@ describe("generator setup per map", () => {
 	});
 
 	it("saves changes with the map, leaving the shared setup and other maps alone", async () => {
-		await type(tagInput(sidebar()), "Mine");
+		typeInto(tagInput(sidebar()), "Mine");
+		await act(async () => {});
 		expect(ownProject()).toEqual({ tagName: "Mine" });
 		expect(getLocal(SHARED_KEY, {})).toEqual({ tagName: "Shared", settings: { defaultTarget: 7 } });
 

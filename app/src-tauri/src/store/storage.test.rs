@@ -175,6 +175,32 @@ fn parse_data_location_trims_and_rejects_empty() {
 }
 
 #[test]
+fn a_named_data_dir_wins_over_every_other_choice() {
+    let cfg = TempDir::new("mma_test_named_cfg");
+    let pointed = TempDir::slot("mma_test_named_pointed");
+    fs::write(
+        cfg.join(DATA_LOCATION_FILE),
+        pointed.to_string_lossy().as_bytes(),
+    )
+    .unwrap();
+    let default_dir = PathBuf::from("D:/default");
+    let unnamed = if is_test_mode() {
+        default_dir.clone()
+    } else {
+        pointed.to_path_buf()
+    };
+    assert_eq!(
+        effective_data_dir(Some(" D:/instance-a "), default_dir.clone(), &cfg),
+        PathBuf::from("D:/instance-a")
+    );
+    assert_eq!(
+        effective_data_dir(Some("  "), default_dir.clone(), &cfg),
+        unnamed
+    );
+    assert_eq!(effective_data_dir(None, default_dir, &cfg), unnamed);
+}
+
+#[test]
 fn read_data_location_override_round_trip() {
     let cfg = TempDir::new("mma_test_dataloc_cfg");
     let target = TempDir::slot("mma_test_dataloc_target");

@@ -35,7 +35,7 @@ cargo-fmt         rust  cargo   app/src-tauri  cargo fmt --all -- --check
 clippy            rust  cargo   app/src-tauri  cargo clippy -- -D clippy::correctness -D dead_code
 cargo-test        rust  cargo   app/src-tauri  cargo test --lib
 mma-geo           rust  cargo   app/src-tauri  cargo test -p mma-geo
-mma-algebra       rust  cargo   app/src-tauri  cargo test -p mma-algebra
+mma-algebra       rust  -       app/src-tauri  cargo test --manifest-path crates/algebra/Cargo.toml
 mma-fields        rust  cargo   app/src-tauri  cargo test -p mma-fields
 geocode           rust  -       app/src-tauri  cargo test --manifest-path crates/geocode/Cargo.toml
 tz                rust  -       app/src-tauri  cargo test --manifest-path crates/tz/Cargo.toml

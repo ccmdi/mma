@@ -75,7 +75,7 @@ describe("Tag rename propagation", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(10);
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 	});
 });
 
@@ -213,7 +213,7 @@ describe("Tag delete + undo restores all references", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(8);
-		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.Edit.selections({ kind: "set", selections: [] }));
 	});
 });
 

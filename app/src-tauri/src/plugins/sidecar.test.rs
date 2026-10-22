@@ -133,14 +133,15 @@ fn sleeper() -> Child {
 
 fn track(plugin_id: &str, run_id: u32) -> Arc<Mutex<Child>> {
     let child = Arc::new(Mutex::new(sleeper()));
-    lock(&plugin_slot(plugin_id))
+    plugin_slot(plugin_id)
+        .locked()
         .children
         .insert(run_id, child.clone());
     child
 }
 
 fn exited(child: &Arc<Mutex<Child>>) -> bool {
-    !matches!(lock(child).try_wait(), Ok(None))
+    !matches!(child.locked().try_wait(), Ok(None))
 }
 
 #[test]
@@ -150,7 +151,7 @@ fn stopping_a_plugin_scopes_to_the_named_plugin() {
     with_plugin_stopped("test-scope-a", || Ok(())).unwrap();
     assert!(exited(&a));
     assert!(!exited(&b));
-    assert!(lock(&plugin_slot("test-scope-a")).children.is_empty());
+    assert!(plugin_slot("test-scope-a").locked().children.is_empty());
     with_plugin_stopped("test-scope-b", || Ok(())).unwrap();
     assert!(exited(&b));
 }
@@ -159,7 +160,7 @@ fn stopping_a_plugin_scopes_to_the_named_plugin() {
 fn restart_skips_a_resident_someone_else_already_replaced() {
     let id = "test-epoch";
     let child = Arc::new(Mutex::new(sleeper()));
-    lock(&plugin_slot(id)).resident = Some(Resident {
+    plugin_slot(id).locked().resident = Some(Resident {
         child: child.clone(),
         port: 4321,
         epoch: 8,
@@ -176,7 +177,7 @@ fn restart_skips_a_resident_someone_else_already_replaced() {
     // fails here (nothing installed), leaving the slot empty rather than stale.
     assert!(resident_port(id, &s, Some(8)).is_err());
     assert!(exited(&child));
-    assert!(lock(&plugin_slot(id)).resident.is_none());
+    assert!(plugin_slot(id).locked().resident.is_none());
     with_plugin_stopped(id, || Ok(())).unwrap();
 }
 
@@ -198,7 +199,7 @@ fn concurrent_installs_for_one_plugin_serialize() {
         .map(|_| {
             thread::spawn(|| {
                 let gate = install_gate("test-gate-serial");
-                let _installing = lock(&gate);
+                let _installing = gate.locked();
                 if INSIDE.swap(true, Ordering::SeqCst) {
                     OVERLAPS.fetch_add(1, Ordering::SeqCst);
                 }

@@ -5,10 +5,11 @@ use crate::store::engine::tests::{shipped, shipped_count, shipped_record, FeedCa
 use crate::store::engine::{Store, Target, ValueRecord, WindowLabel};
 use crate::store::maps::{MapPreferences, MapSettings, VirtualTag};
 use crate::store::{engine, maps};
-use crate::test_util::{tag_ids, TempDir};
+use crate::test_util::{tag_ids, Host, Now, TempDir};
 use crate::types::{Location, LocationFlags, RawExtra};
 use crate::util::Rgb;
-use mma_algebra::Id;
+use futures::executor::block_on;
+use mma_algebra::{Id, IdRange};
 use std::collections::HashMap;
 use std::time::Instant;
 use std::{env, fs};
@@ -58,8 +59,8 @@ fn meta_with(tags: &[ValueRecord]) -> HashMap<Id<ValueRecord>, ValueRecord> {
     tags.iter().map(|t| (t.id, t.clone())).collect()
 }
 
-fn tag_table(tags: &[ValueRecord]) -> engine::IncomingRecords {
-    engine::IncomingRecords::from([("tags".to_string(), meta_with(tags))])
+fn tag_table(tags: &[ValueRecord]) -> HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> {
+    HashMap::from([("tags".to_string(), meta_with(tags))])
 }
 
 #[test]
@@ -872,6 +873,13 @@ fn a_bulk_import_defines_every_field_its_rows_carry() {
     );
 }
 
+/// Stage `parsed` at a run of `store`'s own ids, as a preview of a map this app holds does.
+fn staged(store: &mut Store, window: &str, parsed: ParsedMap) -> IdRange<Location> {
+    let run = store.take_run(parsed.locations.len() as u32).unwrap();
+    stage_parsed(store, window, parsed, &run).unwrap();
+    run
+}
+
 #[test]
 fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let json = br#"{"name":"Pasted URLs","customCoordinates":[
@@ -886,7 +894,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
         ..Default::default()
     });
 
-    let keys = stage_parsed(&mut store, "staged-fetch", parsed);
+    let keys = staged(&mut store, "staged-fetch", parsed);
     let target = import_target("staged-fetch");
     let first = store.at(&target).rows(&Selector::Locations {
         locations: vec![keys.iter().nth(0).unwrap()],
@@ -918,18 +926,15 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
     });
     let held = store
         .at(&Target::Map { id: None })
-        .edit(
-            vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
-            Default::default(),
-            &mut None,
-        )
+        .write(vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))])
+        .now()
         .mutation
         .keys[0];
     let parsed = ParsedMap {
         locations: vec![loc_with_tags(0, Vec::new()); 3],
         ..Default::default()
     };
-    let run = stage_parsed(&mut store, "range-win", parsed);
+    let run = staged(&mut store, "range-win", parsed);
     assert_eq!(run.len, 3);
     assert!(!run.contains(held));
     let staged: Vec<_> = store
@@ -942,11 +947,8 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
     assert_eq!(staged, run.iter().collect::<Vec<_>>());
     let next = store
         .at(&Target::Map { id: None })
-        .edit(
-            vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
-            Default::default(),
-            &mut None,
-        )
+        .write(vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))])
+        .now()
         .mutation
         .keys[0];
     assert!(!run.contains(next));
@@ -961,7 +963,7 @@ fn cancelling_a_staged_import_drops_its_layer() {
         id: Id::new("test".into()),
         ..Default::default()
     });
-    stage_parsed(&mut store, "cancel-me", parsed);
+    staged(&mut store, "cancel-me", parsed);
     store.close_layer(&import_layer("cancel-me"));
     assert!(store
         .at(&import_target("cancel-me"))
@@ -982,7 +984,7 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
         let parsed = parse_single_json_mut(&mut buf);
         let preview = build_preview(&parsed, window).unwrap();
         assert!(preview.target == import_target(window));
-        stage_parsed(store, window, parsed).first
+        staged(store, window, parsed).first
     };
     let a = stage(&mut store, "preview-a", 11.0);
     let b = stage(&mut store, "preview-b", 22.0);
@@ -1030,10 +1032,15 @@ fn editor_import_reports_marker_additions_only_when_it_lands() {
     store
         .frames
         .insert(WindowLabel("test".into()), frames.sink());
-    stage_parsed(&mut store, "frames-win", parsed);
+    staged(&mut store, "frames-win", parsed);
     assert!(frames.frames().is_empty());
 
-    store.land(&import_layer("frames-win"), &mut None);
+    store
+        .at(&Target::Pending {
+            name: import_layer("frames-win").to_string(),
+        })
+        .land()
+        .now();
     let cells = frames.last().cells;
     assert_eq!(cells.iter().map(|c| c.add.len()).sum::<usize>(), 2);
     assert!(cells
@@ -1064,15 +1071,17 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     };
 
     let feed = FeedCapture::attach(&mut store);
-    store.at(&Target::Map { id: None }).edit(
-        parsed
-            .locations
-            .into_iter()
-            .map(mma_algebra::Op::Add)
-            .collect(),
-        parsed.records,
-        &mut None,
-    );
+    store
+        .at(&Target::Map { id: None })
+        .from(&parsed.records)
+        .write(
+            parsed
+                .locations
+                .into_iter()
+                .map(mma_algebra::Op::Add)
+                .collect(),
+        )
+        .now();
     let event = feed
         .all()
         .into_iter()
@@ -1136,8 +1145,10 @@ fn bulk_tags_apply_every_name_to_every_import() {
     };
     let names = ["shared", " France ", "", "france"].map(String::from);
 
-    stage_parsed(&mut store, "bulk-win", parsed);
-    confirm_staged(&mut store, "bulk-win", &[], &names, &[]).unwrap();
+    staged(&mut store, "bulk-win", parsed);
+    confirm_staged(&mut store, "bulk-win", &[], &names, &[])
+        .unwrap()
+        .now();
 
     let meta = &store.records["tags"];
     let (france, _) = meta
@@ -1175,10 +1186,12 @@ fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
         records: tag_table(&[tag(1, "shared"), tag(2, "Unique")]),
         ..Default::default()
     };
-    stage_parsed(&mut store, "tags-win", parsed);
+    staged(&mut store, "tags-win", parsed);
     assert_eq!(store.records["tags"].len(), 1);
 
-    let confirmed = confirm_staged(&mut store, "tags-win", &[], &[], &[]).unwrap();
+    let confirmed = confirm_staged(&mut store, "tags-win", &[], &[], &[])
+        .unwrap()
+        .now();
     assert!(!confirmed.auto_commit);
     assert_eq!(confirmed.imported_count, 2);
     let unique = store.records["tags"]
@@ -1204,8 +1217,10 @@ fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
         records: tag_table(&[tag(1, "Unwanted")]),
         ..Default::default()
     };
-    stage_parsed(&mut store, "drop-win", parsed);
-    confirm_staged(&mut store, "drop-win", &["tags".to_string()], &[], &[]).unwrap();
+    staged(&mut store, "drop-win", parsed);
+    confirm_staged(&mut store, "drop-win", &["tags".to_string()], &[], &[])
+        .unwrap()
+        .now();
     assert!(store.records["tags"].is_empty());
     let stored = store
         .at(&Target::Map { id: None })
@@ -1236,8 +1251,10 @@ fn every_field_the_preview_counts_drops_on_confirm() {
         .map(|f| f.key)
         .collect();
     assert_eq!(counted, ["heading", "pitch", "zoom", "panoId", "tags"]);
-    stage_parsed(&mut store, "every-drop-win", parsed);
-    confirm_staged(&mut store, "every-drop-win", &counted, &[], &[]).unwrap();
+    staged(&mut store, "every-drop-win", parsed);
+    confirm_staged(&mut store, "every-drop-win", &counted, &[], &[])
+        .unwrap()
+        .now();
     let stored = store
         .at(&Target::Map { id: None })
         .rows(&Selector::Everything);
@@ -1251,11 +1268,10 @@ fn every_field_the_preview_counts_drops_on_confirm() {
 #[test]
 fn dropping_individual_tags_preserves_the_maps_tags_and_the_files_other_tags() {
     let mut store = store_tagged(&[tag(5, "Shared")]);
-    store.at(&Target::Map { id: None }).edit(
-        vec![mma_algebra::Op::Add(loc_with_tags(0, vec![5]))],
-        Default::default(),
-        &mut None,
-    );
+    store
+        .at(&Target::Map { id: None })
+        .write(vec![mma_algebra::Op::Add(loc_with_tags(0, vec![5]))])
+        .now();
     let parsed = ParsedMap {
         locations: vec![
             loc_with_tags(0, vec![1, 2, 3]),
@@ -1264,7 +1280,7 @@ fn dropping_individual_tags_preserves_the_maps_tags_and_the_files_other_tags() {
         records: tag_table(&[tag(1, "shared"), tag(2, "Kept"), tag(3, "Unwanted")]),
         ..Default::default()
     };
-    stage_parsed(&mut store, "partial-win", parsed);
+    staged(&mut store, "partial-win", parsed);
     confirm_staged(
         &mut store,
         "partial-win",
@@ -1272,7 +1288,8 @@ fn dropping_individual_tags_preserves_the_maps_tags_and_the_files_other_tags() {
         &[],
         &["SHARED".into(), "Unwanted".into()],
     )
-    .unwrap();
+    .unwrap()
+    .now();
 
     let records = &store.records["tags"];
     assert_eq!(records.len(), 2);
@@ -1298,7 +1315,7 @@ fn a_dropped_file_tag_can_be_explicitly_added_to_every_imported_location() {
         records: tag_table(&[tag(1, "Urban")]),
         ..Default::default()
     };
-    stage_parsed(&mut store, "retag-win", parsed);
+    staged(&mut store, "retag-win", parsed);
     confirm_staged(
         &mut store,
         "retag-win",
@@ -1306,7 +1323,8 @@ fn a_dropped_file_tag_can_be_explicitly_added_to_every_imported_location() {
         &["urban".into()],
         &["Urban".into()],
     )
-    .unwrap();
+    .unwrap()
+    .now();
 
     let records = &store.records["tags"];
     assert_eq!(records.len(), 1);
@@ -1327,7 +1345,7 @@ fn dropping_the_files_tags_still_applies_the_named_tags() {
         ..Default::default()
     };
     let names = ["shared", "France"].map(String::from);
-    stage_parsed(&mut store, "drop-bulk-win", parsed);
+    staged(&mut store, "drop-bulk-win", parsed);
     confirm_staged(
         &mut store,
         "drop-bulk-win",
@@ -1335,7 +1353,8 @@ fn dropping_the_files_tags_still_applies_the_named_tags() {
         &names,
         &[],
     )
-    .unwrap();
+    .unwrap()
+    .now();
 
     let meta = &store.records["tags"];
     let france = meta
@@ -1533,8 +1552,8 @@ fn habitat_names(records: &HashMap<Id<ValueRecord>, ValueRecord>, row: &Location
 
 fn import_into(store: &mut Store, window: &str) -> Vec<Location> {
     let parsed = parse_single_json_mut(&mut HABITAT_FILE.to_vec());
-    stage_parsed(store, window, parsed);
-    confirm_staged(store, window, &[], &[], &[]).unwrap();
+    staged(store, window, parsed);
+    confirm_staged(store, window, &[], &[], &[]).unwrap().now();
     store
         .at(&Target::Map { id: None })
         .rows(&Selector::Everything)
@@ -1607,4 +1626,32 @@ fn a_file_cannot_intern_a_key_the_map_file_keeps_for_itself() {
             .to_vec(),
     );
     assert!(map_extra_json(&mut map).is_err());
+}
+
+#[test]
+fn an_import_preview_on_a_replica_stages_at_a_block_its_host_lends_for_the_run() {
+    let (host, mut replica) = Host::pair("shared", &[]);
+    let lent_from = *host.store.lock().unwrap().next_id.next();
+
+    let run = block_on(replica.fresh_ids(3)).unwrap();
+    assert_eq!((run.first, run.len), (lent_from, 3));
+    let parsed = ParsedMap {
+        locations: vec![loc_with_tags(0, Vec::new()); 3],
+        ..Default::default()
+    };
+    stage_parsed(&mut replica, "replica-win", parsed, &run).unwrap();
+    let confirmed = confirm_staged(&mut replica, "replica-win", &[], &[], &[]).unwrap();
+    host.answer(&mut replica);
+    block_on(confirmed).unwrap();
+
+    let held: Vec<Id<Location>> = host
+        .store
+        .lock()
+        .unwrap()
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything)
+        .into_iter()
+        .map(|row| row.id)
+        .collect();
+    assert_eq!(held, run.iter().collect::<Vec<_>>());
 }

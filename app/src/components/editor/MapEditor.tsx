@@ -54,6 +54,7 @@ import { DoclinkAssignDialog } from "@/components/editor/doclink/DoclinkAssignDi
 import { useDialogState } from "@/store/dialogBus";
 import { doclinkedTags, prefetchDoclinks } from "@/lib/doclink";
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
+import { PluginSlot } from "@/plugins/PluginPanels";
 import SameLocation from "@/components/editor/SameLocation";
 import { log } from "@/lib/util/log";
 import { useCountrySelect } from "@/lib/map/useCountrySelect";
@@ -341,6 +342,7 @@ export function MapEditor() {
 								</Dialog>
 							)}
 							<EnrichmentButton />
+							<PluginSlot slot="headerItem" />
 						</header>
 						<div className="side-header">
 							{hasDoclinks && (

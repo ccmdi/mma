@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "./fixtures/harness";
+import { mount, typeInto } from "./fixtures/harness";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 
@@ -39,12 +39,8 @@ function Harness({ onPick }: { onPick: (s: string) => void }) {
 
 async function type(text: string) {
 	const input = document.querySelector<HTMLInputElement>(".modal__content input, input")!;
-	await act(async () => {
-		input.focus();
-		const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-		set.call(input, text);
-		input.dispatchEvent(new Event("input", { bubbles: true }));
-	});
+	act(() => input.focus());
+	typeInto(input, text);
 	await tick();
 	return input;
 }

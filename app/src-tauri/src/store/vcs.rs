@@ -14,10 +14,10 @@ use tauri::State;
 pub(crate) mod delta;
 
 use crate::selections::Selector;
-use crate::store::engine::{StoreManager, StoreState};
+use crate::store::engine::{Intent, StoreManager, StoreState};
 use crate::store::{arrow, engine, storage};
 use crate::util::{now_iso, sha256_hex};
-use mma_algebra::{by_key, Change, Counts, Id, Op};
+use mma_algebra::{by_key, Change, Counts, Id, Layer, Op};
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::time::Instant;
@@ -251,10 +251,9 @@ fn checkout(
     target: BTreeMap<Id<Location>, Location>,
 ) -> AppResult<Option<engine::Mutation>> {
     let loaded = mgr.stores.contains_key(map_id);
-    if mgr
-        .window_map
-        .iter()
-        .any(|(window, map)| map == map_id && (window != label || !loaded))
+    if mgr.holders.iter().any(|(holder, map)| {
+        matches!(holder, engine::Holder::Window(window) if map == map_id && (window != label || !loaded))
+    })
     {
         return Err(AppError(
             "close this map in every other window before restoring a version".into(),
@@ -269,6 +268,7 @@ fn checkout(
         let _ = fs::remove_file(storage::arrow_delta_path(map_id)?);
         return Ok(None);
     };
+    let store = store.owned()?;
     let current = by_key(
         store
             .at(&engine::Target::Map { id: None })
@@ -281,20 +281,25 @@ fn checkout(
     } = Change::between(&current, &target);
     let selections = Change::between(&store.selections.table(), &HashMap::new());
     store.pending.clear();
-    let edits = removed.into_iter().map(|row| Op::Remove(row.id)).chain(
-        added
-            .into_iter()
-            .chain(updated.into_iter().map(|(_, row)| row))
-            .map(Op::Set),
+    let mut layer = Layer::default();
+    layer.write(
+        removed.into_iter().map(|row| Op::Remove(row.id)).chain(
+            added
+                .into_iter()
+                .chain(updated.into_iter().map(|(_, row)| row))
+                .map(Op::Set),
+        ),
     );
-    Ok(Some(store.write(
-        edits,
-        &mut None,
-        engine::Entry {
-            selections,
-            ..Default::default()
-        },
-    )))
+    let entry = engine::Entry {
+        selections,
+        ..Default::default()
+    };
+    let entry = store.entry(&layer, entry);
+    let restored = store
+        .at(&engine::Target::Map { id: None })
+        .write(Intent::Entry(Box::new(entry)))
+        .settled()?;
+    Ok(Some(restored.mutation))
 }
 
 pub(crate) fn read_commit_delta(

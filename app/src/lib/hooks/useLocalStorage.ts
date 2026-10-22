@@ -97,6 +97,13 @@ export function setLocal<T>(arg: StoreArg<T>, value: T): void {
 	entry.listeners.forEach((l) => l());
 }
 
+/** Call `listener` whenever the value under `store` changes; returns the unsubscribe. */
+export function subscribeLocal(store: StoreArg<unknown>, listener: () => void): () => void {
+	const { listeners } = entryFor(asStore(store));
+	listeners.add(listener);
+	return () => listeners.delete(listener);
+}
+
 /** Reactive view of a localStorage-backed key. */
 export function useLocalStorage<T>(
 	store: PersistedStore<T>,
@@ -111,14 +118,7 @@ export function useLocalStorage<T>(
 ): [T, (v: T | ((prev: T) => T)) => void] {
 	const { key } = asStore(arg, defaultValue);
 	entryFor(asStore(arg, defaultValue));
-	const subscribe = useCallback(
-		(cb: () => void) => {
-			const entry = registry.get(key)!;
-			entry.listeners.add(cb);
-			return () => entry.listeners.delete(cb);
-		},
-		[key],
-	);
+	const subscribe = useCallback((cb: () => void) => subscribeLocal(key, cb), [key]);
 	const value = useSyncExternalStore(subscribe, () => registry.get(key)!.value as T);
 	const set = useCallback(
 		(v: T | ((prev: T) => T)) => {

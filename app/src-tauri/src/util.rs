@@ -10,8 +10,20 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
-use std::sync::OnceLock;
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 use tauri::async_runtime;
+
+/// A mutex whose guard a panic while it was held does not keep from later holders.
+pub(crate) trait Lock<T> {
+    /// The guard, taken whether or not a holder panicked.
+    fn locked(&self) -> MutexGuard<'_, T>;
+}
+
+impl<T> Lock<T> for Mutex<T> {
+    fn locked(&self) -> MutexGuard<'_, T> {
+        self.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
 
 /// The ISO 8601 form every SQLite timestamp column is written in.
 const ISO_FMT: &str = "%Y-%m-%dT%H:%M:%S%.3fZ";
@@ -195,6 +207,66 @@ pub async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static)
         .map_err(|e| format!("task failed: {e}").into())
 }
 
+/// One end of a two-way channel: what this end sends goes on `tx`, and what the other end sent
+/// arrives on `rx`.
+pub(crate) struct Duplex<T> {
+    pub(crate) tx: tokio::sync::mpsc::UnboundedSender<T>,
+    pub(crate) rx: tokio::sync::mpsc::UnboundedReceiver<T>,
+}
+
+impl<T> Duplex<T> {
+    /// Both ends of a new two-way channel.
+    pub(crate) fn pair() -> (Self, Self) {
+        let (near_tx, far_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (far_tx, near_rx) = tokio::sync::mpsc::unbounded_channel();
+        let near = Duplex {
+            tx: near_tx,
+            rx: near_rx,
+        };
+        let far = Duplex {
+            tx: far_tx,
+            rx: far_rx,
+        };
+        (near, far)
+    }
+}
+
 #[cfg(test)]
 #[path = "util.test.rs"]
 mod tests;
+
+/// Runs jobs one at a time, in the order they were given, on a thread of its own that holds `C`.
+pub struct Serial<C>(std::sync::mpsc::Sender<Box<dyn FnOnce(&C) + Send>>);
+
+impl<C: Send + 'static> Serial<C> {
+    /// A serial thread holding `context` for its jobs.
+    pub fn new(name: &str, context: C) -> Self {
+        let (jobs, queue) = std::sync::mpsc::channel::<Box<dyn FnOnce(&C) + Send>>();
+        std::thread::Builder::new()
+            .name(name.to_string())
+            .spawn(move || {
+                for job in queue {
+                    let _ =
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job(&context)));
+                }
+            })
+            .expect("spawn a serial thread");
+        Self(jobs)
+    }
+
+    /// What `job` comes to, once every job given before it has run.
+    pub fn then<T: Send + 'static>(
+        &self,
+        job: impl FnOnce(&C) -> T + Send + 'static,
+    ) -> impl std::future::Future<Output = AppResult<T>> {
+        let (answer, answered) = futures::channel::oneshot::channel();
+        let _ = self.0.send(Box::new(move |context: &C| {
+            let _ = answer.send(job(context));
+        }));
+        async move {
+            answered
+                .await
+                .map_err(|_| AppError::from("the job did not finish"))
+        }
+    }
+}

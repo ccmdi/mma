@@ -44,11 +44,17 @@ COPY app/package.json app/package-lock.json ./app/
 RUN cd app && npm ci
 COPY plugins/types/package.json plugins/types/package-lock.json ./plugins/types/
 RUN cd plugins/types && npm ci
+# The collab Worker, which the collab run serves locally with wrangler dev.
+COPY workers/collab/package.json workers/collab/package-lock.json ./workers/collab/
+RUN cd workers/collab && npm ci
 
 # Copy source (repo root -- needed for plugins/ dir referenced by build scripts)
 COPY app/ ./app/
 COPY plugins/ ./plugins/
 COPY scripts/internal/ ./scripts/internal/
+COPY workers/collab/wrangler.toml workers/collab/tsconfig.json ./workers/collab/
+COPY workers/collab/src/ ./workers/collab/src/
+COPY workers/shared/ ./workers/shared/
 RUN chmod +x ./scripts/internal/*.sh
 
 WORKDIR /repo/app

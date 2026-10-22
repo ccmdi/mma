@@ -343,7 +343,7 @@ describe("Tag count accuracy", () => {
 		await seedLocs(20, (i) => ({ lat: 100 + i, lng: 100 + i }));
 
 		await withApi(async (api, tId) => {
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			await api.addTagToLocations(tId, [...api.Scene.selected()]);
 		}, tagId);
 
@@ -1047,8 +1047,8 @@ describe("Selection during mutation", () => {
 
 		// Re-select -- should now get 40
 		const count2 = await withApi(async (api, tid) => {
-			await api.SelectionList.update({ kind: "set", selections: [] });
-			await api.SelectionList.update(api.addSelection(api.tagSelector(tid)));
+			await api.Edit.selections({ kind: "set", selections: [] });
+			await api.Edit.selections(api.addSelection(api.tagSelector(tid)));
 			return api.Scene.selected().size;
 		}, tag.id);
 		expect(count2).toBe(40);
@@ -1056,12 +1056,12 @@ describe("Selection during mutation", () => {
 
 	it("removing selected locations updates selection", async () => {
 		const result = await withApi(async (api) => {
-			await api.SelectionList.update({ kind: "set", selections: [] });
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections({ kind: "set", selections: [] });
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			const beforeCount = api.Scene.selected().size;
 			const ids = [...api.Scene.selected()].slice(0, 5);
 			await api.Location.remove(new Set(ids));
-			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
+			await api.Edit.selections(api.addSelection({ type: "Everything" }));
 			return { before: beforeCount, after: api.Scene.selected().size };
 		});
 		expect(result.after).toBe(result.before - 5);

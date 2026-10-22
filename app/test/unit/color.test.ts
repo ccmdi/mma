@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
 	textColorFor,
+	legible,
+	luminance,
 	hexToRgb,
 	hexToHsl,
 	hslToHex,
@@ -157,5 +159,22 @@ describe("labelColor", () => {
 
 	it("falls back to the deterministic name color when unset", () => {
 		expect(labelColor("europe", {})).toBe(colorForName("europe"));
+	});
+});
+
+describe("legible", () => {
+	const contrast = (a: [number, number, number], b: [number, number, number]) => {
+		const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+		return (hi + 0.05) / (lo + 0.05);
+	};
+
+	it("keeps a color that already reads, and lifts one that does not to WCAG AA", () => {
+		expect(luminance([0, 0, 0])).toBe(0);
+		expect(luminance([255, 255, 255])).toBe(1);
+		expect(legible([255, 255, 255], [0, 0, 0])).toEqual([255, 255, 255]);
+		const lifted = legible([59, 130, 246], [20, 20, 20]);
+		expect(contrast(lifted, [20, 20, 20])).toBeGreaterThanOrEqual(4.5);
+		const darkened = legible([234, 179, 8], [250, 250, 250]);
+		expect(contrast(darkened, [250, 250, 250])).toBeGreaterThanOrEqual(4.5);
 	});
 });

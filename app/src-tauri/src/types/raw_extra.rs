@@ -1,5 +1,6 @@
 //! `RawExtra`: a location's `extra` map kept as raw JSON bytes, with the byte-level scanner that reads fields out of it without building a map.
 
+use mma_algebra::{Json, Patchable};
 use serde::de;
 use serde::de::value::MapAccessDeserializer;
 use serde::de::MapAccess;
@@ -276,7 +277,7 @@ impl mma_algebra::Optional for RawExtra {
     type Patch = mma_algebra::JsonWrite;
 
     fn written(old: Option<&Self>, patch: &Self::Patch) -> Option<Self> {
-        RawExtra::from_value(&mma_algebra::Patchable::patched(&json_of(old), patch))
+        RawExtra::from_value(&Json(json_of(old)).patched(patch))
     }
 
     fn written_between(old: Option<&Self>, new: &Self) -> Self::Patch {
@@ -313,7 +314,7 @@ impl PartialEq for RawExtra {
 // `RawValue` only round-trips through serde_json (its serialize/deserialize use a
 // private magic token that only serde_json honors). So for human-readable formats
 // (serde_json -- IPC to JS, on-disk JSON) we emit/read the object transparently, and
-// for binary formats (rmp_serde -- legacy msgpack delta sidecars) we fall
+// for binary formats (collab frames, legacy msgpack delta sidecars) we fall
 // back to a plain string carrying the same raw JSON.
 impl serde::Serialize for RawExtra {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -342,7 +343,7 @@ impl<'de> Deserialize<'de> for Read {
         if d.is_human_readable() {
             Box::<RawValue>::deserialize(d).map(|rv| Read(RawExtra::from_raw(rv)))
         } else {
-            d.deserialize_any(BinRawExtraVisitor).map(Read)
+            d.deserialize_str(BinRawExtraVisitor).map(Read)
         }
     }
 }

@@ -1,5 +1,6 @@
-# Dev overlay for the e2e image: live-mounts the test specs, wdio config, and runner
-# scripts into the prebuilt container so test-only changes run WITHOUT a rebuild.
+# Dev overlay for the e2e image: live-mounts the test specs, wdio config, runner scripts
+# and the collab Worker's source into the prebuilt container so test-only changes run
+# WITHOUT a rebuild.
 # (Rebuild is still required for app source changes -- the binary is baked in.)
 #
 # Use via scripts/e2e.sh, or directly:
@@ -11,4 +12,7 @@ services:
       - ./app/test:/repo/app/test
       - ./app/wdio.conf.ts:/repo/app/wdio.conf.ts
       - ./app/wdio.web.conf.ts:/repo/app/wdio.web.conf.ts
+      - ./app/wdio.collab.conf.ts:/repo/app/wdio.collab.conf.ts
+      - ./workers/collab/src:/repo/workers/collab/src
+      - ./workers/shared:/repo/workers/shared
       - ./scripts:/repo/scripts

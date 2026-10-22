@@ -1,7 +1,6 @@
 import type { PickingInfo } from "@deck.gl/core";
 import { Store } from "@/store/store";
 import { Location } from "@/store/location";
-import { SelectionList } from "@/store/selectionList";
 import { Editor } from "@/store/editor";
 import { Query } from "@/store/query";
 import { Edit } from "@/store/edit";
@@ -204,7 +203,7 @@ export async function handleMapClick(
 			const open = Editor.get().open;
 			if (open && open.origin !== "map" && locId(picked) === open.id) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
-				void SelectionList.update({ kind: "manual", id: locId(picked) });
+				void Edit.selections({ kind: "manual", id: locId(picked) });
 			else void Editor.open(picked);
 			return;
 		}
@@ -231,7 +230,7 @@ export async function handleMapClick(
 				)[0] ?? null;
 			if (!nearest) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
-				void SelectionList.update({ kind: "manual", id: nearest.id });
+				void Edit.selections({ kind: "manual", id: nearest.id });
 			else void Editor.open(nearest);
 			return;
 		}

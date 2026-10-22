@@ -67,3 +67,32 @@ export function debounce<A extends unknown[]>(run: (...args: A) => void, ms: num
 		cancel,
 	};
 }
+
+/** Run `run` at once, then at most once every `ms`: calls in between run once more, with the
+ *  last call's arguments, when the wait ends. `cancel` drops that pending call. */
+export function throttle<A extends unknown[]>(run: (...args: A) => void, ms: number) {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let ranAt = -Infinity;
+	let pending: A | null = null;
+	const fire = () => {
+		timer = undefined;
+		ranAt = performance.now();
+		const args = pending!;
+		pending = null;
+		run(...args);
+	};
+	return {
+		schedule: (...args: A) => {
+			pending = args;
+			if (timer !== undefined) return;
+			const wait = ranAt + ms - performance.now();
+			if (wait <= 0) fire();
+			else timer = setTimeout(fire, wait);
+		},
+		cancel: () => {
+			clearTimeout(timer);
+			timer = undefined;
+			pending = null;
+		},
+	};
+}

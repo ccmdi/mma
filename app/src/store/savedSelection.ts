@@ -1,7 +1,6 @@
 /** Saved selection rules shared across maps. Tag membership is stored by name
  * so rules can be applied on maps with different tag ids. */
 import type * as bindings from "@/bindings.gen";
-import { Mutation } from "@/store/mutation";
 import type { Selector } from "@/types";
 import type { RGB, SavedSelectionInfo, Selection, SelectionInput } from "@/bindings.gen";
 import { selection, childSelections, selectionDisplayName } from "./selections";
@@ -9,6 +8,7 @@ import { cmd } from "@/lib/commands";
 import { importLegacySavedSelections } from "./migrations";
 import { bridgeAcrossWindows, emit } from "@/lib/events";
 import { log } from "@/lib/util/log";
+import { Edit } from "@/store/edit";
 
 export type SavedSelection = bindings.SavedSelection;
 
@@ -132,7 +132,7 @@ export const SavedSelection = {
 	 *  were added. */
 	apply: (saved: SavedSelection): number => {
 		const count = saved.selector.type === "Union" ? saved.selector.selections.length : 1;
-		void Mutation.run(() => cmd.storeEditSelections({ kind: "addSaved", id: saved.id }));
+		void Edit.selections({ kind: "addSaved", id: saved.id });
 		return count;
 	},
 };

@@ -5,6 +5,7 @@
 # Usage:
 #   scripts/e2e.sh                                  # full suite, single container
 #   scripts/e2e.sh test/e2e/foo.test.ts [more...]   # only the given spec files
+#   scripts/e2e.sh test/e2e/collab.test.ts          # three apps live-editing one map; alone
 #   scripts/e2e.sh --shard [N]                      # full suite split across N containers (default 3)
 #   scripts/e2e.sh --mock [...]                     # add --mock (any position before specs) to
 #                                                   #   monkey-patch Street View (deterministic, no network)
@@ -171,6 +172,19 @@ if [ "${1:-}" = "--shard" ]; then
 	done
 	exit $rc
 fi
+
+# The collab spec drives three apps at once, so it has its own runner and runs alone.
+case " $* " in
+*collab.test.ts*)
+	if [ "$#" -ne 1 ] || [ "$RUNNER" != "sh /repo/scripts/internal/e2e-native.sh" ]; then
+		echo "the collab spec runs alone, natively: scripts/e2e.sh [--mock] test/e2e/collab.test.ts" >&2
+		exit 1
+	fi
+	MODE=collab
+	run_logged "$(log_name)" "${MOCK_ENV[@]}" "${FWD_ENV[@]}" --rm e2e sh /repo/scripts/internal/e2e-collab.sh
+	exit $?
+	;;
+esac
 
 # Subset: prefix each spec file with --spec. No args => full suite. A named spec runs even
 # when the default suite excludes it: --exclude replaces the config's list, which would

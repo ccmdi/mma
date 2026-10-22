@@ -5,19 +5,18 @@ use crate::runs;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::neighborhood::coord_key;
-use crate::selections::{self, tree, Selector};
-use crate::selections::{FieldRegistry, FieldWriter};
+use crate::selections::{self, tree};
+use crate::selections::{FieldRegistry, FieldWriter, Selector};
 use crate::store::maps;
 use crate::types::{wire_str_enum, AppError, AppResult, Location, RawExtra};
 use crate::util;
 use mma_algebra::{
-    number_value, same_field_value, Change, Counts, Delta, Edit, Id, Ids, Keys, Layer, Op, Patch,
+    number_value, same_field_value, Change, Counts, Delta, Edit, Id, Keys, Layer, Op, Patch,
     PatchOp, Patchable,
 };
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 use std::slice;
-use std::sync::Arc;
 
 /// The derived state a window holds: everything about the open map besides its rows. Opening a
 /// map sends it whole; every change after sends a JSON Patch over it.
@@ -68,7 +67,7 @@ pub struct HeldValue {
 }
 
 /// The version a write reached and the keys it assigned. Other updates arrive on the change feed.
-#[derive(serde::Serialize, Clone, specta::Type)]
+#[derive(serde::Serialize, Clone, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Mutation<_T = Location> {
     /// The map version this change brought the map to.
@@ -80,12 +79,20 @@ pub struct Mutation<_T = Location> {
 }
 
 /// What a location edit did.
-#[derive(serde::Serialize, specta::Type)]
+#[derive(serde::Serialize, Default, specta::Type)]
 pub struct EditResult {
     /// The version the edit reached and the keys it assigned.
     pub mutation: Mutation,
     /// Derived fields the edit cleared because a field they are computed from changed.
     pub invalidated: Vec<String>,
+    #[serde(skip)]
+    pub(crate) records: Vec<Id<ValueRecord>>,
+    /// How many locations a work changed.
+    #[serde(skip)]
+    pub(crate) changed: u32,
+    /// The locations a work could not work out a value for.
+    #[serde(skip)]
+    pub(crate) failed: Vec<Id<Location>>,
 }
 
 /// A map change broadcast to subscribers, with the keys it changed and derived state.
@@ -99,6 +106,8 @@ pub struct ChangeEvent {
     pub keys: Keys<Id<Location>>,
     /// How the derived state moved, as a JSON Patch over what the window holds.
     pub patch: Vec<PatchOp>,
+    #[serde(skip)]
+    pub(crate) finished: Option<Finished>,
 }
 
 /// Read or edit map rows directly, or through a named pending layer.
@@ -117,14 +126,11 @@ pub enum Target {
     Pending { name: String },
 }
 
-/// Value records that arriving rows reference, by field and by the ids those rows use.
-pub(crate) type IncomingRecords = HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>;
-
 /// A named layer of pending edits and where it is in its lifecycle.
 #[derive(Default)]
 pub(crate) struct Pending {
     pub(crate) layer: Layer<Location>,
-    records: IncomingRecords,
+    records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
     pub(crate) stage: Stage,
 }
 
@@ -151,9 +157,12 @@ pub(crate) enum Joins {
     NewStep,
 }
 
-impl From<Option<u64>> for Joins {
-    fn from(step: Option<u64>) -> Self {
-        step.map_or(Joins::NewStep, Joins::Step)
+impl From<&Recording> for Joins {
+    fn from(recording: &Recording) -> Self {
+        match recording {
+            Recording::Step(Some(join)) => Joins::Step(*join),
+            _ => Joins::NewStep,
+        }
     }
 }
 
@@ -181,30 +190,89 @@ pub enum StoreWarning {
     DeltaSetAside,
 }
 
-impl Store {
-    /// Apply a complete edit, update derived state, and record it for undo. A row that changes
-    /// is stamped modified now.
-    /// `join` tracks the newest undo step for grouping later batches.
-    pub(crate) fn write(
+impl Targeted<'_> {
+    /// Hold `edits` in this open layer until it lands, each field's records replacing what
+    /// the layer held for that field.
+    pub(super) fn hold(
         &mut self,
-        edits: impl IntoIterator<Item = Edit<Location>>,
-        join: &mut Option<u64>,
-        entry: Entry,
-    ) -> Mutation {
-        let mut layer = Layer::default();
-        let keys = layered(&mut layer, edits, &mut self.next_id);
-        Mutation {
-            keys,
-            ..self.write_layer(&layer, join, entry)
+        edits: Vec<Edit<Location>>,
+        records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+    ) -> AppResult<EditResult> {
+        let name = self.layer.expect("only a layer holds edits");
+        let store = &mut *self.store;
+        let (edits, keys) = store.next_id.key_all(created(edits))?;
+        let pending = store.pending.entry(name.to_string()).or_default();
+        let mut layer = mem::take(&mut pending.layer);
+        let mut invalidated = BTreeSet::new();
+        for edit in edits {
+            if let Op::Put(patch) = &edit {
+                if let Some(row) = store.through(&layer, patch.id) {
+                    invalidated.extend(store.applied(&row, patch).1);
+                }
+            }
+            layer.write([edit]);
         }
+        let pending = store.pending.entry(name.to_string()).or_default();
+        pending.layer = layer;
+        pending.records.extend(records);
+        let held = EditResult {
+            mutation: store.held(keys),
+            invalidated: invalidated.into_iter().collect(),
+            ..EditResult::default()
+        };
+        store.settle_layers();
+        Ok(held)
+    }
+}
+
+impl Write for Vec<Edit<Location>> {
+    type Done = EditResult;
+
+    fn route(self, _: &Store) -> Routed {
+        Routed::Shared(Intent::Edit {
+            edits: self,
+            records: HashMap::new(),
+        })
     }
 
-    fn write_layer(
-        &mut self,
-        layer: &Layer<Location>,
-        join: &mut Option<u64>,
-        entry: Entry,
-    ) -> Mutation {
+    fn done(edited: EditResult) -> EditResult {
+        edited
+    }
+}
+
+impl Write for Entry {
+    type Done = Mutation;
+
+    /// A whole change as another store made it applies here: rows keep their stamps, and the
+    /// selection list and the map's device-local details stay this store's own.
+    fn route(self, _: &Store) -> Routed {
+        Routed::Here(self.shared())
+    }
+
+    fn done(edited: EditResult) -> Mutation {
+        edited.mutation
+    }
+}
+
+impl Entry {
+    /// What this change shares with another store of its map: everything but the map's
+    /// device-local details and the selection list.
+    pub(crate) fn shared(mut self) -> Self {
+        for (old, new) in &mut self.meta.updated {
+            let mut shared = MapMeta::between(old, new);
+            shared.take_local();
+            *new = old.patched(&shared);
+        }
+        self.meta.updated.retain(|(old, new)| old != new);
+        self.selections = Change::default();
+        self
+    }
+}
+
+impl Store {
+    /// `around` with the rows `layer` writes, each changed row stamped modified, and field
+    /// definitions inferred for extra keys no definition names.
+    pub(crate) fn entry(&mut self, layer: &Layer<Location>, around: Entry) -> Entry {
         let locations = layer
             .resolve(
                 |id| self.get_loc_by_id(id),
@@ -219,7 +287,10 @@ impl Store {
                 row
             })
             .collect();
-        let mut entry = Entry { locations, ..entry };
+        let mut entry = Entry {
+            locations,
+            ..around
+        };
         let mut fields = (*self.field_defs).clone();
         entry.defs.apply_to(&mut fields);
         let extras: Vec<&RawExtra> = entry
@@ -230,42 +301,8 @@ impl Store {
         if let Some(inferred) = maps::infer_field_defs(|key| fields.contains_key(key), &extras) {
             fields.extend(inferred);
         }
-        entry.defs = DefsDelta::between(&*self.field_defs, &fields);
-        entry.selections = self.selection_consequences(&entry);
-        let entry = Arc::new(entry);
-        self.put_entry(&entry);
-        let history_cleared = self.record(&entry, join);
-        Mutation {
-            history_cleared,
-            ..self.finish(Finished::Entry(&entry))
-        }
-    }
-
-    /// Write `edits` with the incoming records they reference matched to the map's by name.
-    fn write_incoming(
-        &mut self,
-        edits: Vec<Edit<Location>>,
-        records: IncomingRecords,
-        join: &mut Option<u64>,
-        entry: Entry,
-    ) -> Mutation {
-        let mut layer = Layer::default();
-        let keys = layered(&mut layer, edits, &mut self.next_id);
-        Mutation {
-            keys,
-            ..self.land_incoming(layer, records, join, entry)
-        }
-    }
-
-    fn land_incoming(
-        &mut self,
-        layer: Layer<Location>,
-        records: IncomingRecords,
-        join: &mut Option<u64>,
-        entry: Entry,
-    ) -> Mutation {
-        let (layer, records) = self.reconcile_incoming(layer, records);
-        self.write_layer(&layer, join, Entry { records, ..entry })
+        entry.defs = Change::between(&*self.field_defs, &fields);
+        entry
     }
 
     /// The records an unlanded layer holds for `field`.
@@ -281,35 +318,18 @@ impl Store {
             .unwrap_or_default()
     }
 
-    /// Land an open layer's edits on the map as one undo step. A layer lands once: landing it
-    /// again, after it was discarded, or when no such layer exists changes nothing.
-    pub(crate) fn land(&mut self, name: &str, join: &mut Option<u64>) -> Mutation {
-        let Some(pending) = self
-            .pending
-            .get_mut(name)
-            .filter(|p| p.stage == Stage::Open)
-        else {
-            return self.held(Vec::new());
-        };
-        let layer = mem::take(&mut pending.layer);
-        let records = mem::take(&mut pending.records);
-        let result = self.land_incoming(layer, records, join, Entry::default());
-        if let Some(pending) = self.pending.get_mut(name) {
-            pending.stage = Stage::Landed(Joins::from(*join));
-        }
-        self.settle_layers();
-        result
-    }
-
     /// `layer` with the incoming records its rows reference matched to the map's by name and
     /// the references remapped to them, and what that did to the map's records. A field that
     /// brings no records keeps only the references the map holds a record for.
-    fn reconcile_incoming(
+    pub(super) fn reconcile_incoming(
         &mut self,
         mut layer: Layer<Location>,
-        mut incoming: IncomingRecords,
-    ) -> (Layer<Location>, RecordDeltas) {
-        let mut records = RecordDeltas::new();
+        mut incoming: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+    ) -> (
+        Layer<Location>,
+        HashMap<String, Change<(Id<ValueRecord>, ValueRecord)>>,
+    ) {
+        let mut records = HashMap::new();
         let mut fields: BTreeSet<String> = self.registry().interned().map(str::to_string).collect();
         fields.extend(incoming.keys().cloned());
         for field in fields {
@@ -321,7 +341,7 @@ impl Store {
                     let remap = reconcile_values_by_name(held.values(), &mut after, floor);
                     records.insert(
                         field.clone(),
-                        RecordDelta::at(&before, &after, remap.values().copied()),
+                        Change::at(&before, &after, remap.values().copied()),
                     );
                     remap
                 }
@@ -335,7 +355,7 @@ impl Store {
             let to = registry
                 .assign(&field)
                 .expect("declared interned fields are writable");
-            layer = layer.map_edits(|edit| remap_written(edit, &to, &remap), &mut self.next_id);
+            layer = layer.map_edits(|edit| remap_written(edit, &to, &remap));
         }
         (layer, records)
     }
@@ -360,6 +380,7 @@ impl Store {
                 version: self.version,
                 keys: Change::<Location>::default().keys(),
                 patch,
+                finished: None,
             });
         }
     }
@@ -462,32 +483,11 @@ impl Store {
         }
         self.overlay_add(change.added.clone());
     }
-
-    /// Join the newest undo step named by `join`, or record a new step in the entry's timeline.
-    /// An entry too large to undo clears its timeline instead, and this returns true.
-    fn record(&mut self, entry: &Arc<Entry>, join: &mut Option<u64>) -> bool {
-        let Some(timeline) = entry.timeline() else {
-            return false;
-        };
-        let steps = self.steps[timeline].edit();
-        if too_large_to_undo(entry.locations.len()) {
-            steps.clear();
-            return true;
-        }
-        if let Some(seq) = *join {
-            if let Ok(seq) = steps.fold_into_newest(seq, (**entry).clone()) {
-                *join = Some(seq);
-                return false;
-            }
-        }
-        *join = Some(steps.record(Arc::clone(entry)));
-        false
-    }
 }
 
 wire_str_enum! {
     /// When a move target already holds a value, which side survives.
-    derive(serde::Deserialize, specta::Type, Clone, Copy, PartialEq)
+    derive(serde::Serialize, serde::Deserialize, specta::Type, Clone, Copy, Debug, PartialEq)
     pub enum MergeWinner {
         /// The moved value replaces what the target already holds.
         From = "from",
@@ -497,7 +497,7 @@ wire_str_enum! {
 }
 
 /// Operations over the selected locations.
-#[derive(serde::Deserialize, specta::Type)]
+#[derive(Debug, PartialEq, mma_fields::Json, specta::Type)]
 #[serde(untagged)]
 pub enum Work {
     Locations(LocationOp),
@@ -505,7 +505,7 @@ pub enum Work {
 }
 
 /// Operations computed independently for each selected location.
-#[derive(serde::Deserialize, specta::Type)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum LocationOp {
     /// Rename `from` into `to`. Merge is the same operation -- rename is just the case
@@ -603,7 +603,7 @@ enum Prepared<'o> {
 }
 
 /// Operations computed over the selected locations as a group.
-#[derive(serde::Deserialize, specta::Type)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SetOp {
     /// Merge each group into its best-scored location, which keeps its id and takes in the
@@ -628,14 +628,6 @@ fn contains_value(haystack: &[serde_json::Value], needle: &serde_json::Value) ->
         .any(|v| same_field_value(Some(v), Some(needle)))
 }
 
-/// What a field op planned: the edits for the rows it changes, and the rows an expression
-/// could not evaluate.
-#[derive(Default)]
-pub(super) struct WorkPlan {
-    pub(super) edits: Vec<Edit<Location>>,
-    pub(super) failed: Vec<Id<Location>>,
-}
-
 /// The mutation and operation-specific results.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -645,17 +637,6 @@ pub struct WorkResult {
     pub changed: u32,
     /// Locations an expression could not evaluate.
     pub failed: Vec<Id<Location>>,
-}
-
-fn expr_value(to: FieldWriter<'_>, v: f64) -> Option<serde_json::Value> {
-    if !to.is_flag() {
-        return Some(number_value(v));
-    }
-    match v {
-        0.0 => Some(serde_json::Value::Bool(false)),
-        1.0 => Some(serde_json::Value::Bool(true)),
-        _ => None,
-    }
 }
 
 /// `edit` with the incoming ids it writes to `to`'s field replaced by their map ids.
@@ -679,7 +660,7 @@ fn remap_written(
     match edit {
         Op::Set(row) => match written(&row) {
             Some(ids) => {
-                let mut patch = row_patch(row.id);
+                let mut patch = Patch::<Location>::of(row.id);
                 write(&mut patch, &row, &ids);
                 Op::Set(row.patched(&patch))
             }
@@ -697,336 +678,317 @@ fn remap_written(
 }
 
 impl Targeted<'_> {
-    /// Add, patch, or remove rows here, whose references to an interned field's values use
-    /// the ids of `records`; those records are matched to the map's by name when the rows
-    /// reach the map. An open layer holds its edits until it lands, each field's records
-    /// replacing what the layer held for that field; a landed layer writes them through,
-    /// joining its undo step while that remains newest.
-    pub(crate) fn edit(
-        &mut self,
-        edits: Vec<Edit<Location>>,
-        records: IncomingRecords,
-        join: &mut Option<u64>,
-    ) -> EditResult {
-        self.write(edits, records, join, |_, _| Entry::default())
-    }
-
-    /// Edit here as [`Self::edit`] does, with `consequences` naming what the edits do to the
-    /// map beyond its rows, asked only once they reach it.
-    fn write(
-        &mut self,
-        edits: Vec<Edit<Location>>,
-        records: IncomingRecords,
-        join: &mut Option<u64>,
-        consequences: impl FnOnce(&Store, &[Edit<Location>]) -> Entry,
-    ) -> EditResult {
+    /// Land this pending layer's edits on the map as one undo step. A layer lands once:
+    /// landing it again, after it was discarded, or when no such layer exists changes nothing.
+    pub(crate) fn land(&mut self) -> Reached<Mutation> {
         let store = &mut *self.store;
-        let Some(name) = self.layer else {
-            let entry = consequences(&*store, &edits);
-            return EditResult {
-                mutation: store.write_incoming(edits, records, join, entry),
-                invalidated: Vec::new(),
-            };
+        let Some(pending) = self
+            .layer
+            .and_then(|name| store.pending.get_mut(name))
+            .filter(|p| p.stage == Stage::Open)
+        else {
+            return Reached::ready(Ok(store.held(Vec::new())));
         };
-        let pending = store.pending.entry(name.to_string()).or_default();
-        let (mutation, invalidated) = if let Some(joins) = pending.stage.landed() {
-            if let Joins::Step(step) = joins {
-                join.get_or_insert(step);
-            }
-            let entry = consequences(&*store, &edits);
-            let result = store.write_incoming(edits, records, join, entry);
-            if let Some(pending) = store.pending.get_mut(name) {
-                pending.stage = match pending.stage {
-                    Stage::Closing(_) => Stage::Closing(Joins::from(*join)),
-                    _ => Stage::Landed(Joins::from(*join)),
-                };
-            }
-            (result, BTreeSet::new())
-        } else {
-            let mut layer = mem::take(&mut pending.layer);
-            let mut keys = Vec::new();
-            let mut invalidated = BTreeSet::new();
-            for edit in edits {
-                if let Op::Put(patch) = &edit {
-                    if let Some(row) = store.through(&layer, patch.id) {
-                        invalidated.extend(store.applied(&row, patch).1);
-                    }
-                }
-                keys.extend(layered(&mut layer, [edit], &mut store.next_id));
-            }
-            let pending = store.pending.entry(name.to_string()).or_default();
-            pending.layer = layer;
-            pending.records.extend(records);
-            (store.held(keys), invalidated)
+        let landing = Intent::Edit {
+            edits: mem::take(&mut pending.layer).into_edits().collect(),
+            records: mem::take(&mut pending.records),
         };
-        store.settle_layers();
-        EditResult {
-            mutation,
-            invalidated: invalidated.into_iter().collect(),
-        }
+        pending.stage = Stage::Landed(Joins::NewStep);
+        self.write(landing).map(|edited| edited.mutation)
     }
+}
 
-    /// Compute and apply edits for `work` over the rows `selector` matches here. Field
-    /// definitions and listed selections follow the edits once they reach the map.
-    pub(crate) fn work(&mut self, selector: &Selector, work: &Work) -> AppResult<WorkResult> {
-        let plan = match work {
-            Work::Locations(op) => {
-                let defs = (*self.store.field_defs).clone();
-                self.scope(selector, None, |scope| {
-                    plan_fields(FieldRegistry::new(&defs), &scope, op)
-                })?
-            }
-            Work::Sets(op) => plan_sets(self, selector, op)?,
+impl Scoped<'_, '_> {
+    /// Do `work` on the rows this scope matches. An open layer holds its edits; else the map
+    /// plans it against its own rows, through its host when it has one.
+    pub(crate) fn write(self, work: Work) -> Reached<WorkResult> {
+        let Scoped { at, selector, .. } = self;
+        if !at.held() {
+            let selector = selector.clone();
+            return at
+                .write(Intent::Work { selector, work })
+                .map(WorkResult::from);
+        }
+        let (edits, failed) = match work.plan(at, selector) {
+            Ok(planned) => planned,
+            Err(error) => return Reached::ready(Err(error)),
         };
-        let changed = plan.edits.len() as u32;
-        let edited = self.write(
-            plan.edits,
-            IncomingRecords::new(),
-            &mut None,
-            |store, edits| {
-                let Work::Locations(op) = work else {
-                    return Entry::default();
-                };
-                let defs = plan_defs(store, op, edits);
-                let selections = store
-                    .selections
-                    .change(&SelectionDelta::default(), |mut rows| {
-                        for (field, _) in &defs.removed {
-                            let to = match op {
-                                LocationOp::Move { from, to, .. } if from == field => {
-                                    Some(to.as_str())
-                                }
-                                _ => None,
-                            };
-                            rows = rows
-                                .into_iter()
-                                .filter_map(|row| {
-                                    Some(ListedSelection {
-                                        selection: tree::rewrite(&row.selection, field, to)?,
-                                        ..row
-                                    })
-                                })
-                                .collect();
-                        }
-                        rows
-                    });
-                Entry {
-                    defs,
-                    selections,
-                    ..Default::default()
-                }
-            },
-        );
-        Ok(WorkResult {
-            changed,
-            failed: plan.failed,
+        let changed = edits.len() as u32;
+        at.write(edits).map(move |edited| WorkResult {
             mutation: edited.mutation,
+            changed,
+            failed,
         })
     }
 }
 
-/// Layer `edits` as the store writes them: each added row takes a key from `ids` and is created now.
-fn layered(
-    layer: &mut Layer<Location>,
-    edits: impl IntoIterator<Item = Edit<Location>>,
-    ids: &mut Ids<Id<Location>>,
-) -> Vec<Id<Location>> {
-    let now = util::now_unix();
-    let edits = edits.into_iter().map(|edit| match edit {
-        Op::Add(row) => Op::Add(row.created(now)),
-        edit => edit,
-    });
-    layer.write(edits, ids)
-}
-
-/// A patch naming row `id` and changing nothing yet.
-pub(super) fn row_patch(id: Id<Location>) -> Patch<Location> {
-    Patch::<Location> {
-        id,
-        ..Default::default()
-    }
-}
-
-/// Compute patches for rows changed by `op`, without applying them.
-pub(super) fn plan_fields(
-    fields: FieldRegistry<'_>,
-    scope: &selections::Scope,
-    op: &LocationOp,
-) -> AppResult<WorkPlan> {
-    if let LocationOp::Move { from, to, .. } = op {
-        if from == to || to.is_empty() {
-            return Ok(WorkPlan::default());
+impl From<EditResult> for WorkResult {
+    fn from(edited: EditResult) -> Self {
+        WorkResult {
+            mutation: edited.mutation,
+            changed: edited.changed,
+            failed: edited.failed,
         }
     }
-    let op = op.prepare(fields)?;
-    let mut plan = WorkPlan::default();
-    let mut err: Option<AppError> = None;
-    for row in scope.rows() {
-        let id = row.id();
-        let mut writes: Vec<(FieldWriter<'_>, serde_json::Value)> = Vec::new();
-        match &op {
-            Prepared::Set { to, value } => {
-                if !same_field_value(row.resolve_field(to.key()).as_ref(), Some(value)) {
-                    writes.push((*to, (*value).clone()));
+}
+
+impl Work {
+    /// The edits this work makes on the rows `selector` matches where `at` points, and the
+    /// locations it could not work out a value for.
+    fn plan(
+        &self,
+        at: &mut Targeted<'_>,
+        selector: &Selector,
+    ) -> AppResult<(Vec<Edit<Location>>, Vec<Id<Location>>)> {
+        match self {
+            Work::Locations(op) => op.plan(at, selector),
+            Work::Sets(op) => Ok((op.plan(at, selector)?, Vec::new())),
+        }
+    }
+
+    /// The change this work comes to on `store`'s map, and what it did. Field definitions and listed selections follow a location op's edits:
+    /// after a move or delete, a new key inherits its source's definition and a key no row
+    /// holds any more loses its own.
+    pub(super) fn change(
+        self,
+        store: &mut Store,
+        selector: &Selector,
+    ) -> AppResult<(Entry, EditResult)> {
+        let map = Target::Map { id: None };
+        let (edits, failed) = self.plan(&mut store.at(&map), selector)?;
+        let worked = EditResult {
+            changed: edits.len() as u32,
+            failed,
+            ..EditResult::default()
+        };
+        let Work::Locations(op) = self else {
+            let edits = Intent::Edit {
+                edits,
+                records: HashMap::new(),
+            };
+            return Ok((edits.change(store)?.0, worked));
+        };
+        let (vacated, into) = match &op {
+            LocationOp::Move { from, to, .. } if from != to && !to.is_empty() => {
+                (slice::from_ref(from), Some(to))
+            }
+            LocationOp::Delete { keys } => (keys.as_slice(), None),
+            _ => (&[][..], None),
+        };
+        let edited: HashSet<Id<Location>> = edits
+            .iter()
+            .filter_map(|edit| match edit {
+                Op::Put(patch) => Some(patch.id),
+                _ => None,
+            })
+            .collect();
+        let landing = Intent::Edit {
+            edits,
+            records: HashMap::new(),
+        };
+        let (mut entry, _) = landing.change(store)?;
+        let before = &*store.field_defs;
+        let mut after = before.clone();
+        entry.defs.apply_to(&mut after);
+        if let (Some(to), Some(def)) = (into, vacated.first().and_then(|key| before.get(key))) {
+            if !before.contains_key(to) {
+                after.insert(to.clone(), def.clone());
+            }
+        }
+        for key in vacated.iter().filter(|key| before.contains_key(*key)) {
+            let held = store
+                .all()
+                .rows()
+                .any(|row| !edited.contains(&row.id()) && row.resolve_field(key).is_some());
+            if !held {
+                after.remove(key);
+            }
+        }
+        entry.defs = Change::between(before, &after);
+        entry.selections = store.selections.change(&Change::default(), |mut rows| {
+            for (field, _) in &entry.defs.removed {
+                let to = match &op {
+                    LocationOp::Move { from, to, .. } if from == field => Some(to.as_str()),
+                    _ => None,
+                };
+                rows = rows
+                    .into_iter()
+                    .filter_map(|row| {
+                        Some(ListedSelection {
+                            selection: tree::rewrite(&row.selection, field, to)?,
+                            ..row
+                        })
+                    })
+                    .collect();
+            }
+            rows
+        });
+        Ok((entry, worked))
+    }
+}
+
+impl LocationOp {
+    /// The edits this op makes on each row `selector` matches where `at` points, and the
+    /// locations its expression could not evaluate.
+    fn plan(
+        &self,
+        at: &mut Targeted<'_>,
+        selector: &Selector,
+    ) -> AppResult<(Vec<Edit<Location>>, Vec<Id<Location>>)> {
+        let fields = (*at.store.field_defs).clone();
+        at.scope(selector).read(|scope| {
+            if let LocationOp::Move { from, to, .. } = self {
+                if from == to || to.is_empty() {
+                    return Ok((Vec::new(), Vec::new()));
                 }
             }
-            Prepared::Expr { to, expr } => {
-                let field = |name: &str| row.resolve_field(name);
-                match field_expr::eval(expr, &field).and_then(|v| expr_value(*to, v)) {
-                    None => plan.failed.push(id),
-                    Some(value) => {
-                        if !same_field_value(row.resolve_field(to.key()).as_ref(), Some(&value)) {
-                            writes.push((*to, value));
+            let op = self.prepare(FieldRegistry::new(&fields))?;
+            let (mut edits, mut failed) = (Vec::new(), Vec::new());
+            for row in scope.rows() {
+                let id = row.id();
+                let mut writes: Vec<(FieldWriter<'_>, serde_json::Value)> = Vec::new();
+                match &op {
+                    Prepared::Set { to, value } => {
+                        if !same_field_value(row.resolve_field(to.key()).as_ref(), Some(value)) {
+                            writes.push((*to, (*value).clone()));
+                        }
+                    }
+                    Prepared::Expr { to, expr } => {
+                        let field = |name: &str| row.resolve_field(name);
+                        let value = field_expr::eval(expr, &field).and_then(|v| match v {
+                            _ if !to.is_flag() => Some(number_value(v)),
+                            0.0 => Some(serde_json::Value::Bool(false)),
+                            1.0 => Some(serde_json::Value::Bool(true)),
+                            _ => None,
+                        });
+                        match value {
+                            None => failed.push(id),
+                            Some(value) => {
+                                if !same_field_value(
+                                    row.resolve_field(to.key()).as_ref(),
+                                    Some(&value),
+                                ) {
+                                    writes.push((*to, value));
+                                }
+                            }
+                        }
+                    }
+                    Prepared::Move { from, to, winner } => {
+                        if let Some(value) = row.resolve_field(from.key()) {
+                            writes.push((*from, serde_json::Value::Null));
+                            // Winner decides only where the row already holds `to`.
+                            if *winner == MergeWinner::From || row.resolve_field(to.key()).is_none()
+                            {
+                                writes.push((*to, value));
+                            }
+                        }
+                    }
+                    Prepared::Delete { keys } => {
+                        for key in keys {
+                            if row.resolve_field(key.key()).is_some() {
+                                writes.push((*key, serde_json::Value::Null));
+                            }
+                        }
+                    }
+                    Prepared::ListSet { to, add, remove } => {
+                        let current = match row.resolve_field(to.key()) {
+                            Some(serde_json::Value::Array(a)) => a,
+                            Some(v) => vec![v],
+                            None => Vec::new(),
+                        };
+                        let mut next: Vec<serde_json::Value> = current
+                            .iter()
+                            .filter(|v| !contains_value(remove, v) || contains_value(add, v))
+                            .cloned()
+                            .collect();
+                        for v in *add {
+                            if !contains_value(&next, v) {
+                                next.push(v.clone());
+                            }
+                        }
+                        if next != current {
+                            // A builtin column is non-null, so an emptied list is `[]`. An
+                            // emptied `extra` key carries nothing, so it is deleted instead.
+                            writes.push((
+                                *to,
+                                if next.is_empty() && to.is_extra() {
+                                    serde_json::Value::Null
+                                } else {
+                                    serde_json::Value::Array(next)
+                                },
+                            ));
                         }
                     }
                 }
-            }
-            Prepared::Move { from, to, winner } => {
-                if let Some(value) = row.resolve_field(from.key()) {
-                    writes.push((*from, serde_json::Value::Null));
-                    // Winner decides only where the row already holds `to`.
-                    if *winner == MergeWinner::From || row.resolve_field(to.key()).is_none() {
-                        writes.push((*to, value));
-                    }
-                }
-            }
-            Prepared::Delete { keys } => {
-                for key in keys {
-                    if row.resolve_field(key.key()).is_some() {
-                        writes.push((*key, serde_json::Value::Null));
-                    }
-                }
-            }
-            Prepared::ListSet { to, add, remove } => {
-                let current = match row.resolve_field(to.key()) {
-                    Some(serde_json::Value::Array(a)) => a,
-                    Some(v) => vec![v],
-                    None => Vec::new(),
-                };
-                let mut next: Vec<serde_json::Value> = current
-                    .iter()
-                    .filter(|v| !contains_value(remove, v) || contains_value(add, v))
-                    .cloned()
-                    .collect();
-                for v in *add {
-                    if !contains_value(&next, v) {
-                        next.push(v.clone());
-                    }
-                }
-                if next != current {
-                    // A builtin column is non-null, so an emptied list is `[]`. An
-                    // emptied `extra` key carries nothing, so it is deleted instead.
-                    writes.push((
-                        *to,
-                        if next.is_empty() && to.is_extra() {
-                            serde_json::Value::Null
-                        } else {
-                            serde_json::Value::Array(next)
-                        },
-                    ));
-                }
-            }
-        }
-        if writes.is_empty() {
-            continue;
-        }
-        let mut patch = row_patch(id);
-        match writes
-            .iter()
-            .try_for_each(|(to, value)| to.write(&mut patch, row.flags(), value))
-        {
-            Ok(()) => plan.edits.push(Op::Put(patch)),
-            Err(e) => err = Some(e),
-        }
-    }
-    if let Some(e) = err {
-        return Err(e);
-    }
-    Ok(plan)
-}
-
-/// Plan set-level work over the rows `selector` matches at `at`, as a whole.
-fn plan_sets(at: &mut Targeted<'_>, selector: &Selector, op: &SetOp) -> AppResult<WorkPlan> {
-    Ok(match op {
-        SetOp::Merge { groups, score } => {
-            let score = selections::parse_duplicate_score(score.as_deref())?;
-            let allowed = at.scope(selector, None, |scope| scope.ids());
-            let mut seen = HashSet::new();
-            let mut plan = WorkPlan::default();
-            for group in groups {
-                let ids: BTreeSet<Id<Location>> = group
-                    .iter()
-                    .copied()
-                    .filter(|id| allowed.contains(*id))
-                    .collect();
-                if ids.iter().any(|id| !seen.insert(*id)) {
-                    return Err(AppError::from("merge groups must be disjoint"));
-                }
-                let members: Vec<Location> = ids.into_iter().filter_map(|id| at.get(id)).collect();
-                if members.len() < 2 {
+                if writes.is_empty() {
                     continue;
                 }
-                let survivor = merge_group(at.store.registry(), &members, &score);
-                plan.edits.extend(
-                    members
-                        .iter()
-                        .filter(|m| m.id != survivor.id)
-                        .map(|m| Op::Remove(m.id)),
-                );
-                plan.edits.push(Op::Set(survivor));
+                let mut patch = Patch::<Location>::of(id);
+                for (to, value) in &writes {
+                    to.write(&mut patch, row.flags(), value)?;
+                }
+                edits.push(Op::Put(patch));
             }
-            plan
-        }
-        SetOp::PruneDuplicates { distance, score } => {
-            let score = selections::parse_duplicate_score(score.as_deref())?;
-            let locs: Vec<Location> = at.rows(selector);
-            WorkPlan {
-                edits: selections::prune_duplicates(&locs, *distance, &score)
-                    .into_iter()
-                    .map(Op::Remove)
-                    .collect(),
-                failed: Vec::new(),
-            }
-        }
-    })
+            Ok((edits, failed))
+        })
+    }
 }
 
-/// Update definitions after a move or delete. A new target inherits the source definition;
-/// fields no longer held by any row lose their definitions.
-fn plan_defs(store: &Store, op: &LocationOp, edits: &[Edit<Location>]) -> DefsDelta {
-    let (vacated, into) = match op {
-        LocationOp::Move { from, to, .. } if from != to && !to.is_empty() => {
-            (slice::from_ref(from), Some(to))
+impl SetOp {
+    /// The edits this op makes on the rows `selector` matches where `at` points, as a whole.
+    fn plan(&self, at: &mut Targeted<'_>, selector: &Selector) -> AppResult<Vec<Edit<Location>>> {
+        match self {
+            SetOp::Merge { groups, score } => selections::parse_duplicate_score(score.as_deref())
+                .and_then(|score| {
+                    let allowed = at.scope(selector).read(|scope| scope.ids());
+                    let mut seen = HashSet::new();
+                    let mut edits = Vec::new();
+                    for group in groups {
+                        let ids: BTreeSet<Id<Location>> = group
+                            .iter()
+                            .copied()
+                            .filter(|id| allowed.contains(*id))
+                            .collect();
+                        if ids.iter().any(|id| !seen.insert(*id)) {
+                            return Err(AppError::from("merge groups must be disjoint"));
+                        }
+                        let members: Vec<Location> =
+                            ids.into_iter().filter_map(|id| at.get(id)).collect();
+                        if members.len() < 2 {
+                            continue;
+                        }
+                        let survivor = merge_group(at.store.registry(), &members, &score);
+                        edits.extend(
+                            members
+                                .iter()
+                                .filter(|m| m.id != survivor.id)
+                                .map(|m| Op::Remove(m.id)),
+                        );
+                        edits.push(Op::Set(survivor));
+                    }
+                    Ok(edits)
+                }),
+            SetOp::PruneDuplicates { distance, score } => {
+                selections::parse_duplicate_score(score.as_deref()).map(|score| {
+                    selections::prune_duplicates(&at.rows(selector), *distance, &score)
+                        .into_iter()
+                        .map(Op::Remove)
+                        .collect()
+                })
+            }
         }
-        LocationOp::Delete { keys } => (keys.as_slice(), None),
-        _ => return DefsDelta::default(),
-    };
-    let before = &*store.field_defs;
-    if !vacated.iter().any(|k| before.contains_key(k)) {
-        return DefsDelta::default();
     }
-    let mut after = before.clone();
-    if let (Some(to), Some(def)) = (into, before.get(&vacated[0])) {
-        after.entry(to.clone()).or_insert_with(|| def.clone());
-    }
-    let edited: HashSet<Id<Location>> = edits
-        .iter()
-        .filter_map(|e| match e {
-            Op::Put(p) => Some(p.id),
-            _ => None,
-        })
-        .collect();
-    for key in vacated.iter().filter(|k| before.contains_key(*k)) {
-        let held = store
-            .all()
-            .rows()
-            .any(|r| !edited.contains(&r.id()) && r.resolve_field(key).is_some());
-        if !held {
-            after.remove(key);
-        }
-    }
-    let keys = vacated.iter().chain(into).cloned();
-    DefsDelta::at(before, &after, keys)
+}
+
+/// `edits` with each added row created now.
+pub(super) fn created(
+    edits: impl IntoIterator<Item = Edit<Location>>,
+) -> impl Iterator<Item = Edit<Location>> {
+    let now = util::now_unix();
+    edits.into_iter().map(move |edit| match edit {
+        Op::Add(row) => Op::Add(row.created(now)),
+        edit => edit,
+    })
 }
 
 /// Result of copying locations to another map.
@@ -1102,7 +1064,7 @@ pub(crate) fn merge_group(
                     .filter_map(|key| key.parse::<u32>().ok().map(Id::new))
             })
             .collect();
-        let mut patch = row_patch(new_survivor.id);
+        let mut patch = Patch::<Location>::of(new_survivor.id);
         fields
             .assign(key)
             .and_then(|to| to.write(&mut patch, new_survivor.flags, &serde_json::json!(values)))
