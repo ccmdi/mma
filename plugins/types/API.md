@@ -60,7 +60,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Settings](#settings)
 - [Street view](#street-view)
 - [Tauri](#tauri)
-- [Test surface](#test-surface)
+- [Test api](#test-api)
 - [Util](#util)
 - [Validation categories](#validation-categories)
 
@@ -9418,13 +9418,13 @@ You can save it to the filesystem using [tauri-plugin-persisted-scope](https://g
 shell: { Command: typeof Command }
 ```
 
-## Test surface
+## Test api
 
 ### _test
 
 `unstable` · since v0.6.1
 
-The nested `_test` namespace on the plugin surface.
+Deterministic wrappers the e2e suite drives, mounted as `MMA._test`. App code never calls them.
 
 #### _test.closeMap
 
@@ -9481,8 +9481,6 @@ _test.mapOpen: {
   mark(phase: string): void;
 }
 ```
-
-Cross-module stopwatch for map-open latency.
 
 #### _test.openMap
 

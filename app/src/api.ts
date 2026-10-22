@@ -310,7 +310,7 @@ import {
 	togglePendingTag,
 } from "@/lib/data/tags";
 import { dialog, shell } from "@/lib/tauri";
-import { _test } from "@/testSurface";
+import { _test } from "@/testApi";
 import { toast } from "@/lib/util/toast";
 import {
 	bboxTupleToBounds,
@@ -670,7 +670,7 @@ type TagsApi = {
 	togglePendingTag: typeof togglePendingTag;
 };
 type TauriApi = { dialog: typeof dialog; shell: typeof shell };
-type TestSurfaceApi = { _test: typeof _test };
+type TestApiApi = { _test: typeof _test };
 type ToastApi = { toast: typeof toast };
 type TypesApi = {
 	bboxTupleToBounds: typeof bboxTupleToBounds;
@@ -755,7 +755,7 @@ export interface MMA
 		TagApi,
 		TagsApi,
 		TauriApi,
-		TestSurfaceApi,
+		TestApiApi,
 		ToastApi,
 		TypesApi,
 		UiApi,

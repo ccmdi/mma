@@ -61,10 +61,6 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 		expect(dts).not.toMatch(/@unstable[^\n]*\n(\s*\*[^\n]*\n)*\s*(export )?type Location = \{/);
 	});
 
-	it("a bundler namespace alias is never a promise", () => {
-		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const testApi_closeMap: typeof closeMap;/);
-	});
-
 	it("a stamped bundler alias leaves the member it names stable", () => {
 		const apiMd = readFileSync(join(__dirname, "../../../plugins/types/API.md"), "utf8");
 		expect(apiMd).toMatch(/^### CameraType\n\n`stable`/m);

@@ -5831,9 +5831,9 @@ declare const checkoutCommit: typeof Commit.checkout;
 /** @deprecated v0.12.0. Use `MMA.Maps.init`. @api @unstable */
 declare const initStore: typeof Maps.init;
 /** @deprecated v0.12.0. Use `MMA.Maps.open`. @api */
-declare const openMap$1: typeof Maps.open;
+declare const openMap: typeof Maps.open;
 /** @deprecated v0.12.0. Use `MMA.Maps.close`. @api */
-declare const closeMap$1: typeof Maps.close;
+declare const closeMap: typeof Maps.close;
 /** @deprecated v0.12.0. Use `MMA.Maps.discard`. @api @unstable */
 declare const discardOpenMap: typeof Maps.discard;
 /** @deprecated v0.12.0. Use `MMA.SelectionList.tagIds`. @api @unstable */
@@ -5853,7 +5853,7 @@ declare const createMap: typeof Maps.create;
 /** @deprecated v0.12.0. Use `MMA.Maps.duplicate`. @api */
 declare const duplicateMap: typeof Maps.duplicate;
 /** @deprecated v0.12.0. Use `MMA.Maps.remove`. @api */
-declare const deleteMap$1: typeof Maps.remove;
+declare const deleteMap: typeof Maps.remove;
 /** @deprecated v0.12.0. Use `MMA.Maps.openScratch`. @api */
 declare const openScratchMap: typeof Maps.openScratch;
 /** @deprecated v0.12.0. Use `MMA.Maps.isReserved`. @api @unstable */
@@ -6612,57 +6612,30 @@ declare const dialog: {
     save: typeof save;
 };
 
-/** Cross-module stopwatch for map-open latency. @unstable */
-declare const mapOpen: {
-    start: number;
-    seen: Set<string>;
-    begin(): void;
-    mark(phase: string): void;
+/** Deterministic wrappers the e2e suite drives, mounted as `MMA._test`. App code never calls them. @api @unstable */
+declare const _test: {
+    /** @unstable */
+    mapOpen: {
+        start: number;
+        seen: Set<string>;
+        begin(): void;
+        mark(phase: string): void;
+    };
+    /** Force a full selection re-resolve and return the selected IDs. @unstable */
+    syncSelections: () => Promise<{
+        ids: number[];
+    }>;
+    /** Open a map by id and navigate to it. @unstable */
+    openMap: (id: string) => Promise<void>;
+    /** Close the current map and return to the map list. @unstable */
+    closeMap: () => Promise<void>;
+    /** Delete a map by id. @unstable */
+    deleteMap: (id: string) => Promise<void>;
+    /** Import locations from pasted text and commit them to the map. @unstable */
+    importPaste: (text: string) => Promise<EditorImportResult[]>;
+    /** Import a previewed file, optionally assigning tags. @unstable */
+    importFile: (droppedFields: string[], tagNames?: string[]) => Promise<EditorImportResult>;
 };
-
-/** Force a full selection re-resolve and return the selected IDs. @unstable */
-declare function syncSelections(): Promise<{
-    ids: number[];
-}>;
-/** Open a map by id and navigate to it. @unstable */
-declare function openMap(id: string): Promise<void>;
-/** Close the current map and return to the map list. @unstable */
-declare function closeMap(): Promise<void>;
-/** Delete a map by id. @unstable */
-declare function deleteMap(id: string): Promise<void>;
-/** Import locations from pasted text and commit them to the map. @unstable */
-declare function importPaste(text: string): Promise<EditorImportResult[]>;
-/** Import a previewed file, optionally assigning tags. @unstable */
-declare function importFile(droppedFields: string[], tagNames?: string[]): Promise<EditorImportResult>;
-
-/** @unstable */
-declare const testApi_closeMap: typeof closeMap;
-/** @unstable */
-declare const testApi_deleteMap: typeof deleteMap;
-/** @unstable */
-declare const testApi_importFile: typeof importFile;
-/** @unstable */
-declare const testApi_importPaste: typeof importPaste;
-/** @unstable */
-declare const testApi_mapOpen: typeof mapOpen;
-/** @unstable */
-declare const testApi_openMap: typeof openMap;
-/** @unstable */
-declare const testApi_syncSelections: typeof syncSelections;
-declare namespace testApi {
-  export {
-    testApi_closeMap as closeMap,
-    testApi_deleteMap as deleteMap,
-    testApi_importFile as importFile,
-    testApi_importPaste as importPaste,
-    testApi_mapOpen as mapOpen,
-    testApi_openMap as openMap,
-    testApi_syncSelections as syncSelections,
-  };
-}
-
-/** The nested `_test` namespace on the plugin surface. @api @unstable */
-declare const _test: typeof testApi;
 
 /** Show a brief toast notification. Optionally scoped to a `container` element. @api */
 declare function toast(message: string, duration?: number, container?: HTMLElement): void;
@@ -7425,7 +7398,7 @@ export type LegacyApi = {
     /** @unstable */
     closeDuplicates: typeof closeDuplicates;
     closeLocation: typeof closeLocation;
-    closeMap: typeof closeMap$1;
+    closeMap: typeof closeMap;
     commitMap: typeof commitMap;
     /** @unstable */
     copyName: typeof copyName;
@@ -7442,7 +7415,7 @@ export type LegacyApi = {
     currentSelection: typeof currentSelection;
     deleteField: typeof deleteField;
     deleteFolder: typeof deleteFolder;
-    deleteMap: typeof deleteMap$1;
+    deleteMap: typeof deleteMap;
     deleteTags: typeof deleteTags;
     /** @unstable */
     discardOpenMap: typeof discardOpenMap;
@@ -7518,7 +7491,7 @@ export type LegacyApi = {
     /** @unstable */
     openDuplicateLocation: typeof openDuplicateLocation;
     openLocation: typeof openLocation;
-    openMap: typeof openMap$1;
+    openMap: typeof openMap;
     openScratchMap: typeof openScratchMap;
     /** @unstable */
     openStagedLocation: typeof openStagedLocation;
@@ -7822,7 +7795,7 @@ export type TauriApi = {
     /** @unstable */
     shell: typeof shell;
 };
-export type TestSurfaceApi = {
+export type TestApiApi = {
     /** @unstable */
     _test: typeof _test;
 };
@@ -7892,7 +7865,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapHostApi, MapsApi, MutationApi, PanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, QueryApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, StreetViewApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidationCategoriesApi {
+interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapHostApi, MapsApi, MutationApi, PanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, QueryApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, StreetViewApi, TagApi, TagsApi, TauriApi, TestApiApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidationCategoriesApi {
 }
 
 declare global {
