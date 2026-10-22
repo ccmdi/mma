@@ -16,7 +16,7 @@ import { getSettings } from "@/store/settings";
 import type { ParsedLocation } from "@/bindings.gen";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { openSeenEntry } from "@/lib/seen/seenOverlay";
-import { openContextMenuLatLng, openContextMenuLocation } from "@/lib/map/contextMenu";
+import { MapMenu } from "@/lib/map/mapMenu";
 import { trace } from "@/lib/util/debug";
 import { locId, createLocation } from "@/types";
 import type { MaybeLocation, Bounds } from "@/types";
@@ -169,11 +169,11 @@ export async function handleMapClick(
 		if (isLocationLayer(info.layer?.id)) {
 			const picked = await resolvePicked();
 			const loc = picked == null ? null : await Editor.resolve(picked);
-			if (loc) openContextMenuLocation(loc);
+			if (loc) MapMenu.openOn(loc);
 			else if (info.coordinate)
-				openContextMenuLatLng({ lat: info.coordinate[1], lng: info.coordinate[0] });
+				MapMenu.openAt({ lat: info.coordinate[1], lng: info.coordinate[0] });
 		} else if (info.coordinate) {
-			openContextMenuLatLng({ lat: info.coordinate[1], lng: info.coordinate[0] });
+			MapMenu.openAt({ lat: info.coordinate[1], lng: info.coordinate[0] });
 		}
 		ctx.onContextMenu(domEvent.clientX, domEvent.clientY);
 		return;

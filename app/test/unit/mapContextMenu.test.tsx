@@ -27,7 +27,7 @@ vi.mock("@/lib/i18n", () => ({ t: (s: string) => s, msg: (s: string) => s }));
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
-import { openContextMenuLatLng } from "@/lib/map/contextMenu";
+import { MapMenu } from "@/lib/map/mapMenu";
 import { MapHost } from "@/lib/map/mapHost";
 import { Measure } from "@/lib/map/measure";
 import { polygonsAt } from "@/lib/map/useDeletePolygon";
@@ -57,7 +57,7 @@ function mountMenu() {
 		await act(async () => {
 			// Match the map handler: save the geographic target, then open the menu
 			// at client pixels. Opening must not require a parent React rerender.
-			openContextMenuLatLng(at);
+			MapMenu.openAt(at);
 			mounted.container
 				.querySelector('[data-testid="map"]')!
 				.dispatchEvent(
@@ -90,7 +90,7 @@ const B = { lat: 35.68, lng: 139.76 };
 
 describe("map context menu measurement origin", () => {
 	it("starts at the fresh right-click and the first map click adds only point two", async () => {
-		openContextMenuLatLng({ lat: 0, lng: 0 });
+		MapMenu.openAt({ lat: 0, lng: 0 });
 		const open = mountMenu();
 		await open(A);
 		await choose("Start measurement");
@@ -105,7 +105,7 @@ describe("map context menu measurement origin", () => {
 	});
 
 	it("uses the new right-click when reopening after an earlier measurement", async () => {
-		openContextMenuLatLng(A);
+		MapMenu.openAt(A);
 		const open = mountMenu();
 		await open(A);
 		await choose("Start measurement");
@@ -116,7 +116,7 @@ describe("map context menu measurement origin", () => {
 	});
 
 	it("also refreshes coordinate actions and polygon hit tests on reopen", async () => {
-		openContextMenuLatLng(A);
+		MapMenu.openAt(A);
 		const open = mountMenu();
 		await open(A);
 		await choose("Select this country");

@@ -3,7 +3,7 @@ import { Location } from "@/store/location";
 import { Tag } from "@/store/tag";
 import { Measure } from "@/lib/map/measure";
 import { useEventValue } from "@/lib/events";
-import { getContextMenuTarget } from "@/lib/map/contextMenu";
+import { MapMenu } from "@/lib/map/mapMenu";
 import { selectBorderAt } from "@/lib/map/useCountrySelect";
 import { polygonsAt, deletePolygonsAt } from "@/lib/map/useDeletePolygon";
 import { openDialog } from "@/store/dialogBus";
@@ -39,7 +39,7 @@ function MapContextMenuItems() {
 	const isMeasuring = Measure.useActive();
 	const anchor = useEventValue("anchor:changed", Measure.anchor);
 	// Mount inside the popup portal so each opening reads the right-click just handled.
-	const { location, latLng } = getContextMenuTarget();
+	const { location, latLng } = MapMenu.target();
 	const [polygonCount, setPolygonCount] = useState(0);
 	useEffect(() => {
 		let live = true;
