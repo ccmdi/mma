@@ -25,7 +25,7 @@ import { latest } from "@/lib/util/latest";
 import { delay } from "@/lib/util/concurrent";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { getSettings, useSetting } from "@/store/settings";
-import { useMeasure, useMeasureInteraction } from "@/lib/sv/measure";
+import { Measure } from "@/lib/map/measure";
 import { MeasurementBar } from "@/components/primitives/MeasurementBar";
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
 import { addSelection } from "@/store/selections";
@@ -147,7 +147,8 @@ export function MapEmbed({
 	const freehandPathRef = useRef<number[][] | null>(null);
 	const polygonVerticesRef = useRef<number[][] | null>(null);
 	const contextTriggerRef = useRef<HTMLSpanElement>(null);
-	const isMeasuring = useMeasure();
+	const isMeasuring = Measure.useActive();
+	useEffect(() => () => Measure.end(), []);
 
 	const dispatchContextMenu = useCallback((clientX: number, clientY: number) => {
 		contextTriggerRef.current?.dispatchEvent(
@@ -168,7 +169,7 @@ export function MapEmbed({
 		keyboardNav: true,
 	});
 
-	useMeasureInteraction(host);
+	Measure.useInteraction(host);
 
 	useEffect(() => {
 		if (!host || !showSearchRadiusCursor) return;

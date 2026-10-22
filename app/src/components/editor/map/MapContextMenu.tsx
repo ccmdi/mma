@@ -1,13 +1,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import { Location } from "@/store/location";
 import { Tag } from "@/store/tag";
-import {
-	useIsMeasuring,
-	startMeasure,
-	endMeasure,
-	getLatLngAnchor,
-	setLatLngAnchor,
-} from "@/lib/sv/measure";
+import { Measure } from "@/lib/map/measure";
 import { useEventValue } from "@/lib/events";
 import { getContextMenuTarget } from "@/lib/map/contextMenu";
 import { selectBorderAt } from "@/lib/map/useCountrySelect";
@@ -43,8 +37,8 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 ));
 
 function MapContextMenuItems() {
-	const isMeasuring = useIsMeasuring();
-	const anchor = useEventValue("anchor:changed", getLatLngAnchor);
+	const isMeasuring = Measure.useActive();
+	const anchor = useEventValue("anchor:changed", Measure.anchor);
 	// Mount inside the popup portal so each opening reads the right-click just handled.
 	const { location, latLng } = getContextMenuTarget();
 	const [polygonCount, setPolygonCount] = useState(0);
@@ -93,9 +87,9 @@ function MapContextMenuItems() {
 				</>
 			)}
 			{isMeasuring ? (
-				<MenuItem onClick={endMeasure}>{t("End measurement")}</MenuItem>
+				<MenuItem onClick={Measure.end}>{t("End measurement")}</MenuItem>
 			) : (
-				<MenuItem onClick={() => startMeasure(latLng)}>{t("Start measurement")}</MenuItem>
+				<MenuItem onClick={() => Measure.start(latLng)}>{t("Start measurement")}</MenuItem>
 			)}
 			<MenuItem
 				onClick={() =>
@@ -122,10 +116,10 @@ function MapContextMenuItems() {
 						)
 					: t("Delete this polygon")}
 			</MenuItem>
-			<MenuItem onClick={() => setLatLngAnchor(latLng)}>
+			<MenuItem onClick={() => Measure.setAnchor(latLng)}>
 				{t("Set latitude/longitude anchors")}
 			</MenuItem>
-			<MenuItem disabled={!anchor} onClick={() => setLatLngAnchor(null)}>
+			<MenuItem disabled={!anchor} onClick={() => Measure.setAnchor(null)}>
 				{t("Clear latitude/longitude anchors")}
 			</MenuItem>
 		</>

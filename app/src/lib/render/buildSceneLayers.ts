@@ -32,12 +32,7 @@ import { polygonLayerData } from "@/lib/render/polygonMeshes";
 import { CommitDiff } from "@/store/commitDiff";
 import { Import } from "@/store/import";
 import { getTrail } from "@/lib/sv/svTrail";
-import {
-	getLatLngAnchor,
-	getMeasurePoints,
-	getMeasureSegments,
-	MEASURE_NODE_PX,
-} from "@/lib/sv/measure";
+import { Measure } from "@/lib/map/measure";
 import type { RGBA } from "@/lib/util/color";
 import { bearingDeg, unwrapRing } from "@/lib/geo/geo";
 import { Editor } from "@/store/editor";
@@ -325,7 +320,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		);
 	}
 
-	const anchor = getLatLngAnchor();
+	const anchor = Measure.anchor();
 	if (anchor) {
 		layers.push(
 			new LineLayer({
@@ -376,7 +371,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		);
 	}
 
-	const measurePoints = getMeasurePoints();
+	const measurePoints = Measure.points();
 	if (measurePoints.length >= 2) {
 		layers.push(
 			new PathLayer({
@@ -393,7 +388,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		layers.push(
 			new TextLayer({
 				id: "measure-labels",
-				data: getMeasureSegments(),
+				data: Measure.segments(),
 				getPosition: (d) => renderPos(d.at[0], d.at[1]),
 				getText: (d) => d.label,
 				getSize: 13,
@@ -416,7 +411,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				id: "measure-nodes",
 				data: measurePoints,
 				getPosition: (d) => renderPos(d[0], d[1]),
-				getRadius: MEASURE_NODE_PX,
+				getRadius: Measure.nodePx,
 				getFillColor: [255, 255, 255, 255],
 				getLineWidth: 2,
 				getLineColor: [0, 0, 0, 255],

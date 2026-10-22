@@ -26,12 +26,7 @@ vi.mock("@/lib/commands", () => ({ cmd: {} }));
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
 import { openContextMenuLatLng } from "@/lib/map/contextMenu";
 import { MapHost } from "@/lib/map/mapHost";
-import {
-	endMeasure,
-	getMeasurePoints,
-	setLatLngAnchor,
-	useMeasureInteraction,
-} from "@/lib/sv/measure";
+import { Measure } from "@/lib/map/measure";
 import { polygonsAt } from "@/lib/map/useDeletePolygon";
 import { selectBorderAt } from "@/lib/map/useCountrySelect";
 import type { LatLng } from "@/types";
@@ -43,7 +38,7 @@ const host = {
 } as unknown as MapHost;
 
 function MeasureInteraction() {
-	useMeasureInteraction(host);
+	Measure.useInteraction(host);
 	return null;
 }
 
@@ -81,8 +76,8 @@ async function choose(label: string) {
 
 afterEach(() => {
 	act(() => {
-		endMeasure();
-		setLatLngAnchor(null);
+		Measure.end();
+		Measure.setAnchor(null);
 	});
 	vi.clearAllMocks();
 });
@@ -96,11 +91,11 @@ describe("map context menu measurement origin", () => {
 		const open = mountMenu();
 		await open(A);
 		await choose("Start measurement");
-		expect(getMeasurePoints()).toEqual([[A.lng, A.lat]]);
+		expect(Measure.points()).toEqual([[A.lng, A.lat]]);
 		act(() => {
 			expect(MapHost.tryInterceptClick(A.lat + 0.001, A.lng + 0.001)).toBe(true);
 		});
-		expect(getMeasurePoints()).toEqual([
+		expect(Measure.points()).toEqual([
 			[A.lng, A.lat],
 			[A.lng + 0.001, A.lat + 0.001],
 		]);
@@ -111,10 +106,10 @@ describe("map context menu measurement origin", () => {
 		const open = mountMenu();
 		await open(A);
 		await choose("Start measurement");
-		act(() => endMeasure());
+		act(() => Measure.end());
 		await open(B);
 		await choose("Start measurement");
-		expect(getMeasurePoints()).toEqual([[B.lng, B.lat]]);
+		expect(Measure.points()).toEqual([[B.lng, B.lat]]);
 	});
 
 	it("also refreshes coordinate actions and polygon hit tests on reopen", async () => {

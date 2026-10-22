@@ -16,12 +16,7 @@ vi.mock("@/store/store", () => ({
 }));
 
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
-import {
-	startMeasure,
-	endMeasure,
-	getMeasurePoints,
-	useMeasureInteraction,
-} from "@/lib/sv/measure";
+import { Measure } from "@/lib/map/measure";
 import { MapHost } from "@/lib/map/mapHost";
 
 describe("click interceptor priority", () => {
@@ -57,12 +52,12 @@ const host = {
 } as unknown as MapHost;
 
 function Probe() {
-	useMeasureInteraction(host);
+	Measure.useInteraction(host);
 	return null;
 }
 
 function mountMeasuring(at: { lat: number; lng: number }) {
-	startMeasure(at);
+	Measure.start(at);
 	mountRoot(createElement(Probe), { attach: false });
 }
 
@@ -73,7 +68,7 @@ const move = (x: number, y: number) =>
 const up = () => window.dispatchEvent(new MouseEvent("pointerup"));
 
 afterEach(() => {
-	endMeasure();
+	Measure.end();
 });
 
 describe("measure drag then click", () => {
@@ -84,13 +79,13 @@ describe("measure drag then click", () => {
 		down(10, 10);
 		move(200, 10);
 		up();
-		expect(getMeasurePoints()).toEqual([[0.2, 0.01]]);
+		expect(Measure.points()).toEqual([[0.2, 0.01]]);
 
 		// Next gesture on empty map: its click must place a point, not be eaten.
 		down(300, 10);
 		up();
 		expect(MapHost.tryInterceptClick(0.01, 0.3)).toBe(true);
-		expect(getMeasurePoints()).toEqual([
+		expect(Measure.points()).toEqual([
 			[0.2, 0.01],
 			[0.3, 0.01],
 		]);
@@ -103,7 +98,7 @@ describe("measure drag then click", () => {
 		up();
 		// The engine does fire a click for a stationary press; it must not add a point.
 		expect(MapHost.tryInterceptClick(0.01, 0.01)).toBe(true);
-		expect(getMeasurePoints()).toEqual([[0.01, 0.01]]);
+		expect(Measure.points()).toEqual([[0.01, 0.01]]);
 	});
 });
 
@@ -119,12 +114,12 @@ describe("measure Escape layering", () => {
 		document.addEventListener("keydown", consume, true);
 		escape();
 		document.removeEventListener("keydown", consume, true);
-		expect(getMeasurePoints()).toEqual([[0.01, 0.01]]);
+		expect(Measure.points()).toEqual([[0.01, 0.01]]);
 	});
 
 	it("ends the measurement on an unconsumed Escape", () => {
 		mountMeasuring({ lat: 0.01, lng: 0.01 });
 		escape();
-		expect(getMeasurePoints()).toEqual([]);
+		expect(Measure.points()).toEqual([]);
 	});
 });
