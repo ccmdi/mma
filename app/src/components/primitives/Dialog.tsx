@@ -22,39 +22,17 @@ const CloseContext = createContext<(() => void) | null>(null);
 export const RESIZE_MS = 220;
 export const RESIZE_EASING = "cubic-bezier(0.2, 0, 0, 1)";
 
-/** Where a modal's top edge sits: slightly above centre, with two fifths of the free space
- *  above it and three below, never closer than a twentieth of the window to either edge. */
-export function modalTop(height: number, viewport: number): number {
-	const gap = Math.round(viewport * 0.05);
-	return Math.max(gap, Math.round((viewport - height) * 0.4));
-}
-
-/** Eases a modal's frame between the heights its content lays out at, holding the top edge
- *  where `modalTop` puts it. */
+/** Eases a modal's frame between the heights its content lays out at. The top edge is a
+ *  fixed viewport line set in CSS, so only the height ever moves. */
 function followContentHeight(frame: HTMLDivElement | null) {
-	const popup = frame?.parentElement;
 	const body = frame?.firstElementChild;
-	if (!frame || !popup || !(body instanceof HTMLElement)) return;
+	if (!frame || !(body instanceof HTMLElement)) return;
 
 	const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 	const style = getComputedStyle(frame);
 	const borderY = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
 	let height: number | null = null;
-	let top: number | null = null;
 	let resize: Animation | null = null;
-
-	const place = (next: number, animate: boolean) => {
-		const nextTop = modalTop(next, window.innerHeight);
-		if (nextTop === top) return;
-		if (animate && top !== null) {
-			popup.animate([{ marginTop: `${top}px` }, { marginTop: `${nextTop}px` }], {
-				duration: RESIZE_MS,
-				easing: RESIZE_EASING,
-			});
-		}
-		top = nextTop;
-		popup.style.marginTop = `${nextTop}px`;
-	};
 
 	const observer = new ResizeObserver(() => {
 		const next = body.offsetHeight + borderY;
@@ -63,9 +41,7 @@ function followContentHeight(frame: HTMLDivElement | null) {
 		resize?.cancel();
 		resize = null;
 		height = next;
-		const animate = from !== null && !reducedMotion.matches;
-		place(next, animate);
-		if (!animate) {
+		if (from === null || reducedMotion.matches) {
 			frame.classList.remove("is-resizing");
 			return;
 		}
@@ -81,15 +57,10 @@ function followContentHeight(frame: HTMLDivElement | null) {
 		};
 		resize = animation;
 	});
-	const onViewportResize = () => {
-		if (height !== null) place(height, false);
-	};
 
 	observer.observe(body);
-	window.addEventListener("resize", onViewportResize);
 	return () => {
 		observer.disconnect();
-		window.removeEventListener("resize", onViewportResize);
 		resize?.cancel();
 	};
 }

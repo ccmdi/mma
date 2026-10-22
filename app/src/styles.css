@@ -1132,9 +1132,10 @@ input[type="range"]:disabled {
 	display: flex;
 	position: fixed;
 	/* Auto margins centre on whole pixels; a translate(-50%) lands odd sizes on a half
-	   pixel, and the re-snap when the entrance animation ends reads as content moving. */
+	   pixel, and the re-snap when the entrance animation ends reads as content moving.
+	   The top edge is a constant viewport line so a height change never moves it. */
 	inset: 0;
-	margin: auto;
+	margin: 18vh auto auto;
 	width: fit-content;
 	height: fit-content;
 }
@@ -1179,7 +1180,7 @@ input[type="range"]:disabled {
 	--modal-bg: var(--surface-2);
 	grid-template-rows: min-content 1fr;
 	grid-template-columns: 100%;
-	max-height: calc(90vh - 2px);
+	max-height: calc(77vh - 2px);
 	padding: 1rem 0;
 	display: grid;
 }
