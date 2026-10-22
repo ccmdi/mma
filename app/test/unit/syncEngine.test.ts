@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		remoteMappingClear: async () => {},
 		syncReconcile: async (...args: unknown[]) => {
 			h.reconciles.push(args);
 			h.beforeReturn?.();
@@ -42,12 +43,7 @@ vi.mock("@/lib/events", () => ({
 
 import { reconcile } from "@/lib/sync/engine";
 import type { SyncProvider } from "@/lib/sync/provider";
-import {
-	createSyncStore,
-	type KeyValueStore,
-	type MappingBackend,
-	type SyncStore,
-} from "@/lib/sync/syncStore";
+import { createSyncStore, type KeyValueStore, type SyncStore } from "@/lib/sync/syncStore";
 
 const MAP = "map-a";
 const PROVIDER = "geoguessr";
@@ -79,12 +75,8 @@ function memKv(): KeyValueStore {
 	};
 }
 
-const mapping: MappingBackend = {
-	clear: async () => {},
-};
-
 function linkedStore(): SyncStore {
-	const store = createSyncStore(memKv(), mapping, PROVIDER, MAP);
+	const store = createSyncStore(memKv(), PROVIDER, MAP);
 	store.setLink({
 		id: "link-1",
 		localMapId: MAP,

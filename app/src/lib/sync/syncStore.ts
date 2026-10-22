@@ -1,3 +1,5 @@
+import { cmd } from "@/lib/commands";
+
 /** Stable identity for a synced location across runs (e.g. `"L:<localId>"`). */
 export type IdentityKey = string;
 
@@ -45,11 +47,6 @@ export function listLinks(kv: KeyValueStore, provider: string): SyncLink[] {
 		.filter((l): l is SyncLink => l !== null);
 }
 
-/** Backend for clearing a map's sync mappings. */
-export interface MappingBackend {
-	clear(provider: string, mapId: string): Promise<void>;
-}
-
 export interface SyncStore {
 	getLink(): SyncLink | null;
 	setLink(link: SyncLink | null): void;
@@ -59,11 +56,10 @@ export interface SyncStore {
 
 /**
  * SyncStore for one `(provider, localMapId)`. The link is namespaced in the KV store; the mapping
- * is delegated to the row-oriented backend (which is already scoped by provider + map).
+ * rows live in the backend, already scoped by provider + map.
  */
 export function createSyncStore(
 	kv: KeyValueStore,
-	mapping: MappingBackend,
 	provider: string,
 	localMapId: string,
 ): SyncStore {
@@ -74,7 +70,7 @@ export function createSyncStore(
 		setLink: (link) => (link === null ? kv.remove(key) : kv.set(key, link)),
 		clear: async () => {
 			kv.remove(key);
-			await mapping.clear(provider, localMapId);
+			await cmd.remoteMappingClear(provider, localMapId);
 		},
 	};
 }

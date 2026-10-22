@@ -8,7 +8,6 @@ import { log } from "@/lib/util/log";
 import type { SyncLogEntry, SyncLogResult } from "@/bindings.gen";
 import { SYNC_PROVIDERS, type SyncDirection, type SyncTrigger } from "@/bindings.consts";
 import { reconcile, type FirstSyncMode, type ReconcileOptions, type SyncOutcome } from "./engine";
-import { createMappingBackend } from "./mappingBackend";
 import { createScheduler, type Scheduler, type SyncStatus } from "./scheduler";
 import { touches } from "@/lib/util/jsonPatch";
 import type { RemoteMapSummary, SyncProvider } from "./provider";
@@ -113,8 +112,7 @@ export function activateSyncPlugin(controller: SyncController): () => void {
  */
 export function createSyncController(provider: SyncProvider, pluginId: string): SyncController {
 	const kv = (): KeyValueStore => window.MMA.storage(pluginId);
-	const storeFor = (mapId: string): SyncStore =>
-		createSyncStore(kv(), createMappingBackend(), provider.id, mapId);
+	const storeFor = (mapId: string): SyncStore => createSyncStore(kv(), provider.id, mapId);
 	const currentMapId = (): string | null => window.MMA.Store.get().mapId;
 
 	const getLink = (): SyncLink | null => {

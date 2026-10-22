@@ -12,9 +12,13 @@ const eng = vi.hoisted(() => ({
 	result: null as unknown,
 	reconciles: 0,
 	listeners: new Map<string, Set<(payload: unknown) => void>>(),
+	mapping: new Map<string, RemoteMappingRow[]>(), // key = `${provider}:${mapId}`
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		remoteMappingClear: async (provider: string, id: string) => {
+			eng.mapping.delete(`${provider}:${id}`);
+		},
 		syncReconcile: async () => {
 			eng.reconciles++;
 			if (eng.gate) await eng.gate;
@@ -62,7 +66,8 @@ const EMPTY_RESULT: SyncReconcileResult = {
 /** In-memory MMA with a KV store, the row-oriented mapping backend, and a gated syncReconcile. */
 function makeMma() {
 	const storage = new Map<string, unknown>();
-	const mapping = new Map<string, RemoteMappingRow[]>(); // key = `${provider}:${mapId}`
+	const mapping = eng.mapping;
+	mapping.clear();
 	eng.mapId = "map-a";
 	eng.gate = null;
 	eng.failWith = null;
@@ -113,9 +118,6 @@ function makeMma() {
 					key,
 					(mapping.get(key) ?? []).filter((r) => !ids.includes(r.localId)),
 				);
-			},
-			remoteMappingClear: async (provider: string, id: string) => {
-				mapping.delete(`${provider}:${id}`);
 			},
 		},
 		Store: {

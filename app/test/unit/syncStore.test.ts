@@ -1,9 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
 	createSyncStore,
 	listLinks,
 	type KeyValueStore,
-	type MappingBackend,
 	type SyncLink,
 } from "@/lib/sync/syncStore";
 
@@ -18,14 +17,13 @@ function memKv(): KeyValueStore {
 	};
 }
 
-/** In-memory mapping backend mirroring the Rust remote_mapping clear, scoped per provider + map. */
-function memMapping(): MappingBackend & { rows: Set<string> } {
-	const rows = new Set<string>();
-	return {
-		rows,
-		clear: async (p, m) => void rows.delete(`${p}::${m}`),
-	};
-}
+/** Mapping rows mirroring the Rust remote_mapping table, scoped per provider + map. */
+const mapping = vi.hoisted(() => ({ rows: new Set<string>() }));
+vi.mock("@/lib/commands", () => ({
+	cmd: {
+		remoteMappingClear: async (p: string, m: string) => void mapping.rows.delete(`${p}::${m}`),
+	},
+}));
 
 const link = (over: Partial<SyncLink> = {}): SyncLink => ({
 	id: "link-a",
@@ -42,7 +40,7 @@ const P = "map-making.app";
 
 describe("sync syncStore", () => {
 	it("link round-trips via KV", () => {
-		const s = createSyncStore(memKv(), memMapping(), P, "map-a");
+		const s = createSyncStore(memKv(), P, "map-a");
 		expect(s.getLink()).toBeNull();
 		s.setLink(link({ lastSyncedAt: "2026-06-30T01:00:00Z" }));
 		expect(s.getLink()?.lastSyncedAt).toBe("2026-06-30T01:00:00Z");
@@ -50,10 +48,10 @@ describe("sync syncStore", () => {
 
 	it("namespaces by provider + map; clear() drops only this map's link and rows", async () => {
 		const kv = memKv();
-		const mapping = memMapping();
+		mapping.rows.clear();
 		mapping.rows.add(`${P}::map-a`).add(`${P}::map-b`).add("geoguessr::map-a");
-		const a = createSyncStore(kv, mapping, P, "map-a");
-		const b = createSyncStore(kv, mapping, P, "map-b");
+		const a = createSyncStore(kv, P, "map-a");
+		const b = createSyncStore(kv, P, "map-b");
 		a.setLink(link());
 		b.setLink(link({ localMapId: "map-b" }));
 
@@ -67,10 +65,9 @@ describe("sync syncStore", () => {
 
 	it("listLinks returns only this provider's links, skipping other keys in the store", () => {
 		const kv = memKv();
-		const mapping = memMapping();
-		createSyncStore(kv, mapping, P, "map-a").setLink(link());
-		createSyncStore(kv, mapping, P, "map-b").setLink(link({ localMapId: "map-b" }));
-		createSyncStore(kv, mapping, "geoguessr", "map-c").setLink(link({ localMapId: "map-c" }));
+		createSyncStore(kv, P, "map-a").setLink(link());
+		createSyncStore(kv, P, "map-b").setLink(link({ localMapId: "map-b" }));
+		createSyncStore(kv, "geoguessr", "map-c").setLink(link({ localMapId: "map-c" }));
 		kv.set("live:map-a", true);
 
 		expect(
