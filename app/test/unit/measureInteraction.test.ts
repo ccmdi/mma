@@ -91,14 +91,25 @@ describe("measure drag then click", () => {
 		]);
 	});
 
-	it("still suppresses the click of a stationary press on a node", () => {
+	it("deletes a node on a stationary press, and its click adds nothing", () => {
+		mountMeasuring({ lat: 0.01, lng: 0.01 });
+		MapHost.tryInterceptClick(0.01, 0.1);
+
+		down(100, 10);
+		move(101, 11);
+		up();
+		// The engine does fire a click for a stationary press; it must not add a point.
+		expect(MapHost.tryInterceptClick(0.01, 0.1)).toBe(true);
+		expect(Measure.points()).toEqual([[0.01, 0.01]]);
+	});
+
+	it("moves a node that is dragged past the click slop instead of deleting it", () => {
 		mountMeasuring({ lat: 0.01, lng: 0.01 });
 
 		down(10, 10);
+		move(20, 10);
 		up();
-		// The engine does fire a click for a stationary press; it must not add a point.
-		expect(MapHost.tryInterceptClick(0.01, 0.01)).toBe(true);
-		expect(Measure.points()).toEqual([[0.01, 0.01]]);
+		expect(Measure.points()).toEqual([[0.02, 0.01]]);
 	});
 });
 

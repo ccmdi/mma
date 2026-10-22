@@ -69,6 +69,11 @@ export const Measure = {
 		commit({ points });
 	},
 
+	remove: (index: number) => {
+		if (index < 0 || index >= mState.points.length) return;
+		commit({ points: mState.points.toSpliced(index, 1) });
+	},
+
 	points: (): number[][] => mState.points,
 
 	/** One label per segment, at its midpoint. Rebuilt only when the points change, and
@@ -143,6 +148,10 @@ export const Measure = {
 				host.setCursor(v ? "pointer" : null);
 			};
 
+			// A press on a node that never travels past this many pixels is a click, which deletes it.
+			const CLICK_SLOP_PX = 3;
+			let pressedAt: { x: number; y: number } | null = null;
+
 			const onDown = (e: PointerEvent) => {
 				// A drag's click doesn't always fire (the engine drops it after real movement);
 				// a new gesture starting means the stale flag must not eat this one's click.
@@ -150,6 +159,7 @@ export const Measure = {
 				if (e.button !== 0) return;
 				const ll = at(e);
 				dragIndex = ll ? hitNode(host, ll) : null;
+				pressedAt = { x: e.clientX, y: e.clientY };
 			};
 
 			const onMove = (e: PointerEvent) => {
@@ -159,12 +169,18 @@ export const Measure = {
 					arm(hitNode(host, ll) !== null);
 					return;
 				}
+				if (pressedAt) {
+					if (Math.hypot(e.clientX - pressedAt.x, e.clientY - pressedAt.y) <= CLICK_SLOP_PX) return;
+					pressedAt = null;
+				}
 				Measure.move(dragIndex, ll);
 			};
 
 			const onUp = () => {
 				if (dragIndex === null) return;
+				if (pressedAt) Measure.remove(dragIndex);
 				dragIndex = null;
+				pressedAt = null;
 				suppressClick = true;
 			};
 
