@@ -68,13 +68,13 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 
 ### Account
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 The GitHub account the user is signed in with, and signing in or out of it.
 
 #### Account.me
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 ```ts
 Account.me(): Promise<GhUser | null>
@@ -84,7 +84,7 @@ The signed-in GitHub account, or null when signed out or unreachable.
 
 #### Account.signIn
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 ```ts
 Account.signIn(onCode: (code: DeviceCodeInfo) => void): Promise<GhUser>
@@ -94,7 +94,7 @@ Sign in with GitHub: `onCode` receives the code the user enters in the browser p
 
 #### Account.signOut
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 ```ts
 Account.signOut(): Promise<void>
@@ -104,7 +104,7 @@ Sign out of GitHub and forget the stored session.
 
 #### Account.use
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 ```ts
 Account.use(): GhUser | null | undefined
@@ -153,7 +153,7 @@ Save any unsaved changes now instead of waiting for the timer.
 
 #### Autosave.paused
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Autosave.paused: { hold: () => () => void; held: () => boolean }
@@ -1195,7 +1195,7 @@ Settings merge key by key, so send only the keys that change.
 
 #### Edit.selections
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Edit.selections(op: Of<"selections">): Promise<Mutation<ListedSelection>>
@@ -1389,7 +1389,7 @@ leaving "location" closes the open location, leaving "plugin" clears the plugin 
 
 #### Editor.trail
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Editor.trail: {
@@ -1840,7 +1840,7 @@ Save any unsaved changes now instead of waiting for the timer.
 
 #### autosave.paused
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 autosave.paused: { hold: () => () => void; held: () => boolean }
@@ -2134,7 +2134,7 @@ Settings merge key by key, so send only the keys that change.
 
 #### edit.selections
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 edit.selections(op: Of<"selections">): Promise<Mutation<ListedSelection>>
@@ -3492,7 +3492,7 @@ no map (version 0) settles at once.
 
 #### Mutation.write
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 ```ts
 Mutation.write<
@@ -3952,7 +3952,7 @@ Read and update the open map state.
 
 #### Store.get
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 ```ts
 Store.get(): Readonly<MapState>
@@ -3962,7 +3962,7 @@ Imperative snapshot of the map state.
 
 #### Store.use
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 ```ts
 Store.use<T>(selector: (s: MapState) => T): T
@@ -4314,7 +4314,7 @@ Shared UI primitives for plugin sidebars and dialogs.
 
 #### ui.Avatar
 
-`stable` · unreleased
+`stable` · since v0.13.0
 
 ```ts
 ui.Avatar(
@@ -5043,7 +5043,7 @@ A label's color: a user override if set, else a deterministic color from its nam
 
 ### legible
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 legible(color: RGB, background: RGB): RGB
@@ -5054,7 +5054,7 @@ reach WCAG AA contrast.
 
 ### luminance
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 luminance(rgb: RGB): number
@@ -5194,7 +5194,7 @@ True for the first caller per app run, which runs the background plugin update c
 
 #### cmd.collabHost
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 cmd.collabHost(map: string): Promise<null>
@@ -5204,7 +5204,7 @@ Host map `map` for everyone it is shared with, until it is left.
 
 #### cmd.collabInvite
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 cmd.collabInvite(map: string, on: boolean): Promise<string | null>
@@ -5215,7 +5215,7 @@ Turn on the code that lets guests without a GitHub account join this app's share
 
 #### cmd.collabJoin
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 cmd.collabJoin(via: Via, replace: boolean): Promise<JoinOutcome>
@@ -5227,7 +5227,7 @@ reported instead, unless `replace` says to replace those edits.
 
 #### cmd.collabLeave
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 cmd.collabLeave(map: string): Promise<null>
@@ -5238,7 +5238,7 @@ copy. An ended session is dismissed.
 
 #### cmd.collabPresent
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 cmd.collabPresent(map: string, data: Shown): Promise<null>
@@ -5248,7 +5248,7 @@ Show `data` to everyone else in the session on this app's map `map`.
 
 #### cmd.collabSessions
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 cmd.collabSessions(): Promise<CollabSessions>
@@ -5258,7 +5258,7 @@ Every collab session this app is in, and every map it copied from another app's.
 
 #### cmd.collabShare
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 cmd.collabShare(map: string, logins: string[]): Promise<null>
@@ -5269,7 +5269,7 @@ out is turned away from the map's session.
 
 #### cmd.collabShares
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 cmd.collabShares(): Promise<Shares>
@@ -6814,7 +6814,7 @@ MapHost.create(
 
 #### MapHost.each
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 MapHost.each(attach: (host: MapHost) => () => void): () => void
@@ -6929,7 +6929,7 @@ The app's default pano viewer.
 
 #### Pano.applyLock
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Pano.applyLock(): Promise<void>
@@ -7069,7 +7069,7 @@ The current pano's navigable links.
 
 #### Pano.lockedView
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Pano.lockedView():
@@ -7250,7 +7250,7 @@ Show a toast anchored over the viewer.
 
 #### Pano.toggleLock
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Pano.toggleLock(): Promise<boolean>
@@ -7320,7 +7320,7 @@ Step the zoom out.
 
 #### Pano.zoomScale
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Pano.zoomScale: {
@@ -7977,7 +7977,7 @@ Load the whole scene again and follow every change to it from there.
 
 #### Scene.loading
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Scene.loading: { hold: () => () => void; held: () => boolean }
@@ -7987,7 +7987,7 @@ What keeps the map showing as loading; the scene itself holds it until its marke
 
 #### Scene.positions
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 Scene.positions(): {
@@ -9072,7 +9072,7 @@ React hook: all settings, re-rendering on any change.
 
 ### StreetView
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 Google Street View: coverage lookups and pano metadata, search radii, pinning locations to
 their panos and turning them along the road, links into Google Maps, and panorama
@@ -9080,7 +9080,7 @@ downloads.
 
 #### StreetView.allUnofficial
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.allUnofficial(time: Pano["time"]): boolean
@@ -9091,7 +9091,7 @@ the multi-year history lives on official coverage nearby rather than on these pa
 
 #### StreetView.appendLinkTags
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.appendLinkTags(url: URL, loc: Location, tagsById: Record<number, Tag>): void
@@ -9102,7 +9102,7 @@ reconstructs them.
 
 #### StreetView.clickRadius
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.clickRadius(lat: number, zoom: number, minRadius?: number): number
@@ -9113,7 +9113,7 @@ The radius (m) a map click searches for coverage: the zoom/lat extent, floored b
 
 #### StreetView.copyLink
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.copyLink(
@@ -9128,7 +9128,7 @@ Copy a Maps link to the clipboard, shortened unless `long`.
 
 #### StreetView.download
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.download(panoId: string, zoom?: number): Promise<void>
@@ -9138,7 +9138,7 @@ Download the full panorama as a single stitched JPEG. Toasts on success/failure.
 
 #### StreetView.downloadAll
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.downloadAll(
@@ -9153,7 +9153,7 @@ mma-buf POST) that is packaged into a single file or Stored ZIP.
 
 #### StreetView.follow
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.follow(
@@ -9168,7 +9168,7 @@ the locations along the road, up to `maxSteps`.
 
 #### StreetView.initialHeading
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.initialHeading(
@@ -9184,7 +9184,7 @@ The heading a new location starts at, from the pano's road links and a direction
 
 #### StreetView.isOfficial
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.isOfficial(panoId: string): boolean
@@ -9194,7 +9194,7 @@ Whether a pano id names official Google coverage.
 
 #### StreetView.jumpRadius
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.jumpRadius: number
@@ -9204,7 +9204,7 @@ Metres a jump to a typed-in coordinate searches.
 
 #### StreetView.lookup
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.lookup(
@@ -9229,7 +9229,7 @@ whether it must be pinned because it is not the default coverage there.
 
 #### StreetView.mapsUrl
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.mapsUrl(view: MapsPanoView): URL
@@ -9240,7 +9240,7 @@ A google.com/maps Street View link aimed at `view`. Official panos embed a thumb
 
 #### StreetView.mergeTimelines
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.mergeTimelines(sources: (Pano | null)[]): Pano["time"]
@@ -9252,7 +9252,7 @@ sources win, so pass the pano itself last. Ascending by date, as every timeline 
 
 #### StreetView.metadata
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.metadata(
@@ -9267,7 +9267,7 @@ Duplicates are deduped and large batches are split automatically.
 
 #### StreetView.officialFallbackRadius
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.officialFallbackRadius: number
@@ -9277,7 +9277,7 @@ Metres the viewer searches for official coverage when a pano's own timeline hold
 
 #### StreetView.panHeading
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.panHeading(
@@ -9291,7 +9291,7 @@ Pan every heading in the selector along the road.
 
 #### StreetView.panosAt
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.panosAt(
@@ -9304,7 +9304,7 @@ The nearest pano to each point, aligned to `points`, null where there is no cove
 
 #### StreetView.pin
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.pin(selector: Selector, opts?: PinOpts): Promise<PinOutcome>
@@ -9314,7 +9314,7 @@ Pin every location in the selector to its pano id, resolving pano ids first when
 
 #### StreetView.radiusAtZoom
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.radiusAtZoom(lat: number, zoom: number): number
@@ -9324,7 +9324,7 @@ Metres of map a search covers at `zoom` and latitude `lat`.
 
 #### StreetView.resolve
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.resolve(loc: Location): Promise<Pano | null>
@@ -9335,7 +9335,7 @@ otherwise whatever sits at its coordinates.
 
 #### StreetView.searchRadius
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.searchRadius: number
@@ -9345,7 +9345,7 @@ Metres a coordinate search reaches by default.
 
 #### StreetView.shortenLink
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.shortenLink(longUrl: string): Promise<string>
@@ -9355,7 +9355,7 @@ A Maps link shortened through Google's own shortener, or the link unchanged when
 
 #### StreetView.thumbnailUrl
 
-`unstable` · unreleased
+`unstable` · since v0.13.0
 
 ```ts
 StreetView.thumbnailUrl(
