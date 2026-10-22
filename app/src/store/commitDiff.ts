@@ -3,7 +3,7 @@ import { Editor } from "@/store/editor";
 import type { LatLng } from "@/types";
 import type { CommitInfo, Counts } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import { boundsOfCoords } from "@/lib/geo/geo";
 import { emit as emitEvent } from "@/lib/events";
 

@@ -12,7 +12,7 @@ import { cmd } from "@/lib/commands";
 import { lookupStreetView } from "@/lib/sv/lookup";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import { getSettings } from "@/store/settings";
 import type { ParsedLocation } from "@/bindings.gen";
 import { open as openExternal } from "@tauri-apps/plugin-shell";

@@ -25,7 +25,7 @@ vi.mock("@/lib/commands", () => ({ cmd: {} }));
 
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
 import { openContextMenuLatLng } from "@/lib/map/contextMenu";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import {
 	endMeasure,
 	getMeasurePoints,

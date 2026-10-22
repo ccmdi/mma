@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createElement, act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { PolygonTools } from "@/components/editor/PolygonTools";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import type { LatLng } from "@/types";
 
 // px <-> latlng mapping: lat = y/1000, lng = x/1000. jsdom rects are all-zero, so

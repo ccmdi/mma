@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { LatLng } from "@/types";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import { latLngToWorld } from "@/lib/geo/mercator";
 import { distMeters } from "@/lib/geo/geo";
 import { formatDistance } from "@/lib/util/format";

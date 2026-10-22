@@ -18,7 +18,7 @@ import { Scene } from "@/lib/render/scene";
 import { useDialog } from "@/store/dialogBus";
 import { Maps } from "@/store/maps";
 import { Store } from "@/store/store";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import type { Bounds } from "@/types";
 import { registerPlugin, setPluginEnabled } from "@/plugins/registry";
 import { PluginSlot } from "@/plugins/PluginPanels";

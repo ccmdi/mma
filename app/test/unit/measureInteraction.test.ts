@@ -22,7 +22,7 @@ import {
 	getMeasurePoints,
 	useMeasureInteraction,
 } from "@/lib/sv/measure";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 
 describe("click interceptor priority", () => {
 	it("calls the most recently registered interceptor first", () => {

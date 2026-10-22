@@ -34,7 +34,7 @@ vi.mock("@/store/settings", async (orig) => ({
 	getSettings: () => ({ panToImported: false }),
 }));
 import { resolvePickedId, openHref, handleMapClick } from "@/lib/map/mapClick";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 
 const pick = (id: string | undefined, index: number): PickingInfo =>
 	({ index, layer: id == null ? null : { id } }) as unknown as PickingInfo;

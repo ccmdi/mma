@@ -30,7 +30,7 @@ import type {
 	CreateHostOpts,
 	DeckOverlayHandle,
 	DeckOverlayProps,
-} from "@/lib/map/host";
+} from "@/lib/map/mapHost";
 
 const ZOOM_OFFSET = 1;
 const SV_SOURCE = "mma-sv";

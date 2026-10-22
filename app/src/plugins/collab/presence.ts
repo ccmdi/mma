@@ -5,7 +5,7 @@ import { subscribe } from "@/lib/events";
 import { getLocal, persisted, subscribeLocal } from "@/lib/hooks/useLocalStorage";
 import { lngSpan, sameBounds, unwrapLng, wrapDeg } from "@/lib/geo/geo";
 import { latLngToWorld, unwrapWorldX, worldToLatLng } from "@/lib/geo/mercator";
-import { MapHost, type DeckOverlayHandle } from "@/lib/map/host";
+import { MapHost, type DeckOverlayHandle } from "@/lib/map/mapHost";
 import { hexToRgb, legible, rgbCss } from "@/lib/util/color";
 import { throttle } from "@/lib/util/concurrent";
 import { frameLoop, smoothed, type Motion, type Smoothed } from "@/lib/util/motion";

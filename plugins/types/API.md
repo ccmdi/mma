@@ -45,10 +45,10 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Color](#color)
 - [Commands](#commands)
 - [Commit diff](#commit-diff)
-- [Host](#host)
 - [Import](#import)
 - [Jobs](#jobs)
 - [Layer](#layer)
+- [Map host](#map-host)
 - [Pano](#pano)
 - [Pin pano](#pin-pano)
 - [Providers](#providers)
@@ -6653,144 +6653,6 @@ CommitDiff.use(): Counts
 
 React hook: the uncommitted add/remove/modify counts.
 
-## Host
-
-### MapHost
-
-`unstable` · since v0.12.0
-
-The embedded map host, its preferences, and click interceptors.
-
-#### MapHost.addClickInterceptor
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.addClickInterceptor(fn: ClickInterceptor): () => void
-```
-
-Register a map-click interceptor. Returns a removal function. The most recently
-added interceptor that returns true consumes the click.
-
-#### MapHost.create
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.create(
-  kind: MapHostKind,
-  container: HTMLElement,
-  prefs: MapEmbedPrefs,
-  opts: CreateHostOpts,
-): Promise<MapHost>
-```
-
-#### MapHost.each
-
-`unstable` · unreleased
-
-```ts
-MapHost.each(attach: (host: MapHost) => () => void): () => void
-```
-
-Run `attach` on the main editor map host and on every host that replaces it, undoing each
-run with what it returns once its host goes. Returns the stop.
-
-#### MapHost.fitToBounds
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.fitToBounds(
-  bounds: Bounds | null,
-  padding?: number,
-  minExtent?: number,
-): void
-```
-
-Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas.
-
-#### MapHost.get
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.get(): MapHost | null
-```
-
-Return the main editor map host, or null if not mounted.
-
-#### MapHost.instance
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.instance<K extends MapHostKind>(
-  host: MapHost | null,
-  kind: K,
-): HostInstances[K] | null
-```
-
-The raw engine instance if `host` is of the given kind, else null.
-
-#### MapHost.kindForMapType
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.kindForMapType(mapType: MapTypeKey): MapHostKind
-```
-
-#### MapHost.set
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.set(host: MapHost | null): void
-```
-
-Set or clear the main editor map host.
-
-#### MapHost.setDrawInterceptor
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.setDrawInterceptor(fn: DrawInterceptor | null): void
-```
-
-Set the callback for completed polygon draws. Null clears it.
-
-#### MapHost.tryInterceptClick
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.tryInterceptClick(lat: number, lng: number, shiftKey?: boolean): boolean
-```
-
-Run registered click interceptors (newest first). True if one consumed the click.
-
-#### MapHost.tryInterceptDraw
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.tryInterceptDraw(rings: number[][][]): boolean
-```
-
-Pass completed polygon rings to the draw interceptor. True if it consumed them.
-
-#### MapHost.wait
-
-`unstable` · since v0.12.0
-
-```ts
-MapHost.wait(): Promise<MapHost>
-```
-
-Wait for the main editor map to be ready.
-
 ## Import
 
 ### Import
@@ -6940,6 +6802,144 @@ Layer.open(edits?: LocationEdits): Promise<Layer>
 ```
 
 Create a layer and stage its first edits.
+
+## Map host
+
+### MapHost
+
+`unstable` · since v0.12.0
+
+The embedded map host, its preferences, and click interceptors.
+
+#### MapHost.addClickInterceptor
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.addClickInterceptor(fn: ClickInterceptor): () => void
+```
+
+Register a map-click interceptor. Returns a removal function. The most recently
+added interceptor that returns true consumes the click.
+
+#### MapHost.create
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.create(
+  kind: MapHostKind,
+  container: HTMLElement,
+  prefs: MapEmbedPrefs,
+  opts: CreateHostOpts,
+): Promise<MapHost>
+```
+
+#### MapHost.each
+
+`unstable` · unreleased
+
+```ts
+MapHost.each(attach: (host: MapHost) => () => void): () => void
+```
+
+Run `attach` on the main editor map host and on every host that replaces it, undoing each
+run with what it returns once its host goes. Returns the stop.
+
+#### MapHost.fitToBounds
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.fitToBounds(
+  bounds: Bounds | null,
+  padding?: number,
+  minExtent?: number,
+): void
+```
+
+Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas.
+
+#### MapHost.get
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.get(): MapHost | null
+```
+
+Return the main editor map host, or null if not mounted.
+
+#### MapHost.instance
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.instance<K extends MapHostKind>(
+  host: MapHost | null,
+  kind: K,
+): HostInstances[K] | null
+```
+
+The raw engine instance if `host` is of the given kind, else null.
+
+#### MapHost.kindForMapType
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.kindForMapType(mapType: MapTypeKey): MapHostKind
+```
+
+#### MapHost.set
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.set(host: MapHost | null): void
+```
+
+Set or clear the main editor map host.
+
+#### MapHost.setDrawInterceptor
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.setDrawInterceptor(fn: DrawInterceptor | null): void
+```
+
+Set the callback for completed polygon draws. Null clears it.
+
+#### MapHost.tryInterceptClick
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.tryInterceptClick(lat: number, lng: number, shiftKey?: boolean): boolean
+```
+
+Run registered click interceptors (newest first). True if one consumed the click.
+
+#### MapHost.tryInterceptDraw
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.tryInterceptDraw(rings: number[][][]): boolean
+```
+
+Pass completed polygon rings to the draw interceptor. True if it consumed them.
+
+#### MapHost.wait
+
+`unstable` · since v0.12.0
+
+```ts
+MapHost.wait(): Promise<MapHost>
+```
+
+Wait for the main editor map to be ready.
 
 ## Pano
 

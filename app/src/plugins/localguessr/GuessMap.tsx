@@ -13,7 +13,7 @@ import {
 	mdiMagnifyMinusOutline,
 	mdiScatterPlot,
 } from "@mdi/js";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import { google } from "@/lib/sv/opensv";
 import type * as maplibregl from "maplibre-gl";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";

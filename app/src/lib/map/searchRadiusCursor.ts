@@ -8,7 +8,7 @@
 import { ScatterplotLayer } from "@deck.gl/layers";
 import { Store } from "@/store/store";
 import { clickSearchRadius } from "@/lib/sv/lookup";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import type { LatLng } from "@/types";
 
 const LAYER_ID = "mma-search-radius-cursor";

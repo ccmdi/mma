@@ -17,7 +17,7 @@ import type {
 	CreateHostOpts,
 	DeckOverlayHandle,
 	DeckOverlayProps,
-} from "@/lib/map/host";
+} from "@/lib/map/mapHost";
 
 const DEFAULT_CURSOR = "crosshair";
 

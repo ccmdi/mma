@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 
 const host = (id: string) => ({ id }) as unknown as MapHost;
 

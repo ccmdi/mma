@@ -2,7 +2,7 @@
 // Mirrors the heatmap plugin: get the map host, stack our own deck overlay on
 // it, render into it, tear it down on deactivate. Core is never touched.
 import { BitmapLayer } from "@deck.gl/layers";
-import type { DeckOverlayHandle } from "@/lib/map/host";
+import type { DeckOverlayHandle } from "@/lib/map/mapHost";
 import { subscribe, getCoverageImage } from "./searchCoverage";
 
 let overlay: DeckOverlayHandle | null = null;

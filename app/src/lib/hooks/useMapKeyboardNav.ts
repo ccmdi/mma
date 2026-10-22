@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { getSettings } from "@/store/settings";
 import { useHeldKeys } from "@/lib/hooks/useHeldKeys";
-import type { MapHost } from "@/lib/map/host";
+import type { MapHost } from "@/lib/map/mapHost";
 import { latLngToWorld, worldToLatLng } from "@/lib/geo/mercator";
 
 const ACTIONS = ["panLeft", "panRight", "panUp", "panDown", "mapZoomIn", "mapZoomOut"] as const;

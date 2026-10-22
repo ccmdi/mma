@@ -86,7 +86,6 @@ import {
 	knownFieldDefs,
 } from "@/lib/data/fieldDefs";
 import { History } from "@/store/history";
-import { MapHost } from "@/lib/map/host";
 import { Import } from "@/store/import";
 import { cancelJobs, getJobs, registerJob, runJob } from "@/lib/jobs";
 import { Layer } from "@/store/layer";
@@ -197,6 +196,7 @@ import {
 	waitForMapHost,
 } from "@/legacy";
 import { Location } from "@/store/location";
+import { MapHost } from "@/lib/map/mapHost";
 import { Maps } from "@/store/maps";
 import { Mutation } from "@/store/mutation";
 import { Pano } from "@/lib/sv/pano";
@@ -435,7 +435,6 @@ type FieldDefsApi = {
 	knownFieldDefs: typeof knownFieldDefs;
 };
 type HistoryApi = { History: typeof History };
-type HostApi = { MapHost: typeof MapHost };
 type ImportApi = { Import: typeof Import };
 type JobsApi = {
 	cancelJobs: typeof cancelJobs;
@@ -551,6 +550,7 @@ type LegacyApi = {
 	waitForMapHost: typeof waitForMapHost;
 };
 type LocationApi = { Location: typeof Location };
+type MapHostApi = { MapHost: typeof MapHost };
 type MapsApi = { Maps: typeof Maps };
 type MutationApi = { Mutation: typeof Mutation };
 type PanoApi = { Pano: typeof Pano };
@@ -727,12 +727,12 @@ export interface MMA
 		FieldDefRegistryApi,
 		FieldDefsApi,
 		HistoryApi,
-		HostApi,
 		ImportApi,
 		JobsApi,
 		LayerApi,
 		LegacyApi,
 		LocationApi,
+		MapHostApi,
 		MapsApi,
 		MutationApi,
 		PanoApi,
@@ -847,7 +847,6 @@ const mma: MMA = {
 	isFieldEnabled,
 	knownFieldDefs,
 	History,
-	MapHost,
 	Import,
 	cancelJobs,
 	getJobs,
@@ -959,6 +958,7 @@ const mma: MMA = {
 	waitForGoogleMap,
 	waitForMapHost,
 	Location,
+	MapHost,
 	Maps,
 	Mutation,
 	Pano,

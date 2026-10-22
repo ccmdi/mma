@@ -6,7 +6,7 @@
 import { Scene } from "@/lib/render/scene";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { MARKER_STYLE } from "@/lib/render/markerLayer";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";
 import type { Bounds, MarkerStyle } from "@/types";
 import {

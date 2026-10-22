@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import { IconLayer, PathLayer, TextLayer } from "@deck.gl/layers";
 import { PathStyleExtension } from "@deck.gl/extensions";
 import { mdiFlagVariant } from "@mdi/js";
-import { MapHost, type DeckOverlayHandle } from "@/lib/map/host";
+import { MapHost, type DeckOverlayHandle } from "@/lib/map/mapHost";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { getLocal } from "@/lib/hooks/useLocalStorage";
 import { Account } from "@/lib/account";

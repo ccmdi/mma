@@ -4,10 +4,10 @@ import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
 import { Channel } from '@tauri-apps/api/core';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
-import { Layer as Layer$1, PickingInfo } from '@deck.gl/core';
-import * as maplibregl from 'maplibre-gl';
 import * as react from 'react';
 import { SetStateAction, ComponentType, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
+import { Layer as Layer$1, PickingInfo } from '@deck.gl/core';
+import * as maplibregl from 'maplibre-gl';
 import { Command } from '@tauri-apps/plugin-shell';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import * as _base_ui_components_react_dialog from '@base-ui-components/react/dialog';
@@ -3897,6 +3897,493 @@ declare const History: {
     step: (stack: Stack, timeline: Timeline) => Promise<void>;
 };
 
+/** Parsed-but-not-committed import shown while `workArea === "import"`. @unstable */
+export interface ImportStaging {
+    preview: EditorImportPreview;
+}
+/** Stage, preview, and confirm an import into the open map. @api @unstable */
+declare const Import: {
+    /** The preview marker positions for the staged import. @unstable */
+    previewPositions: () => Float32Array<ArrayBufferLike>;
+    /** The current staged import, or null if none. @unstable */
+    staging: () => ImportStaging | null;
+    /** Discard the staged import and its pending layer. @unstable */
+    reset: () => void;
+    /** Import from a file path. @unstable */
+    fromPath: (path: string) => Promise<void>;
+    /** Stage pasted text for preview. Throws if no locations are found. @unstable */
+    paste: (text: string) => Promise<void>;
+    /** Import the staged file, dropping chosen fields and tags and applying bulk tags. @unstable */
+    confirm: (droppedFields: string[], tagNames?: string[], droppedTags?: string[]) => Promise<EditorImportResult | null>;
+    /** Discard the staged import without committing. @unstable */
+    cancel: () => void;
+};
+
+/** `map` jobs mutate the open map and are cancelled when it closes; `app` jobs survive. @unstable */
+export type JobScope = "map" | "app";
+/** @unstable */
+export interface JobOpts {
+    scope?: JobScope;
+    /** Abort the underlying work. Omitted = the tray offers no cancel button. */
+    cancel?: () => void;
+    /** Reopen the owning UI. Omitted = the tray entry is not clickable. */
+    reveal?: () => void;
+}
+/** @unstable */
+export interface JobEntry {
+    id: number;
+    label: string;
+    scope: JobScope;
+    fraction: number;
+    detail?: string;
+    /** The owning UI is showing its own progress; the tray skips this entry. */
+    hidden: boolean;
+    cancel?: () => void;
+    reveal?: () => void;
+}
+/** Handle for driving a registered job. All methods are no-ops once the job ended. @unstable */
+export interface JobHandle {
+    /** Set the progress bar fraction (0-1) and optional detail text. */
+    update(fraction: number, detail?: string): void;
+    setHidden(hidden: boolean): void;
+    /** Remove the job, optionally leaving a brief toast. */
+    finish(message?: string, duration?: number): void;
+    /** Remove the job and leave an error toast. */
+    fail(message: string): void;
+}
+/** Live jobs, for the tray. Reference changes on every update. @api @unstable */
+declare function getJobs(): JobEntry[];
+/** Register a long-running operation with the global job tray. The caller owns the
+ *  work; the registry owns only its presentation and the cancel/reveal controls. @api @unstable */
+declare function registerJob(label: string, opts?: JobOpts): JobHandle;
+/** @unstable */
+export interface JobRunContext {
+    signal: AbortSignal;
+    report: (fraction: number, detail?: string) => void;
+}
+/** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
+ *  through the handle, ends the job however `fn` settles, and resolves to how it settled.
+ *  A failure also toasts. @api @unstable */
+declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<Settled<R>>;
+/** Cancel every live job of `scope` that can be cancelled. Owners observe their own
+ *  abort and end their jobs; entries without a cancel are removed outright. @api @unstable */
+declare function cancelJobs(scope: JobScope): void;
+
+export interface PluginStorage {
+    get<T = unknown>(key: string, fallback?: T): T;
+    set(key: string, value: unknown): void;
+    remove(key: string): void;
+    keys(): string[];
+}
+/** A plugin's store in the open map. Writes resolve once they are saved. */
+export interface MapPluginStorage {
+    get<T = unknown>(key: string, fallback?: T): T;
+    set(key: string, value: unknown): Promise<void>;
+    remove(key: string): Promise<void>;
+    keys(): string[];
+}
+/** Persistent key-value storage namespaced to a plugin. Survives restarts. @api */
+declare function storage(id: string): PluginStorage;
+/** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
+ *  Each write changes only one key, patched onto the current map settings. @api */
+declare function mapStorage(id: string): MapPluginStorage;
+/** React state hook backed by the plugin's persistent store. Survives sidebar
+ *  unmount and app restart. Values are global, not per-map. @api */
+declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
+
+/** The read-only id-membership surface shared by `Set<number>` and `SelectedIds`, for code
+ *  that only needs `size` / `has` / iteration over either. */
+export interface ReadonlyIdSet extends Iterable<number> {
+    readonly size: number;
+    has(id: number): boolean;
+}
+/**
+ * Membership set of selected location ids, backed by a bit array indexed by id rather than a
+ * hash `Set`. Location ids are dense u32s, so a bitset makes the build ~10x cheaper than 1M
+ * `Set.add`s (a typed-array OR vs hashing), with O(1) `has`/`size`. Iteration yields the
+ * selected ids from the overlay's id array. Exposes the Set-like surface its consumers use.
+ */
+declare class SelectedIds {
+    /** Shared empty selection (no map open / cleared). */
+    static readonly EMPTY: SelectedIds;
+    private readonly bits;
+    /** Count of distinct selected ids (not overlay entries - an id selected by N
+     *  overlapping selections still counts once). */
+    readonly size: number;
+    constructor(bits: Uint8Array, size: number);
+    has(id: number): boolean;
+    /** Yields each selected id once, ascending. Scans the bit array, so it's O(maxId/8);
+     *  used by deliberate bulk consumers (export, bulk-tag, delete), not the per-frame path. */
+    [Symbol.iterator](): Iterator<number>;
+}
+/**
+ * The markers drawn by the selection overlay, keyed by location id.
+ *
+ * Sole authority on "is this row drawn by the overlay rather than the base layer" - the
+ * base cells hold no selection state, they derive their visibility byte from `has`.
+ * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
+ * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
+ * alone, and every by-id operation is O(1).
+ *
+ * Writes swap-remove, so slots land unordered - but the overlay is one deck.gl layer and
+ * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
+ * puts the slots back in selection order, and the batch entry points call it once they
+ * settle. Nothing else may hand these arrays to a layer.
+ */
+declare class SelectionOverlay {
+    positions: Float32Array<ArrayBuffer>;
+    colors: Uint8Array<ArrayBuffer>;
+    angles: Float32Array<ArrayBuffer>;
+    ids: Uint32Array<ArrayBuffer>;
+    /** Per-entry index of the selection drawing it, and the sort key `order()` uses.
+     *  CPU-side bookkeeping like `ids` - never an attribute, never uploaded. */
+    sel: Uint32Array<ArrayBuffer>;
+    count: number;
+    version: number;
+    private capacity;
+    private bits;
+    /** id -> slot. Only meaningful where `bits` is set, so it needs no empty sentinel. */
+    private slot;
+    /** Scratch for `order()`: entry -> destination slot. Reused across calls. */
+    private dest;
+    has(id: number): boolean;
+    /** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
+     *  selection's index - the sort key `order()` needs, which no caller can recover from
+     *  the colour alone once two selections share one. */
+    set(id: number, lng: number, lat: number, heading: number, color: Readonly<RGB>, selIdx: number): void;
+    /** Follow a row that moved. No-op when the row isn't in the overlay. */
+    move(id: number, lng?: number, lat?: number, heading?: number): void;
+    delete(id: number): void;
+    clear(): void;
+    /**
+     * Sort the entries by selection index, so a later selection's markers overdraw an
+     * earlier one's everywhere rather than wherever slot order happens to favour them.
+     *
+     * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
+     * array sized by the selection count. The leading scan makes the cases that need no
+     * work - already ordered, or one selection in play - a single pass with no allocation,
+     * which covers a plain single-selection map entirely.
+     */
+    order(): void;
+    /** Exchange two slots, keeping `slot` pointing at where each id actually lives. */
+    private swap;
+    /** Snapshot of the selected ids. Copies the bit array so later edits can't mutate it. */
+    selectedIds(): SelectedIds;
+    /** Size up front for a rebuild of known size, so `set` never reallocates mid-loop. */
+    reserve(n: number, maxId: number): void;
+    /** Grow the draw arrays to hold `n` entries and the id-keyed arrays to cover `maxId`. */
+    private ensure;
+}
+/**
+ * Typed-array backed buffer for one geohash cell's marker data.
+ * Grows by doubling. Removals use swap-remove (O(1), order not preserved).
+ * Versioned per-attribute so deck.gl can skip unchanged layers.
+ */
+declare class CellBuffer {
+    ids: number[];
+    idToIndex: Map<number, number>;
+    positions: Float32Array;
+    /** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
+     *  global marker colour, which the layer supplies as a constant, so the only per-marker
+     *  colour fact is whether a selection or the open-location highlight is covering it. */
+    visible: Uint8Array;
+    angles: Float32Array;
+    count: number;
+    capacity: number;
+    positionVersion: number;
+    colorVersion: number;
+    constructor(capacity?: number);
+    /** A cell holding `rows` as they are, viewing the frame's arrays rather than copying
+     *  them. Every row starts hidden until the caller paints it. */
+    static of(rows: FrameRows): CellBuffer;
+    /** Append a marker, growing the buffer if needed. Visibility is set by the caller once
+     *  the overlay knows about the row. */
+    append(id: number, lng: number, lat: number, angle: number): void;
+    /** O(1) removal by swapping with the last element. */
+    swapRemove(index: number): void;
+    patchPosition(index: number, lng: number, lat: number, angle: number): void;
+    /** Show (255) or hide (0) one marker in the base layer. */
+    patchVisible(index: number, visible: number): void;
+    private ensureCapacity;
+}
+/** One cell's rows in a frame, viewed in place: ids for adds, slots for patches. @unstable */
+export interface FrameRows {
+    key: Uint32Array<ArrayBuffer>;
+    pos: Float32Array<ArrayBuffer>;
+    angle: Float32Array<ArrayBuffer>;
+    sel: Uint32Array<ArrayBuffer>;
+}
+/** What applying one frame did: the map version the scene reached, whether it started the
+ *  scene over, and the ids it added and removed, ascending. A row that moved between cells
+ *  is in neither; a replace lists nothing. @unstable */
+export interface FrameSummary {
+    version: number;
+    replace: boolean;
+    added: Uint32Array;
+    removed: Uint32Array;
+}
+/**
+ * Owns all marker render data as 32 geohash-cell CellBuffers plus a selection overlay,
+ * kept in step with the map by applying its render frames in order (`apply`).
+ * deck.gl layers read the typed arrays directly - no JSON serialization in the render loop.
+ */
+declare class CellManager {
+    cells: Map<string, CellBuffer>;
+    totalCount: number;
+    version: number;
+    /** Largest location id seen - sizes the selection bitset. Monotonic (never shrinks on
+     *  removal; an overestimate just over-allocates a few bytes). */
+    maxId: number;
+    /** The rows the selection overlay draws, and the only record of which rows are selected. */
+    readonly overlay: SelectionOverlay;
+    /** The location the open-location layer draws, hidden in its base cell. */
+    private openId;
+    /** Scratch for `restateSelections`: per-row winning selection index, reused across
+     *  cells so a full restate does not allocate one array per cell. */
+    private selWinner;
+    /**
+     * Apply one render frame. Every cell's removals swap-remove their slots first; then per
+     * cell the adds append and the patches restate rows by their slot. Every added or patched row
+     * states the selection painting it, so the base cells and the overlay are written from
+     * one fact. A selection section, when present, then restates every cell's membership.
+     */
+    apply(buf: ArrayBuffer): FrameSummary;
+    /** Put the row at `cb[i]` in or out of the selection overlay and set its base visibility.
+     *  Idempotent, so restating a row's current state costs nothing but is always safe.
+     *  The caller bumps the cell's colour version once for the whole frame. */
+    private paint;
+    /** Set the open location, whose marker the open-location layer draws instead of the base cell. */
+    setOpen(id: number | null): void;
+    /**
+     * A base row is hidden exactly when something else is drawing it: the selection overlay
+     * or the open-location layer. The only place `visible` is decided for a single row, so
+     * "selected" and "open" never have to negotiate over the byte.
+     */
+    private syncVisible;
+    /** Visit every rendered location's position. The cells hold all alive rows (a `visible`
+     *  0 only means the overlay or open-location layer draws that row instead), so this is the
+     *  maintained full-map position set. */
+    forEachPosition(f: (id: number, lng: number, lat: number) => void): void;
+    /** Map a deck.gl pick (cell + index) back to a location ID. */
+    resolvePickFromCell(cellKey: string, cellIndex: number): number | null;
+    /** Selected-id set, snapshotted from the overlay. */
+    selectedIds(): SelectedIds;
+    /**
+     * Restate the selection overlay from a frame's selection section. Selected rows are
+     * drawn by the overlay in their selection's color and hidden in their base cell.
+     *
+     * Partial updates are supported: only the cells named in `cellEntries` are restated,
+     * and overlay entries for every other cell survive untouched.
+     */
+    private restateSelections;
+    clear(): void;
+}
+
+/** Every app event and what it hands its listeners. A `<noun>:change` event carries the change
+ *  itself; a `<noun>:changed` event carries nothing and means the state its noun names moved,
+ *  so listeners re-read it. A noun takes one of the two forms, never both. */
+declare const EVENT_DEFS: {
+    /** A change to the open map: the version it reached, the locations it added, removed and
+     *  updated, and the derived state that moved. */
+    "store:change": ChangeEvent;
+    "selection:change": Selection[];
+    "open:change": number | null;
+    /** @deprecated v0.12.0. Listen for `open:change`. @unstable */
+    "active:change": number | null;
+    "map:open": Omit<MapMeta, "extra" | "locationCount" | "pending">;
+    "map:close": void;
+    /** @unstable */
+    "map:saved": void;
+    /** The open map's state, as `Store.get` and `Store.use` read it, moved. @unstable */
+    "snapshot:changed": void;
+    /** @unstable */
+    "editor:changed": void;
+    "map-list:changed": void;
+    /** @unstable */
+    "saved-selections:changed": void;
+    "settings:changed": void;
+    /** @unstable */
+    "fullscreen:changed": void;
+    "plugins:changed": void;
+    /** @unstable */
+    "sync-links:changed": void;
+    /** @unstable */
+    "map-badges:changed": void;
+    /** @unstable */
+    "hotkeys:changed": void;
+    /** @unstable */
+    "toasts:changed": void;
+    /** @unstable */
+    "jobs:changed": void;
+    /** @unstable */
+    "bulkruns:changed": void;
+    /** @unstable */
+    "scene:changed": void;
+    /** @unstable */
+    "measure:changed": void;
+    /** @unstable */
+    "anchor:changed": void;
+    /** @unstable */
+    "viewport-lock:changed": void;
+    /** @unstable */
+    "trail:changed": void;
+    "seen:changed": void;
+    "account:changed": void;
+    /** @unstable */
+    "update:changed": void;
+    /** @unstable */
+    "review:changed": void;
+    "fields:changed": void;
+    /** @unstable */
+    "route:changed": void;
+    /** @unstable */
+    "import-markers:changed": void;
+    /** @unstable */
+    "diff-markers:changed": void;
+};
+export type EditorEventMap = typeof EVENT_DEFS;
+export type EditorEvent = keyof EditorEventMap;
+declare const pluginEventPayload: unique symbol;
+/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
+ *  hears it. `definePluginEvent` makes one. @unstable */
+export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
+    readonly [pluginEventPayload]: T;
+};
+/** What an event hands its handlers. */
+export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
+export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
+
+/** A mark drawn after a map's name in the map list: an icon, or a count of changes. @unstable */
+export type MapBadge = {
+    key: string;
+    title: string;
+} & ({
+    icon: string;
+} | {
+    diff: Counts;
+});
+/** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
+export interface BadgeSource {
+    /** Stable id, remembered by the setting that hides it. */
+    id: string;
+    /** Name shown next to its checkbox in settings. */
+    label: string;
+    /** Events after which the badges are collected again. */
+    events: readonly (EditorEvent | PluginEvent<unknown>)[];
+    /** Yields the badges to show, each paired with its map id. */
+    collect(): Iterable<[mapId: string, badge: MapBadge]>;
+}
+/** Create, list, open, close, and organize maps. @api */
+declare const Maps: {
+    /** One-time store startup. The app calls this; plugins never need to. @unstable */
+    init: () => Promise<void>;
+    /** Open a map in this window, closing any currently open map first. */
+    open: (id: string) => Promise<void>;
+    /** Close the open map, saving unsaved changes first. */
+    close: () => Promise<void>;
+    /** Drop the open map without persisting anything @unstable */
+    discard: () => void;
+    /** Reactive list of all maps (metadata only). */
+    useList: () => MapMeta[];
+    /** The list of all maps (metadata only). */
+    list: () => MapMeta[];
+    /** Refresh the map list from disk. @unstable */
+    reload: () => Promise<void>;
+    /** Refresh the map list and notify other windows of the change. @unstable */
+    invalidate: () => Promise<void>;
+    /** Create a new empty map and return its metadata. */
+    create: (name: string, folder?: string | null) => Promise<MapMeta>;
+    /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
+    duplicate: (id: string, name: string) => Promise<MapMeta>;
+    /** Permanently delete a map and all its data. Not undoable. */
+    remove: (id: string) => Promise<void>;
+    /** Open the scratch map, creating it on first use. */
+    openScratch: () => Promise<void>;
+    /** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
+    isReserved: (id: string | null) => boolean;
+    /** The name a copy of the map named `name` starts with. @unstable */
+    copyName: (name: string) => string;
+    /** Rename a folder, moving all its maps to the new name. */
+    renameFolder: (from: string, to: string) => Promise<void>;
+    /** Move a map into a folder, or to the root when `folder` is null. */
+    moveToFolder: (mapId: string, folder: string | null) => Promise<void>;
+    /** Delete a folder. Maps in it become unfoldered. */
+    removeFolder: (name: string) => Promise<void>;
+    /** Add a source of map-row badges. @unstable */
+    registerBadges: (source: BadgeSource) => void;
+    /** Every registered badge source, in registration order. @unstable */
+    badgeSources: () => readonly BadgeSource[];
+    /** Badges per map id, from every registered source. @unstable */
+    badges: () => Map<string, MapBadge[]>;
+    /** Reactive {@link Maps.badges}. @unstable */
+    useBadges: () => Map<string, MapBadge[]>;
+};
+
+export type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "visible">>;
+/** Manage tag records and their assignment to locations. @api */
+declare const Tag: {
+    /** Per-tag location counts, keyed by numeric id. */
+    counts: () => Record<number, number>;
+    /** Tag records, including unreferenced records. */
+    all: () => Record<number, Tag>;
+    /** Tag records referenced by at least one location. */
+    visible: () => Tag[];
+    /** Look up a tag record, including unreferenced tags. */
+    get: (id: number) => Tag | undefined;
+    /** Tag names for the given ids, skipping any that no longer resolve. */
+    names: (ids: number[]) => string[];
+    /** Remove tags from every location in one undoable step.
+     * Unreferenced tags are hidden; undo restores them. */
+    remove: (tagIds: number[]) => Promise<WorkResult>;
+    /** Update tag display records in one undoable edit. */
+    update: (updates: Patch<Tag>[]) => Promise<Mutation<ValueRecord>>;
+    /** Get or create tag records by name and return their ids. */
+    create: (records: TagCreate[]) => Promise<number[]>;
+    /** Set tag display order from an ordered list of ids. */
+    reorder: (ids: number[]) => Promise<Mutation<ValueRecord>>;
+    /** Move matching locations to a tag with the given name, optionally within a selector. */
+    rename: (ids: number[], name: string, scope?: Selector | null) => Promise<void>;
+    /** Get or create tag records and assign them to matching locations. */
+    assign: (selector: Selector, records: TagCreate[]) => Promise<WorkResult>;
+};
+
+/** Add, update, remove, and inspect map locations. @api */
+declare const Location: {
+    /** Add locations to the map and return their new ids, in order. Undoable. */
+    add: (locs: Location[]) => Promise<number[]>;
+    /** Add `location` to another map unless that map already holds it, its interned values
+     *  named by `records`. Resolves to whether it was added. Undoable in that map. @unstable */
+    addTo: (mapId: string, location: Location, records: Parameters<typeof Edit.locations>[2]) => Promise<boolean>;
+    /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
+    duplicate: (id: number) => Promise<number | null>;
+    /** Remove locations by id. Undoable. */
+    remove: (ids: ReadonlyIdSet) => Promise<void>;
+    /** Patch locations by id. Only include the fields you're changing; `extra` merges
+     *  per-key (null deletes a key). Undoable by default. */
+    update: (updates: Patch<Location>[]) => Promise<void>;
+    /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
+    duplicateGroups: (distance: number) => Promise<number[][]>;
+};
+
+/** Change the listed selections and inspect their active members. @api @unstable */
+declare const SelectionList: {
+    /** The listed selections, in list order. @unstable */
+    listed: () => ListedSelection[];
+    /** Tag ids with a top-level listed tag selection, including ghosted selections. @unstable */
+    tagIds: () => ReadonlySet<number>;
+    /** Tag ids from active selection leaves, including repeated ids and composite children. @unstable */
+    tagIdsDeep: () => readonly number[];
+    /** Listed selections that are not ghosted. @unstable */
+    active: () => Selection[];
+    /** @unstable */
+    select: <R extends number[] | {
+        ids: number[];
+    }>(pick: (selector: Selector) => Promise<R>, perSelection?: boolean) => Promise<{
+        picked: number;
+        results: R[];
+    }>;
+};
+
 /** A value saved in local storage: its key and its defaults. @unstable */
 export interface PersistedStore<T> {
     /** @unstable */
@@ -4948,493 +5435,6 @@ declare const MapHost: {
     kindForMapType: (mapType: MapTypeKey) => MapHostKind;
     /** @unstable */
     create: (kind: MapHostKind, container: HTMLElement, prefs: MapEmbedPrefs, opts: CreateHostOpts) => Promise<MapHost>;
-};
-
-/** Parsed-but-not-committed import shown while `workArea === "import"`. @unstable */
-export interface ImportStaging {
-    preview: EditorImportPreview;
-}
-/** Stage, preview, and confirm an import into the open map. @api @unstable */
-declare const Import: {
-    /** The preview marker positions for the staged import. @unstable */
-    previewPositions: () => Float32Array<ArrayBufferLike>;
-    /** The current staged import, or null if none. @unstable */
-    staging: () => ImportStaging | null;
-    /** Discard the staged import and its pending layer. @unstable */
-    reset: () => void;
-    /** Import from a file path. @unstable */
-    fromPath: (path: string) => Promise<void>;
-    /** Stage pasted text for preview. Throws if no locations are found. @unstable */
-    paste: (text: string) => Promise<void>;
-    /** Import the staged file, dropping chosen fields and tags and applying bulk tags. @unstable */
-    confirm: (droppedFields: string[], tagNames?: string[], droppedTags?: string[]) => Promise<EditorImportResult | null>;
-    /** Discard the staged import without committing. @unstable */
-    cancel: () => void;
-};
-
-/** `map` jobs mutate the open map and are cancelled when it closes; `app` jobs survive. @unstable */
-export type JobScope = "map" | "app";
-/** @unstable */
-export interface JobOpts {
-    scope?: JobScope;
-    /** Abort the underlying work. Omitted = the tray offers no cancel button. */
-    cancel?: () => void;
-    /** Reopen the owning UI. Omitted = the tray entry is not clickable. */
-    reveal?: () => void;
-}
-/** @unstable */
-export interface JobEntry {
-    id: number;
-    label: string;
-    scope: JobScope;
-    fraction: number;
-    detail?: string;
-    /** The owning UI is showing its own progress; the tray skips this entry. */
-    hidden: boolean;
-    cancel?: () => void;
-    reveal?: () => void;
-}
-/** Handle for driving a registered job. All methods are no-ops once the job ended. @unstable */
-export interface JobHandle {
-    /** Set the progress bar fraction (0-1) and optional detail text. */
-    update(fraction: number, detail?: string): void;
-    setHidden(hidden: boolean): void;
-    /** Remove the job, optionally leaving a brief toast. */
-    finish(message?: string, duration?: number): void;
-    /** Remove the job and leave an error toast. */
-    fail(message: string): void;
-}
-/** Live jobs, for the tray. Reference changes on every update. @api @unstable */
-declare function getJobs(): JobEntry[];
-/** Register a long-running operation with the global job tray. The caller owns the
- *  work; the registry owns only its presentation and the cancel/reveal controls. @api @unstable */
-declare function registerJob(label: string, opts?: JobOpts): JobHandle;
-/** @unstable */
-export interface JobRunContext {
-    signal: AbortSignal;
-    report: (fraction: number, detail?: string) => void;
-}
-/** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
- *  through the handle, ends the job however `fn` settles, and resolves to how it settled.
- *  A failure also toasts. @api @unstable */
-declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<Settled<R>>;
-/** Cancel every live job of `scope` that can be cancelled. Owners observe their own
- *  abort and end their jobs; entries without a cancel are removed outright. @api @unstable */
-declare function cancelJobs(scope: JobScope): void;
-
-export interface PluginStorage {
-    get<T = unknown>(key: string, fallback?: T): T;
-    set(key: string, value: unknown): void;
-    remove(key: string): void;
-    keys(): string[];
-}
-/** A plugin's store in the open map. Writes resolve once they are saved. */
-export interface MapPluginStorage {
-    get<T = unknown>(key: string, fallback?: T): T;
-    set(key: string, value: unknown): Promise<void>;
-    remove(key: string): Promise<void>;
-    keys(): string[];
-}
-/** Persistent key-value storage namespaced to a plugin. Survives restarts. @api */
-declare function storage(id: string): PluginStorage;
-/** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
- *  Each write changes only one key, patched onto the current map settings. @api */
-declare function mapStorage(id: string): MapPluginStorage;
-/** React state hook backed by the plugin's persistent store. Survives sidebar
- *  unmount and app restart. Values are global, not per-map. @api */
-declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
-
-/** The read-only id-membership surface shared by `Set<number>` and `SelectedIds`, for code
- *  that only needs `size` / `has` / iteration over either. */
-export interface ReadonlyIdSet extends Iterable<number> {
-    readonly size: number;
-    has(id: number): boolean;
-}
-/**
- * Membership set of selected location ids, backed by a bit array indexed by id rather than a
- * hash `Set`. Location ids are dense u32s, so a bitset makes the build ~10x cheaper than 1M
- * `Set.add`s (a typed-array OR vs hashing), with O(1) `has`/`size`. Iteration yields the
- * selected ids from the overlay's id array. Exposes the Set-like surface its consumers use.
- */
-declare class SelectedIds {
-    /** Shared empty selection (no map open / cleared). */
-    static readonly EMPTY: SelectedIds;
-    private readonly bits;
-    /** Count of distinct selected ids (not overlay entries - an id selected by N
-     *  overlapping selections still counts once). */
-    readonly size: number;
-    constructor(bits: Uint8Array, size: number);
-    has(id: number): boolean;
-    /** Yields each selected id once, ascending. Scans the bit array, so it's O(maxId/8);
-     *  used by deliberate bulk consumers (export, bulk-tag, delete), not the per-frame path. */
-    [Symbol.iterator](): Iterator<number>;
-}
-/**
- * The markers drawn by the selection overlay, keyed by location id.
- *
- * Sole authority on "is this row drawn by the overlay rather than the base layer" - the
- * base cells hold no selection state, they derive their visibility byte from `has`.
- * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
- * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
- * alone, and every by-id operation is O(1).
- *
- * Writes swap-remove, so slots land unordered - but the overlay is one deck.gl layer and
- * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
- * puts the slots back in selection order, and the batch entry points call it once they
- * settle. Nothing else may hand these arrays to a layer.
- */
-declare class SelectionOverlay {
-    positions: Float32Array<ArrayBuffer>;
-    colors: Uint8Array<ArrayBuffer>;
-    angles: Float32Array<ArrayBuffer>;
-    ids: Uint32Array<ArrayBuffer>;
-    /** Per-entry index of the selection drawing it, and the sort key `order()` uses.
-     *  CPU-side bookkeeping like `ids` - never an attribute, never uploaded. */
-    sel: Uint32Array<ArrayBuffer>;
-    count: number;
-    version: number;
-    private capacity;
-    private bits;
-    /** id -> slot. Only meaningful where `bits` is set, so it needs no empty sentinel. */
-    private slot;
-    /** Scratch for `order()`: entry -> destination slot. Reused across calls. */
-    private dest;
-    has(id: number): boolean;
-    /** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
-     *  selection's index - the sort key `order()` needs, which no caller can recover from
-     *  the colour alone once two selections share one. */
-    set(id: number, lng: number, lat: number, heading: number, color: Readonly<RGB>, selIdx: number): void;
-    /** Follow a row that moved. No-op when the row isn't in the overlay. */
-    move(id: number, lng?: number, lat?: number, heading?: number): void;
-    delete(id: number): void;
-    clear(): void;
-    /**
-     * Sort the entries by selection index, so a later selection's markers overdraw an
-     * earlier one's everywhere rather than wherever slot order happens to favour them.
-     *
-     * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
-     * array sized by the selection count. The leading scan makes the cases that need no
-     * work - already ordered, or one selection in play - a single pass with no allocation,
-     * which covers a plain single-selection map entirely.
-     */
-    order(): void;
-    /** Exchange two slots, keeping `slot` pointing at where each id actually lives. */
-    private swap;
-    /** Snapshot of the selected ids. Copies the bit array so later edits can't mutate it. */
-    selectedIds(): SelectedIds;
-    /** Size up front for a rebuild of known size, so `set` never reallocates mid-loop. */
-    reserve(n: number, maxId: number): void;
-    /** Grow the draw arrays to hold `n` entries and the id-keyed arrays to cover `maxId`. */
-    private ensure;
-}
-/**
- * Typed-array backed buffer for one geohash cell's marker data.
- * Grows by doubling. Removals use swap-remove (O(1), order not preserved).
- * Versioned per-attribute so deck.gl can skip unchanged layers.
- */
-declare class CellBuffer {
-    ids: number[];
-    idToIndex: Map<number, number>;
-    positions: Float32Array;
-    /** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
-     *  global marker colour, which the layer supplies as a constant, so the only per-marker
-     *  colour fact is whether a selection or the open-location highlight is covering it. */
-    visible: Uint8Array;
-    angles: Float32Array;
-    count: number;
-    capacity: number;
-    positionVersion: number;
-    colorVersion: number;
-    constructor(capacity?: number);
-    /** A cell holding `rows` as they are, viewing the frame's arrays rather than copying
-     *  them. Every row starts hidden until the caller paints it. */
-    static of(rows: FrameRows): CellBuffer;
-    /** Append a marker, growing the buffer if needed. Visibility is set by the caller once
-     *  the overlay knows about the row. */
-    append(id: number, lng: number, lat: number, angle: number): void;
-    /** O(1) removal by swapping with the last element. */
-    swapRemove(index: number): void;
-    patchPosition(index: number, lng: number, lat: number, angle: number): void;
-    /** Show (255) or hide (0) one marker in the base layer. */
-    patchVisible(index: number, visible: number): void;
-    private ensureCapacity;
-}
-/** One cell's rows in a frame, viewed in place: ids for adds, slots for patches. @unstable */
-export interface FrameRows {
-    key: Uint32Array<ArrayBuffer>;
-    pos: Float32Array<ArrayBuffer>;
-    angle: Float32Array<ArrayBuffer>;
-    sel: Uint32Array<ArrayBuffer>;
-}
-/** What applying one frame did: the map version the scene reached, whether it started the
- *  scene over, and the ids it added and removed, ascending. A row that moved between cells
- *  is in neither; a replace lists nothing. @unstable */
-export interface FrameSummary {
-    version: number;
-    replace: boolean;
-    added: Uint32Array;
-    removed: Uint32Array;
-}
-/**
- * Owns all marker render data as 32 geohash-cell CellBuffers plus a selection overlay,
- * kept in step with the map by applying its render frames in order (`apply`).
- * deck.gl layers read the typed arrays directly - no JSON serialization in the render loop.
- */
-declare class CellManager {
-    cells: Map<string, CellBuffer>;
-    totalCount: number;
-    version: number;
-    /** Largest location id seen - sizes the selection bitset. Monotonic (never shrinks on
-     *  removal; an overestimate just over-allocates a few bytes). */
-    maxId: number;
-    /** The rows the selection overlay draws, and the only record of which rows are selected. */
-    readonly overlay: SelectionOverlay;
-    /** The location the open-location layer draws, hidden in its base cell. */
-    private openId;
-    /** Scratch for `restateSelections`: per-row winning selection index, reused across
-     *  cells so a full restate does not allocate one array per cell. */
-    private selWinner;
-    /**
-     * Apply one render frame. Every cell's removals swap-remove their slots first; then per
-     * cell the adds append and the patches restate rows by their slot. Every added or patched row
-     * states the selection painting it, so the base cells and the overlay are written from
-     * one fact. A selection section, when present, then restates every cell's membership.
-     */
-    apply(buf: ArrayBuffer): FrameSummary;
-    /** Put the row at `cb[i]` in or out of the selection overlay and set its base visibility.
-     *  Idempotent, so restating a row's current state costs nothing but is always safe.
-     *  The caller bumps the cell's colour version once for the whole frame. */
-    private paint;
-    /** Set the open location, whose marker the open-location layer draws instead of the base cell. */
-    setOpen(id: number | null): void;
-    /**
-     * A base row is hidden exactly when something else is drawing it: the selection overlay
-     * or the open-location layer. The only place `visible` is decided for a single row, so
-     * "selected" and "open" never have to negotiate over the byte.
-     */
-    private syncVisible;
-    /** Visit every rendered location's position. The cells hold all alive rows (a `visible`
-     *  0 only means the overlay or open-location layer draws that row instead), so this is the
-     *  maintained full-map position set. */
-    forEachPosition(f: (id: number, lng: number, lat: number) => void): void;
-    /** Map a deck.gl pick (cell + index) back to a location ID. */
-    resolvePickFromCell(cellKey: string, cellIndex: number): number | null;
-    /** Selected-id set, snapshotted from the overlay. */
-    selectedIds(): SelectedIds;
-    /**
-     * Restate the selection overlay from a frame's selection section. Selected rows are
-     * drawn by the overlay in their selection's color and hidden in their base cell.
-     *
-     * Partial updates are supported: only the cells named in `cellEntries` are restated,
-     * and overlay entries for every other cell survive untouched.
-     */
-    private restateSelections;
-    clear(): void;
-}
-
-/** Every app event and what it hands its listeners. A `<noun>:change` event carries the change
- *  itself; a `<noun>:changed` event carries nothing and means the state its noun names moved,
- *  so listeners re-read it. A noun takes one of the two forms, never both. */
-declare const EVENT_DEFS: {
-    /** A change to the open map: the version it reached, the locations it added, removed and
-     *  updated, and the derived state that moved. */
-    "store:change": ChangeEvent;
-    "selection:change": Selection[];
-    "open:change": number | null;
-    /** @deprecated v0.12.0. Listen for `open:change`. @unstable */
-    "active:change": number | null;
-    "map:open": Omit<MapMeta, "extra" | "locationCount" | "pending">;
-    "map:close": void;
-    /** @unstable */
-    "map:saved": void;
-    /** The open map's state, as `Store.get` and `Store.use` read it, moved. @unstable */
-    "snapshot:changed": void;
-    /** @unstable */
-    "editor:changed": void;
-    "map-list:changed": void;
-    /** @unstable */
-    "saved-selections:changed": void;
-    "settings:changed": void;
-    /** @unstable */
-    "fullscreen:changed": void;
-    "plugins:changed": void;
-    /** @unstable */
-    "sync-links:changed": void;
-    /** @unstable */
-    "map-badges:changed": void;
-    /** @unstable */
-    "hotkeys:changed": void;
-    /** @unstable */
-    "toasts:changed": void;
-    /** @unstable */
-    "jobs:changed": void;
-    /** @unstable */
-    "bulkruns:changed": void;
-    /** @unstable */
-    "scene:changed": void;
-    /** @unstable */
-    "measure:changed": void;
-    /** @unstable */
-    "anchor:changed": void;
-    /** @unstable */
-    "viewport-lock:changed": void;
-    /** @unstable */
-    "trail:changed": void;
-    "seen:changed": void;
-    "account:changed": void;
-    /** @unstable */
-    "update:changed": void;
-    /** @unstable */
-    "review:changed": void;
-    "fields:changed": void;
-    /** @unstable */
-    "route:changed": void;
-    /** @unstable */
-    "import-markers:changed": void;
-    /** @unstable */
-    "diff-markers:changed": void;
-};
-export type EditorEventMap = typeof EVENT_DEFS;
-export type EditorEvent = keyof EditorEventMap;
-declare const pluginEventPayload: unique symbol;
-/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
- *  hears it. `definePluginEvent` makes one. @unstable */
-export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
-    readonly [pluginEventPayload]: T;
-};
-/** What an event hands its handlers. */
-export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
-export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
-
-/** A mark drawn after a map's name in the map list: an icon, or a count of changes. @unstable */
-export type MapBadge = {
-    key: string;
-    title: string;
-} & ({
-    icon: string;
-} | {
-    diff: Counts;
-});
-/** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
-export interface BadgeSource {
-    /** Stable id, remembered by the setting that hides it. */
-    id: string;
-    /** Name shown next to its checkbox in settings. */
-    label: string;
-    /** Events after which the badges are collected again. */
-    events: readonly (EditorEvent | PluginEvent<unknown>)[];
-    /** Yields the badges to show, each paired with its map id. */
-    collect(): Iterable<[mapId: string, badge: MapBadge]>;
-}
-/** Create, list, open, close, and organize maps. @api */
-declare const Maps: {
-    /** One-time store startup. The app calls this; plugins never need to. @unstable */
-    init: () => Promise<void>;
-    /** Open a map in this window, closing any currently open map first. */
-    open: (id: string) => Promise<void>;
-    /** Close the open map, saving unsaved changes first. */
-    close: () => Promise<void>;
-    /** Drop the open map without persisting anything @unstable */
-    discard: () => void;
-    /** Reactive list of all maps (metadata only). */
-    useList: () => MapMeta[];
-    /** The list of all maps (metadata only). */
-    list: () => MapMeta[];
-    /** Refresh the map list from disk. @unstable */
-    reload: () => Promise<void>;
-    /** Refresh the map list and notify other windows of the change. @unstable */
-    invalidate: () => Promise<void>;
-    /** Create a new empty map and return its metadata. */
-    create: (name: string, folder?: string | null) => Promise<MapMeta>;
-    /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
-    duplicate: (id: string, name: string) => Promise<MapMeta>;
-    /** Permanently delete a map and all its data. Not undoable. */
-    remove: (id: string) => Promise<void>;
-    /** Open the scratch map, creating it on first use. */
-    openScratch: () => Promise<void>;
-    /** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
-    isReserved: (id: string | null) => boolean;
-    /** The name a copy of the map named `name` starts with. @unstable */
-    copyName: (name: string) => string;
-    /** Rename a folder, moving all its maps to the new name. */
-    renameFolder: (from: string, to: string) => Promise<void>;
-    /** Move a map into a folder, or to the root when `folder` is null. */
-    moveToFolder: (mapId: string, folder: string | null) => Promise<void>;
-    /** Delete a folder. Maps in it become unfoldered. */
-    removeFolder: (name: string) => Promise<void>;
-    /** Add a source of map-row badges. @unstable */
-    registerBadges: (source: BadgeSource) => void;
-    /** Every registered badge source, in registration order. @unstable */
-    badgeSources: () => readonly BadgeSource[];
-    /** Badges per map id, from every registered source. @unstable */
-    badges: () => Map<string, MapBadge[]>;
-    /** Reactive {@link Maps.badges}. @unstable */
-    useBadges: () => Map<string, MapBadge[]>;
-};
-
-export type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "visible">>;
-/** Manage tag records and their assignment to locations. @api */
-declare const Tag: {
-    /** Per-tag location counts, keyed by numeric id. */
-    counts: () => Record<number, number>;
-    /** Tag records, including unreferenced records. */
-    all: () => Record<number, Tag>;
-    /** Tag records referenced by at least one location. */
-    visible: () => Tag[];
-    /** Look up a tag record, including unreferenced tags. */
-    get: (id: number) => Tag | undefined;
-    /** Tag names for the given ids, skipping any that no longer resolve. */
-    names: (ids: number[]) => string[];
-    /** Remove tags from every location in one undoable step.
-     * Unreferenced tags are hidden; undo restores them. */
-    remove: (tagIds: number[]) => Promise<WorkResult>;
-    /** Update tag display records in one undoable edit. */
-    update: (updates: Patch<Tag>[]) => Promise<Mutation<ValueRecord>>;
-    /** Get or create tag records by name and return their ids. */
-    create: (records: TagCreate[]) => Promise<number[]>;
-    /** Set tag display order from an ordered list of ids. */
-    reorder: (ids: number[]) => Promise<Mutation<ValueRecord>>;
-    /** Move matching locations to a tag with the given name, optionally within a selector. */
-    rename: (ids: number[], name: string, scope?: Selector | null) => Promise<void>;
-    /** Get or create tag records and assign them to matching locations. */
-    assign: (selector: Selector, records: TagCreate[]) => Promise<WorkResult>;
-};
-
-/** Add, update, remove, and inspect map locations. @api */
-declare const Location: {
-    /** Add locations to the map and return their new ids, in order. Undoable. */
-    add: (locs: Location[]) => Promise<number[]>;
-    /** Add `location` to another map unless that map already holds it, its interned values
-     *  named by `records`. Resolves to whether it was added. Undoable in that map. @unstable */
-    addTo: (mapId: string, location: Location, records: Parameters<typeof Edit.locations>[2]) => Promise<boolean>;
-    /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
-    duplicate: (id: number) => Promise<number | null>;
-    /** Remove locations by id. Undoable. */
-    remove: (ids: ReadonlyIdSet) => Promise<void>;
-    /** Patch locations by id. Only include the fields you're changing; `extra` merges
-     *  per-key (null deletes a key). Undoable by default. */
-    update: (updates: Patch<Location>[]) => Promise<void>;
-    /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
-    duplicateGroups: (distance: number) => Promise<number[][]>;
-};
-
-/** Change the listed selections and inspect their active members. @api @unstable */
-declare const SelectionList: {
-    /** The listed selections, in list order. @unstable */
-    listed: () => ListedSelection[];
-    /** Tag ids with a top-level listed tag selection, including ghosted selections. @unstable */
-    tagIds: () => ReadonlySet<number>;
-    /** Tag ids from active selection leaves, including repeated ids and composite children. @unstable */
-    tagIdsDeep: () => readonly number[];
-    /** Listed selections that are not ghosted. @unstable */
-    active: () => Selection[];
-    /** @unstable */
-    select: <R extends number[] | {
-        ids: number[];
-    }>(pick: (selector: Selector) => Promise<R>, perSelection?: boolean) => Promise<{
-        picked: number;
-        results: R[];
-    }>;
 };
 
 /** The marker scene the map surfaces render from, and its load lifecycle. @api @unstable */
@@ -7244,10 +7244,6 @@ export type FieldDefsApi = {
 export type HistoryApi = {
     History: typeof History;
 };
-export type HostApi = {
-    /** @unstable */
-    MapHost: typeof MapHost;
-};
 export type ImportApi = {
     /** @unstable */
     Import: typeof Import;
@@ -7436,6 +7432,10 @@ export type LegacyApi = {
 };
 export type LocationApi = {
     Location: typeof Location;
+};
+export type MapHostApi = {
+    /** @unstable */
+    MapHost: typeof MapHost;
 };
 export type MapsApi = {
     Maps: typeof Maps;
@@ -7749,7 +7749,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, HostApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapHostApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
 }
 
 declare global {

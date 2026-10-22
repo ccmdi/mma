@@ -2,7 +2,7 @@ import { useCallback, useEffect, useEffectEvent, useRef, type RefObject } from "
 import type { PickingInfo } from "@deck.gl/core";
 import { buildSceneLayers } from "@/lib/render/buildSceneLayers";
 import { Scene } from "@/lib/render/scene";
-import type { MapHost, DeckOverlayHandle } from "@/lib/map/host";
+import type { MapHost, DeckOverlayHandle } from "@/lib/map/mapHost";
 import { useSetting, getSettings } from "@/store/settings";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { handleMapClick, handleMapHover } from "@/lib/map/mapClick";

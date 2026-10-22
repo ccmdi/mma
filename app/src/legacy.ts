@@ -12,7 +12,7 @@ import { Editor } from "@/store/editor";
 import { Query } from "@/store/query";
 import { Edit } from "@/store/edit";
 import { Autosave } from "@/store/autosave";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import { Scene } from "@/lib/render/scene";
 import { addSelection, tagSelector, selection } from "@/store/selections";
 import { emit, subscribe } from "@/lib/events";

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import { getBinding } from "@/lib/util/hotkeys";
 import type { HotkeyAction } from "@/lib/util/hotkeys";
 import { parseHotkey, matchesKey, eventKey, isEditableElement } from "@/lib/hooks/useHotkey";

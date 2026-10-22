@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { MapHost } from "@/lib/map/host";
+import type { MapHost } from "@/lib/map/mapHost";
 import { boundsOfCoords } from "@/lib/geo/geo";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";

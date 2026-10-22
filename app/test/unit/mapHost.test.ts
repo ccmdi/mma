@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { boundsOfCoords } from "@/lib/geo/geo";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 
 describe("boundsOfCoords", () => {
 	it("returns the axis-aligned bounds", () => {

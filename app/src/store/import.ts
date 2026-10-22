@@ -9,7 +9,7 @@ import type { EditorImportPreview } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { mmaBufUrl } from "@/lib/util/util";
-import { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/mapHost";
 import { getSettings } from "@/store/settings";
 import { Scene } from "@/lib/render/scene";
 import { emit as emitEvent } from "@/lib/events";

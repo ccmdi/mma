@@ -13,10 +13,11 @@ const runOxlint = (config: string, file: string) => {
 	return { status: result.status, output: result.stdout + result.stderr };
 };
 
-const lint = (source: string, name = "caller.ts", target?: string) => {
+const lint = (source: string, modules: Record<string, string> = {}) => {
 	const dir = mkdtempSync(join(resolve("test"), ".mma-domain-imports-"));
 	try {
-		const file = join(dir, name);
+		const file = join(dir, "caller.ts");
+		for (const [name, text] of Object.entries(modules)) writeFileSync(join(dir, name), text);
 		const rule = resolve("lint-rules/index.js");
 		const config = join(dir, "oxlint.json");
 		writeFileSync(
@@ -30,7 +31,7 @@ const lint = (source: string, name = "caller.ts", target?: string) => {
 			config,
 			JSON.stringify({ jsPlugins: [rule], rules: { "local/domain-objects": "error" } }),
 		);
-		return runOxlint(config, target ?? file);
+		return runOxlint(config, file);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
@@ -73,16 +74,23 @@ describe("domain import conventions", () => {
 	});
 });
 
-describe("one companion roster", () => {
-	it("a module exporting an object named for its file must be on the roster", () => {
-		const result = lint("export const Widget = { a: 1 };", "widget.ts");
-		expect(result.status).toBe(1);
-		expect(result.output).toContain("Widget is a companion object");
+describe("companions are read from their modules", () => {
+	it("an object named for its file is a companion", () => {
+		const result = lint('import { Widget as W } from "./widget"; void W;', {
+			"widget.ts": "export const Widget = { a: 1 };",
+		});
+		expect(result.output).toContain("Import the domain object as Widget");
 	});
 
-	it("components, classes and differently named exports are not companions", () => {
-		expect(lint("export class Widget {}", "widget.ts").status).toBe(0);
-		expect(lint("export const Other = { a: 1 };", "widget.ts").status).toBe(0);
-		expect(lint("export const Widget = () => null;", "widget.tsx").status).toBe(0);
+	it("classes and differently named exports are not companions", () => {
+		expect(
+			lint('import { Gadget as G } from "./gadget"; void G;', {
+				"gadget.ts": "export class Gadget {}",
+			}).status,
+		).toBe(0);
+		const result = lint('import { Other as O } from "./widget"; void O;', {
+			"widget.ts": "export const Other = { a: 1 };",
+		});
+		expect(result.status).toBe(0);
 	});
 });

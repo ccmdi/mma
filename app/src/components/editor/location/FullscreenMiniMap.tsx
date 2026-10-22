@@ -5,7 +5,7 @@ import { useSetting } from "@/store/settings";
 import { range } from "@/types/util";
 import { useLocalStorage, getLocal } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
-import { MapHost, type DeckOverlayHandle } from "@/lib/map/host";
+import { MapHost, type DeckOverlayHandle } from "@/lib/map/mapHost";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
 import { ScaleStepper } from "./ScaleStepper";
