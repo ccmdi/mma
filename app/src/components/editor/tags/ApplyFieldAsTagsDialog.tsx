@@ -27,7 +27,13 @@ import { t } from "@/lib/i18n";
 import { fillTemplate } from "@/lib/util/format";
 import { compareNatural } from "@/lib/util/util";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
-import { applyCounts, type Preview } from "./applyCounts";
+
+interface Preview {
+	total: number;
+	have: number;
+	groups: number;
+	covered: number;
+}
 
 /** `{value}` alone keeps today's names; a prefix such as `Camera/{value}` files them in a folder. */
 const DEFAULT_TEMPLATE = "{value}";
@@ -109,7 +115,11 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 
 	const preview = field ? (loaded?.preview ?? null) : null;
 	const pending = !!field && (loaded?.field !== field || loaded.key !== key);
-	const counts = preview ? applyCounts(preview, tagMissing) : null;
+	const ungrouped = preview && tagMissing ? preview.total - preview.covered : 0;
+	const counts = preview && {
+		tags: preview.groups + (ungrouped > 0 ? 1 : 0),
+		locations: preview.covered + ungrouped,
+	};
 
 	const handleFieldChange = (next: string) => {
 		setField(next);
