@@ -4,13 +4,13 @@ import { Editor } from "@/store/editor";
 import { Location } from "@/store/location";
 import { Tag } from "@/store/tag";
 import { Tooltip } from "@/components/primitives/Tooltip";
-import { svThumbnailUrl } from "@/lib/sv/lookup";
 import { TagPill } from "@/components/primitives/TagPill";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { toggleInSet } from "@/lib/util/util";
 import { t } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
+import { StreetView } from "@/lib/sv/streetView";
 
 function DuplicateItem({
 	location,
@@ -27,7 +27,9 @@ function DuplicateItem({
 	onClick: () => void;
 	tagMap: Record<number, { name: string; color: string }>;
 }) {
-	const thumbSrc = location.panoId ? svThumbnailUrl(location.panoId, location.heading) : null;
+	const thumbSrc = location.panoId
+		? StreetView.thumbnailUrl(location.panoId, location.heading)
+		: null;
 
 	return (
 		<li className="duplicate-item">

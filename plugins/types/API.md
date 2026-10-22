@@ -27,12 +27,11 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Plugin storage](#plugin-storage)
 - [Procedure](#procedure)
 - [Provider](#provider)
+- [Query](#query)
 - [Registry](#registry)
 - [Scope](#scope)
 - [Sidecar](#sidecar)
 - [Store](#store)
-- [Store / Query](#store--query)
-- [Sv / Query](#sv--query)
 - [Tag](#tag)
 - [Tags](#tags)
 - [Toast](#toast)
@@ -50,7 +49,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Layer](#layer)
 - [Map host](#map-host)
 - [Pano](#pano)
-- [Pin pano](#pin-pano)
 - [Providers](#providers)
 - [Review](#review)
 - [Saved selection](#saved-selection)
@@ -60,10 +58,10 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Selections](#selections)
 - [Selector pick](#selector-pick)
 - [Settings](#settings)
+- [Street view](#street-view)
 - [Tauri](#tauri)
 - [Test surface](#test-surface)
 - [Util](#util)
-- [Validate](#validate)
 - [Validation categories](#validation-categories)
 
 ## Account
@@ -1388,6 +1386,21 @@ Editor.setArea(area: WorkArea): void
 
 Transition the editor pane, enforcing state invariants:
 leaving "location" closes the open location, leaving "plugin" clears the plugin id.
+
+#### Editor.trail
+
+`unstable` · unreleased
+
+```ts
+Editor.trail: {
+  get: () => [number, number][];
+  reset: (lng: number, lat: number) => void;
+  push: (lng: number, lat: number) => void;
+  clear: () => void;
+}
+```
+
+The positions the viewer has walked through since the location opened, [lng, lat].
 
 #### Editor.use
 
@@ -3708,6 +3721,39 @@ Provider.run<C extends readonly unknown[]>(
 Run registered providers over the locations `selector` matches and write their results
 back. Resolves once every provider finishes, or on abort.
 
+## Query
+
+### Query
+
+`stable` · since v0.12.0
+
+Read locations and summaries for a selector.
+
+#### Query.locationsOf
+
+`stable` · since v0.12.0
+
+```ts
+Query.locationsOf(list: LocationList): Promise<Location[]>
+```
+
+The locations an answer carries, fetched from its temp file when it was too large to send inline.
+
+#### Query.read
+
+`stable` · since v0.12.0
+
+```ts
+Query.read<A extends Ask>(
+  selector: Selector,
+  ask: A,
+  target?: Target,
+): Promise<ReadResult<AnswerOf<A["kind"]>>>
+```
+
+Ask one question about the locations `selector` matches. A full-location answer loads any
+backing file automatically; ask for ids or columns when full locations are unnecessary.
+
 ## Registry
 
 ### activatePlugin
@@ -3925,75 +3971,6 @@ Store.use<T>(selector: (s: MapState) => T): T
 Reactive slice of the map state. Re-renders only when the selected value's
 reference changes (`Object.is`), so selectors must return state fields or
 memoized values, not a new value per call.
-
-## Store / Query
-
-### Query
-
-`stable` · since v0.12.0
-
-Read locations and summaries for a selector.
-
-#### Query.locationsOf
-
-`stable` · since v0.12.0
-
-```ts
-Query.locationsOf(list: LocationList): Promise<Location[]>
-```
-
-The locations an answer carries, fetched from its temp file when it was too large to send inline.
-
-#### Query.read
-
-`stable` · since v0.12.0
-
-```ts
-Query.read<A extends Ask>(
-  selector: Selector,
-  ask: A,
-  target?: Target,
-): Promise<ReadResult<AnswerOf<A["kind"]>>>
-```
-
-Ask one question about the locations `selector` matches. A full-location answer loads any
-backing file automatically; ask for ids or columns when full locations are unnecessary.
-
-## Sv / Query
-
-### panosAt
-
-`stable` · since v0.10.3
-
-```ts
-panosAt(
-  points: LatLng[],
-  radius?: number,
-  opts?: SearchOpts,
-  signal?: AbortSignal,
-  onPano?: (index: number, pano: Pano | null) => void,
-): Promise<(Pano | null)[]>
-```
-
-The nearest pano to each point, aligned to `points`, null where there is no coverage.
-`opts.sources` narrows which collections are searched and `opts.preference` picks
-nearest or best. `onPano` sees each point's answer the moment its search resolves,
-ahead of the full array.
-
-### svMetadata
-
-`stable` · since v0.10.0
-
-```ts
-svMetadata(
-  panoIds: string[],
-  signal?: AbortSignal,
-): Promise<(Pano | null)[]>
-```
-
-Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
-not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
-Duplicates are deduped and large batches are split automatically.
 
 ## Tag
 
@@ -6950,6 +6927,16 @@ Wait for the main editor map to be ready.
 A decoded Street View panorama: flat data with no live objects.
 The app's default pano viewer.
 
+#### Pano.applyLock
+
+`unstable` · unreleased
+
+```ts
+Pano.applyLock(): Promise<void>
+```
+
+Turn the camera to the locked view on the current pano.
+
 #### Pano.canvas
 
 `unstable` · since v0.12.0
@@ -7079,6 +7066,22 @@ Pano.links(): google.maps.StreetViewLink[]
 ```
 
 The current pano's navigable links.
+
+#### Pano.lockedView
+
+`unstable` · unreleased
+
+```ts
+Pano.lockedView():
+  | (CameraFrame & {
+      zoom?: number;
+    } & {
+      zoom: number;
+    })
+  | null
+```
+
+The view held relative to each pano's camera frame while the viewport is locked, or null.
 
 #### Pano.mount
 
@@ -7245,6 +7248,16 @@ Pano.toast(message: string, durationMs: number): void
 
 Show a toast anchored over the viewer.
 
+#### Pano.toggleLock
+
+`unstable` · unreleased
+
+```ts
+Pano.toggleLock(): Promise<boolean>
+```
+
+Lock the viewport to the current view, or release the lock. True when it is now locked.
+
 #### Pano.turnAround
 
 `unstable` · since v0.12.0
@@ -7305,17 +7318,21 @@ Pano.zoomOut(): void
 
 Step the zoom out.
 
-## Pin pano
+#### Pano.zoomScale
 
-### bulkPinToPano
-
-`unstable` · since v0.4.0
+`unstable` · unreleased
 
 ```ts
-bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>
+Pano.zoomScale: {
+  range: { min: -3; max: 4 };
+  display: (stored: number) => number;
+  stored: (display: number) => number;
+  in: (z: number) => number;
+  out: (z: number) => number;
+}
 ```
 
-Pin every location in the selector to its pano id, resolving pano ids first when asked.
+The viewer's zoom scale: stored against display zoom, and its steps.
 
 ## Providers
 
@@ -7508,6 +7525,23 @@ timezoneProvider: {
 
 A named procedure with dependency-graph placement. Providers that declare
 `fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+
+### validateLocations
+
+`unstable` · since v0.4.0
+
+```ts
+validateLocations(
+  selector: Selector,
+  opts?: BulkOpts & {
+    config?: Partial<ValidateConfig>;
+    categories?: readonly string[];
+  },
+): Promise<ValidationOutcome>
+```
+
+Check that each location's Street View coverage still exists, grouping the locations
+into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted).
 
 ## Review
 
@@ -9034,6 +9068,306 @@ useSettings(): AppSettings
 
 React hook: all settings, re-rendering on any change.
 
+## Street view
+
+### StreetView
+
+`unstable` · unreleased
+
+Google Street View: coverage lookups and pano metadata, search radii, pinning locations to
+their panos and turning them along the road, links into Google Maps, and panorama
+downloads.
+
+#### StreetView.allUnofficial
+
+`unstable` · unreleased
+
+```ts
+StreetView.allUnofficial(time: Pano["time"]): boolean
+```
+
+True when nothing in the timeline is official coverage, an empty stack included, so
+the multi-year history lives on official coverage nearby rather than on these panos.
+
+#### StreetView.appendLinkTags
+
+`unstable` · unreleased
+
+```ts
+StreetView.appendLinkTags(url: URL, loc: Location, tagsById: Record<number, Tag>): void
+```
+
+Carry a location's tags (and its lat/lng load mode) on a Maps link, so importing it back
+reconstructs them.
+
+#### StreetView.clickRadius
+
+`unstable` · unreleased
+
+```ts
+StreetView.clickRadius(lat: number, zoom: number, minRadius?: number): number
+```
+
+The radius (m) a map click searches for coverage: the zoom/lat extent, floored by
+`minRadius` (the per-map searchRadius) or the default search radius.
+
+#### StreetView.copyLink
+
+`unstable` · unreleased
+
+```ts
+StreetView.copyLink(
+  url: URL,
+  props?: {
+    long?: boolean;
+  },
+): Promise<void>
+```
+
+Copy a Maps link to the clipboard, shortened unless `long`.
+
+#### StreetView.download
+
+`unstable` · unreleased
+
+```ts
+StreetView.download(panoId: string, zoom?: number): Promise<void>
+```
+
+Download the full panorama as a single stitched JPEG. Toasts on success/failure.
+
+#### StreetView.downloadAll
+
+`unstable` · unreleased
+
+```ts
+StreetView.downloadAll(
+  locations: Location[],
+  config: PanoDownloadConfig,
+  opts?: BulkOpts,
+): Promise<BulkDownloadResult>
+```
+
+Download panoramas for `locations`, uploading each image into a session dir (via
+mma-buf POST) that is packaged into a single file or Stored ZIP.
+
+#### StreetView.follow
+
+`unstable` · unreleased
+
+```ts
+StreetView.follow(
+  startPanoId: string,
+  heading: number,
+  maxSteps?: number,
+): Promise<Location[]>
+```
+
+Walk linked panoramas from a starting pano in the given heading direction, returning
+the locations along the road, up to `maxSteps`.
+
+#### StreetView.initialHeading
+
+`unstable` · unreleased
+
+```ts
+StreetView.initialHeading(
+  data: Pano,
+  opts?: {
+    pointAlongRoad?: boolean;
+    preferDirection?: string | null;
+  },
+): number
+```
+
+The heading a new location starts at, from the pano's road links and a direction preference.
+
+#### StreetView.isOfficial
+
+`unstable` · unreleased
+
+```ts
+StreetView.isOfficial(panoId: string): boolean
+```
+
+Whether a pano id names official Google coverage.
+
+#### StreetView.jumpRadius
+
+`unstable` · unreleased
+
+```ts
+StreetView.jumpRadius: number
+```
+
+Metres a jump to a typed-in coordinate searches.
+
+#### StreetView.lookup
+
+`unstable` · unreleased
+
+```ts
+StreetView.lookup(
+  lat: number,
+  lng: number,
+  zoom: number,
+  opts: {
+    preferOfficial?: boolean;
+    onlyOfficial?: boolean;
+    pointAlongRoad?: boolean;
+    preferDirection?: string | null;
+    defaultPanoId?: boolean;
+    preferHigherQuality?: boolean;
+    radius?: number;
+    minRadius?: number;
+  },
+): Promise<Location | null>
+```
+
+The location a map click lands on: the best panorama near the click, its heading, and
+whether it must be pinned because it is not the default coverage there.
+
+#### StreetView.mapsUrl
+
+`unstable` · unreleased
+
+```ts
+StreetView.mapsUrl(view: MapsPanoView): URL
+```
+
+A google.com/maps Street View link aimed at `view`. Official panos embed a thumbnail
+(`!6s`) so the link unfurls with a preview; unofficial ones have none to point at.
+
+#### StreetView.mergeTimelines
+
+`unstable` · unreleased
+
+```ts
+StreetView.mergeTimelines(sources: (Pano | null)[]): Pano["time"]
+```
+
+A pano's stack merged with another's, for the all-unofficial case where the multi-year
+history lives on official coverage nearby. Entries are keyed by pano id and later
+sources win, so pass the pano itself last. Ascending by date, as every timeline is.
+
+#### StreetView.metadata
+
+`unstable` · unreleased
+
+```ts
+StreetView.metadata(
+  panoIds: string[],
+  signal?: AbortSignal,
+): Promise<(Pano | null)[]>
+```
+
+Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
+not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
+Duplicates are deduped and large batches are split automatically.
+
+#### StreetView.officialFallbackRadius
+
+`unstable` · unreleased
+
+```ts
+StreetView.officialFallbackRadius: number
+```
+
+Metres the viewer searches for official coverage when a pano's own timeline holds none.
+
+#### StreetView.panHeading
+
+`unstable` · unreleased
+
+```ts
+StreetView.panHeading(
+  selector: Selector,
+  direction: RoadDirection,
+  opts?: BulkOpts,
+): Promise<BatchOutcome>
+```
+
+Pan every heading in the selector along the road.
+
+#### StreetView.panosAt
+
+`unstable` · unreleased
+
+```ts
+StreetView.panosAt(
+  points: LatLng[],
+  props?: SearchOpts,
+): Promise<(Pano | null)[]>
+```
+
+The nearest pano to each point, aligned to `points`, null where there is no coverage.
+
+#### StreetView.pin
+
+`unstable` · unreleased
+
+```ts
+StreetView.pin(selector: Selector, opts?: PinOpts): Promise<PinOutcome>
+```
+
+Pin every location in the selector to its pano id, resolving pano ids first when asked.
+
+#### StreetView.radiusAtZoom
+
+`unstable` · unreleased
+
+```ts
+StreetView.radiusAtZoom(lat: number, zoom: number): number
+```
+
+Metres of map a search covers at `zoom` and latitude `lat`.
+
+#### StreetView.resolve
+
+`unstable` · unreleased
+
+```ts
+StreetView.resolve(loc: Location): Promise<Pano | null>
+```
+
+The pano a location should display: the one it is pinned to when that still resolves,
+otherwise whatever sits at its coordinates.
+
+#### StreetView.searchRadius
+
+`unstable` · unreleased
+
+```ts
+StreetView.searchRadius: number
+```
+
+Metres a coordinate search reaches by default.
+
+#### StreetView.shortenLink
+
+`unstable` · unreleased
+
+```ts
+StreetView.shortenLink(longUrl: string): Promise<string>
+```
+
+A Maps link shortened through Google's own shortener, or the link unchanged when that fails.
+
+#### StreetView.thumbnailUrl
+
+`unstable` · unreleased
+
+```ts
+StreetView.thumbnailUrl(
+  panoId: string,
+  heading: number,
+  width?: number,
+  height?: number,
+): string
+```
+
+A small preview image of a pano facing `heading`.
+
 ## Tauri
 
 ### dialog
@@ -9342,25 +9676,6 @@ toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>
 ```
 
 Copy of `set` with `value` toggled, or forced on/off by `on`.
-
-## Validate
-
-### validateLocations
-
-`unstable` · since v0.4.0
-
-```ts
-validateLocations(
-  selector: Selector,
-  opts?: BulkOpts & {
-    config?: Partial<ValidateConfig>;
-    categories?: readonly string[];
-  },
-): Promise<ValidationOutcome>
-```
-
-Check that each location's Street View coverage still exists, grouping the locations
-into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted).
 
 ## Validation categories
 

@@ -11,7 +11,7 @@ import type { Patch } from "@/types";
 import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, PanoAnswer, SearchQuery } from "@/bindings.gen";
 import { PanoType, RankingStrategy } from "@/bindings.consts";
-import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
+import { SV_SEARCH_RADIUS } from "@/lib/sv/rules";
 
 /** Interior probes per search round, splitting [lo, hi) into BRANCH+1 segments. */
 const BRANCH = 4;

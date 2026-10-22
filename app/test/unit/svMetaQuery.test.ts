@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { IdQuery, Pano, PanoAnswer } from "@/bindings.gen";
-import { SVMETA_FIELDS } from "@/lib/sv/constants";
 import { KNOWN_FIELDS } from "@/bindings.consts";
 import { CAR_PANO } from "./fixtures/pano";
+import { SVMETA_FIELDS } from "@/lib/sv/rules";
 
 /* Two layers are pinned here: what the svMeta module makes of the panos the host hands it,
  * and the JS wrapper that turns the query's plain JSON back into the shape callers read. */
@@ -96,17 +96,17 @@ const ANSWER = {
 	},
 };
 
-describe("svMetadata", () => {
+describe("StreetView.metadata", () => {
 	// A bare arrow would return the mock itself, which vitest then runs as a cleanup hook.
 	beforeEach(() => {
 		procedureQuery.mockReset();
 	});
 
 	it("asks the svMeta procedure and hands back its answer as it stands", async () => {
-		const { svMetadata } = await import("@/lib/sv/query");
+		const { StreetView } = await import("@/lib/sv/streetView");
 		procedureQuery.mockResolvedValue(JSON.stringify([{ state: "found", pano: ANSWER }]));
 
-		const [data] = await svMetadata(["pA"]);
+		const [data] = await StreetView.metadata(["pA"]);
 		expect(procedureQuery).toHaveBeenCalledWith(
 			expect.objectContaining({ entry: "res://procedures/svMeta.js" }),
 			JSON.stringify({ op: "metadata", panoIds: ["pA"] }),
@@ -119,41 +119,41 @@ describe("svMetadata", () => {
 	});
 
 	it("keeps nulls aligned to the requested panos and never queries an empty list", async () => {
-		const { svMetadata } = await import("@/lib/sv/query");
-		expect(await svMetadata([])).toEqual([]);
+		const { StreetView } = await import("@/lib/sv/streetView");
+		expect(await StreetView.metadata([])).toEqual([]);
 		expect(procedureQuery).not.toHaveBeenCalled();
 
 		procedureQuery.mockResolvedValue(
 			JSON.stringify([{ state: "notFound" }, { state: "found", pano: ANSWER }]),
 		);
-		const out = await svMetadata(["dead", "pA"]);
+		const out = await StreetView.metadata(["dead", "pA"]);
 		expect(out[0]).toBeNull();
 		expect((out[1] as any)!.location.pano).toBe("pA");
 	});
 
 	it("rejects when a lookup failed rather than answering null", async () => {
-		const { svMetadata } = await import("@/lib/sv/query");
+		const { StreetView } = await import("@/lib/sv/streetView");
 		procedureQuery.mockResolvedValue(
 			JSON.stringify([{ state: "found", pano: ANSWER }, { state: "failed" }]),
 		);
-		await expect(svMetadata(["pA", "pB"])).rejects.toThrow();
+		await expect(StreetView.metadata(["pA", "pB"])).rejects.toThrow();
 	});
 
 	it("rejects an answer that is not an array", async () => {
-		const { svMetadata } = await import("@/lib/sv/query");
+		const { StreetView } = await import("@/lib/sv/streetView");
 		procedureQuery.mockResolvedValue('{"error":"svMeta: unknown query op"}');
-		await expect(svMetadata(["pA"])).rejects.toThrow(/svMeta query/);
+		await expect(StreetView.metadata(["pA"])).rejects.toThrow(/svMeta query/);
 	});
 
 	it("sends every pano in one query -- the procedure does the splitting", async () => {
-		const { svMetadata } = await import("@/lib/sv/query");
+		const { StreetView } = await import("@/lib/sv/streetView");
 		procedureQuery.mockImplementation((_w: string, input: string) =>
 			Promise.resolve(
 				JSON.stringify(JSON.parse(input).panoIds.map(() => ({ state: "found", pano: ANSWER }))),
 			),
 		);
 		const panoIds = Array.from({ length: 500 }, (_, i) => `p${i}`);
-		const out = await svMetadata(panoIds);
+		const out = await StreetView.metadata(panoIds);
 		expect(out).toHaveLength(500);
 		expect(procedureQuery).toHaveBeenCalledTimes(1);
 		expect(JSON.parse(procedureQuery.mock.calls[0][1]).panoIds).toHaveLength(500);

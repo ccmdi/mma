@@ -119,7 +119,7 @@ describe("Bulk operations -- enrich", () => {
 // Bulk pin to pano
 // ============================================================================
 
-describe("Bulk operations -- bulkPinToPano", () => {
+describe("Bulk operations -- StreetView.pin", () => {
 	useMap("E2E Bulk Pin");
 	let locIds: number[];
 
@@ -138,7 +138,7 @@ describe("Bulk operations -- bulkPinToPano", () => {
 	});
 	it("pins unpinned locations and resolves panoId from coords", async () => {
 		const outcome = await withApi(async (api) => {
-			return await api.bulkPinToPano({ type: "Everything" });
+			return await api.StreetView.pin({ type: "Everything" });
 		});
 
 		// pin-1 (no pano) is resolved and pinned, pin-2 (has pano, not pinned) keeps its pano
@@ -155,7 +155,7 @@ describe("Bulk operations -- bulkPinToPano", () => {
 
 	it("skips already-pinned locations without force", async () => {
 		const outcome = await withApi(async (api) => {
-			return await api.bulkPinToPano({ type: "Everything" });
+			return await api.StreetView.pin({ type: "Everything" });
 		});
 
 		expect(outcome).toEqual({ succeeded: 0, failed: [], resolved: 0 });
@@ -163,7 +163,7 @@ describe("Bulk operations -- bulkPinToPano", () => {
 
 	it("re-resolves every pinned location with force", async () => {
 		const outcome = await withApi(async (api) => {
-			return await api.bulkPinToPano({ type: "Everything" }, { force: true });
+			return await api.StreetView.pin({ type: "Everything" }, { force: true });
 		});
 
 		expect(outcome).toEqual({ succeeded: 0, failed: [], resolved: 3 });

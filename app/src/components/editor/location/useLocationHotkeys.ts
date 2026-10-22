@@ -14,21 +14,19 @@ import { sortTagsByMode, togglePendingTag, type PendingTags } from "@/lib/data/t
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { getSettings, setSetting, MOVEMENT_CYCLE, MOVEMENT_MODES } from "@/store/settings";
-import { followLinkedPanos } from "@/lib/sv/lookup";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
-import { downloadPano } from "@/lib/sv/panoDownload";
 import { dropLocation } from "@/types";
 import type { MapKeyAction } from "@/bindings.gen";
 import { cycle } from "@/types/util";
 import { Review } from "@/lib/review/review";
 import { registerMapKeyActionHandler } from "@/lib/map/mapKeyBindings";
 import { log } from "@/lib/util/log";
-import { toggleViewportLock } from "@/lib/sv/viewportLock";
 import { sendHideCar } from "./PanoControls";
 import { usePanoViewer } from "./PanoViewerContext";
 import { usePano } from "@/lib/hooks/usePano";
 import { Editor } from "@/store/editor";
+import { StreetView } from "@/lib/sv/streetView";
 
 interface LocationHotkeyDeps {
 	pendingTags: PendingTags;
@@ -144,7 +142,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 
 	useHotkey(useBinding("downloadPanoTile"), () => {
 		const panoId = pano.panoId();
-		if (panoId) void downloadPano(panoId);
+		if (panoId) void StreetView.download(panoId);
 	});
 	const stepPanoDate = (step: 1 | -1) => {
 		const panoDates = onScreen.ok()?.timeline;
@@ -166,7 +164,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (!panoId) return;
 		const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 		if (container) toast(t("Following road..."), 1500, container);
-		followLinkedPanos(panoId, heading)
+		StreetView.follow(panoId, heading)
 			.then((locs) => {
 				if (locs.length > 0) void Location.add(locs);
 				if (container)
@@ -188,7 +186,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	useHotkey(useBinding("viewportLock"), () => {
-		void toggleViewportLock(pano);
+		void pano.toggleLock();
 	});
 
 	const quicktagSlot = (idx: number) => {

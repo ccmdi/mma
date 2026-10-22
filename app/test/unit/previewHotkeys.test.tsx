@@ -26,6 +26,7 @@ vi.mock("@/lib/util/hotkeys", () => ({ useBinding: (id: string) => id }));
 vi.mock("@/lib/hooks/usePano", () => ({
 	usePano: () => ({
 		capture: () => ({ lat: 1, lng: 2, heading: 0, pitch: 0, zoom: 1, panoId: "P" }),
+		toggleLock: async () => false,
 	}),
 }));
 vi.mock("@/components/editor/location/PanoViewerContext", async () => {
@@ -47,9 +48,13 @@ vi.mock("@/store/tag", () => ({
 	},
 }));
 vi.mock("@/store/dialogBus", () => ({ openDialog: h.dialogs }));
-vi.mock("@/lib/sv/panoDownload", () => ({ downloadPano: async () => {} }));
-vi.mock("@/lib/sv/lookup", () => ({ followLinkedPanos: async () => [] }));
-vi.mock("@/lib/sv/viewportLock", () => ({ toggleViewportLock: async () => {} }));
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+		download: async () => {},
+		follow: async () => [],
+	},
+}));
 
 import { useLocationHotkeys } from "@/components/editor/location/useLocationHotkeys";
 import { useMapKeyBindings } from "@/lib/map/mapKeyBindings";

@@ -14,11 +14,8 @@ import { gridPointSource, pointsInOrder } from "./pointSources";
 import { blueLineSource, DISTRIBUTION_EVENNESS } from "./blueLineSampler";
 import { passesInitialFilters, passesDateFilters, isPanoGood, computeHeading } from "./filters";
 import { Query } from "@/store/query";
-import { svMetadata } from "@/lib/sv/query";
 import { PanoType } from "@/bindings.consts";
 import type { Pano } from "@/bindings.gen";
-import { isOfficialPano } from "@/lib/sv/panoId";
-import { panosAt } from "@/lib/sv/query";
 import { distMeters, lerpLng, unionBounds } from "@/lib/geo/geo";
 import { searchCoverage } from "../searchCoverage";
 import { RateWindow } from "./rateWindow";
@@ -27,6 +24,7 @@ import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { chunk } from "@/lib/util/util";
 import type { Bounds, LatLng } from "@/types";
+import { StreetView } from "@/lib/sv/streetView";
 
 async function regionBounds(region: GeneratorRegion): Promise<Bounds | null> {
 	const box = await cmd.polygonBounds(region.polygon);
@@ -479,7 +477,7 @@ export class GenerationEngine {
 		while (queue.length > 0 && (await this.proceed(region))) {
 			region.isProcessing = true;
 			const frontier = queue.splice(0, ROUND_SIZE);
-			const results = await svMetadata(frontier, this.abort.signal).catch(() =>
+			const results = await StreetView.metadata(frontier, this.abort.signal).catch(() =>
 				frontier.map(() => null),
 			);
 			const inside = await regionContains(
@@ -653,13 +651,12 @@ export class GenerationEngine {
 		const settled = (async () => {
 			try {
 				// The search answers the metadata too, so there is no second lookup.
-				const panos = await panosAt(
-					coords,
-					s.radius,
-					s.rejectUnofficial ? { sources: [PanoType.Official] } : undefined,
-					this.abort.signal,
-					handle,
-				);
+				const panos = await StreetView.panosAt(coords, {
+					radius: s.radius,
+					sources: s.rejectUnofficial ? [PanoType.Official] : undefined,
+					signal: this.abort.signal,
+					onPano: handle,
+				});
 				for (let i = 0; i < panos.length; i++) handle(i, panos[i]);
 				const probeMs = Math.max(1, performance.now() - probeStart);
 				log.debug(
@@ -701,7 +698,7 @@ export class GenerationEngine {
 			const fromDate = Date.parse(s.fromDate);
 			const toDate = Date.parse(s.toDate);
 			for (const entry of pano.time) {
-				if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
+				if (s.rejectUnofficial && !StreetView.isOfficial(entry.panoId)) continue;
 				if (!entry.date) continue;
 				const ym = entry.date.slice(0, 7);
 				if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) seeds.push(entry.panoId);
@@ -757,7 +754,9 @@ export class GenerationEngine {
 		if (fresh.length === 0) return;
 		for (const id of fresh) region.checkedPanos.add(id);
 
-		const panos = await svMetadata(fresh, this.abort.signal).catch(() => fresh.map(() => null));
+		const panos = await StreetView.metadata(fresh, this.abort.signal).catch(() =>
+			fresh.map(() => null),
+		);
 		await this.processPanos(panos, region, depth);
 	}
 
@@ -788,7 +787,7 @@ export class GenerationEngine {
 				const fromDate = Date.parse(s.fromDate);
 				const toDate = Date.parse(s.toDate);
 				for (const entry of pano.time) {
-					if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
+					if (s.rejectUnofficial && !StreetView.isOfficial(entry.panoId)) continue;
 					if (!entry.date) continue;
 					const ym = entry.date.slice(0, 7);
 					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) next.push(entry.panoId);

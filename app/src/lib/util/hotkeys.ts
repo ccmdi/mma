@@ -3,7 +3,7 @@ import { bridgeAcrossWindows, emit as emitEvent, useEventValue } from "@/lib/eve
 import { getLocal, setLocal, reloadLocal } from "@/lib/hooks/useLocalStorage";
 import { msg, t, type MessageParams } from "@/lib/i18n";
 import { formatDistance } from "@/lib/util/format";
-import { SV_JUMP_RADIUS } from "@/lib/sv/constants";
+import { StreetView } from "@/lib/sv/streetView";
 
 const QUICKTAG_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 type QuicktagSlot = (typeof QUICKTAG_SLOTS)[number];
@@ -331,14 +331,14 @@ const STATIC_HOTKEY_DEFS = [
 	{
 		action: "jumpForward",
 		label: msg("Jump forward {distance}"),
-		params: () => ({ distance: formatDistance(SV_JUMP_RADIUS, 0) }),
+		params: () => ({ distance: formatDistance(StreetView.jumpRadius, 0) }),
 		group: msg("Location Editor"),
 		defaultBinding: "}",
 	},
 	{
 		action: "jumpBackward",
 		label: msg("Jump backward {distance}"),
-		params: () => ({ distance: formatDistance(SV_JUMP_RADIUS, 0) }),
+		params: () => ({ distance: formatDistance(StreetView.jumpRadius, 0) }),
 		group: msg("Location Editor"),
 		defaultBinding: "{",
 	},

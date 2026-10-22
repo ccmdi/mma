@@ -773,7 +773,7 @@ describe("Enrichment — the read-only query surface", () => {
 
 	it("the JS wrapper hands the module's answer over as plain data", async () => {
 		const data = (await withApi(async (api, pano) => {
-			const [d] = await api.svMetadata([pano]);
+			const [d] = await api.StreetView.metadata([pano]);
 			if (!d) return null;
 			return {
 				pano: d.id,

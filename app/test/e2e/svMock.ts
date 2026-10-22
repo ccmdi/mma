@@ -4,7 +4,7 @@
  * hook when MMA_TEST_MOCK_SV is set (scripts/e2e.sh --mock).
  *
  *  - window.fetch: the app fetches Google's internal RPCs directly for GetMetadata
- *    (svMetadata) and SingleImageSearch. We return
+ *    (StreetView.metadata) and SingleImageSearch. We return
  *    hand-built protobuf-array responses shaped exactly as the schema reader expects.
  *  - google.maps.StreetViewService.getPanorama: fetchPanoData / getPanoAtCoords go
  *    through this (opensv sets window.google). We return canned pano data.

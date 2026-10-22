@@ -2,6 +2,7 @@ import { mirrorCases } from "./fixtures/mirrorCases";
 import { describe, it, expect } from "vitest";
 import {
 	bearingDeg,
+	nearestHeading,
 	densifyRing,
 	normalizeHeading,
 	reverseHeading,
@@ -221,5 +222,27 @@ describe("sameBounds", () => {
 		const box = { west: 1, south: 2, east: 3, north: 4 };
 		expect(sameBounds(box, { ...box })).toBe(true);
 		expect(sameBounds(box, { ...box, north: 5 })).toBe(false);
+	});
+});
+
+describe("nearestHeading", () => {
+	it("returns null for empty input", () => {
+		expect(nearestHeading([], 90)).toBeNull();
+	});
+
+	it("picks the heading with smallest angular distance", () => {
+		expect(nearestHeading([0, 90, 180, 270], 80)).toBe(90);
+		expect(nearestHeading([0, 90, 180, 270], 100)).toBe(90);
+	});
+
+	it("crosses the 0/360 wrap boundary", () => {
+		expect(nearestHeading([10, 200], 350)).toBe(10);
+		expect(nearestHeading([350, 170], 10)).toBe(350);
+	});
+
+	it("does not bias clockwise vs counterclockwise", () => {
+		// 70 and 110 are both 20deg from 90; first-seen wins on a tie
+		expect(nearestHeading([70, 110], 90)).toBe(70);
+		expect(nearestHeading([110, 70], 90)).toBe(110);
 	});
 });

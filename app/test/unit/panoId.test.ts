@@ -1,48 +1,42 @@
 import { mirrorCases } from "./fixtures/mirrorCases";
 import { describe, it, expect } from "vitest";
-import {
-	allUnofficial,
-	capturedAfter,
-	isOfficialPano,
-	isUnofficial,
-	mergeTimelines,
-	pickCapture,
-} from "@/lib/sv/panoId";
 import type { Pano } from "@/bindings.gen";
 import { CapturePick } from "@/bindings.consts";
+import { StreetView } from "@/lib/sv/streetView";
+import { capturedAfter, isUnofficial, pickCapture } from "@/lib/sv/rules";
 
-describe("isOfficialPano", () => {
+describe("StreetView.isOfficial", () => {
 	it("recognizes F: prefix as unofficial", () => {
-		expect(isOfficialPano("F:CAoSLEFGMVFpcE")).toBe(false);
-		expect(isOfficialPano("F:abc")).toBe(false);
+		expect(StreetView.isOfficial("F:CAoSLEFGMVFpcE")).toBe(false);
+		expect(StreetView.isOfficial("F:abc")).toBe(false);
 	});
 
 	it("recognizes 22-char base64 ending in A as official", () => {
-		expect(isOfficialPano("KQ2dSFpRKZZMxJEBc4FhcA")).toBe(true);
+		expect(StreetView.isOfficial("KQ2dSFpRKZZMxJEBc4FhcA")).toBe(true);
 	});
 
 	it("recognizes 22-char base64 ending in Q as official", () => {
-		expect(isOfficialPano("KQ2dSFpRKZZMxJEBc4FhcQ")).toBe(true);
+		expect(StreetView.isOfficial("KQ2dSFpRKZZMxJEBc4FhcQ")).toBe(true);
 	});
 
 	it("recognizes 22-char base64 ending in g as official", () => {
-		expect(isOfficialPano("KQ2dSFpRKZZMxJEBc4Fhcg")).toBe(true);
+		expect(StreetView.isOfficial("KQ2dSFpRKZZMxJEBc4Fhcg")).toBe(true);
 	});
 
 	it("recognizes 22-char base64 ending in w as official", () => {
-		expect(isOfficialPano("KQ2dSFpRKZZMxJEBc4Fhcw")).toBe(true);
+		expect(StreetView.isOfficial("KQ2dSFpRKZZMxJEBc4Fhcw")).toBe(true);
 	});
 
 	it("treats unknown format as unofficial", () => {
-		expect(isOfficialPano("some-random-pano-id")).toBe(false);
+		expect(StreetView.isOfficial("some-random-pano-id")).toBe(false);
 	});
 
 	it("a bare CIHM contributor key is not official, even at 22 chars ending in a key bit", () => {
-		expect(isOfficialPano("CIHM0ogKEICAgICTzu7WYg")).toBe(false);
+		expect(StreetView.isOfficial("CIHM0ogKEICAgICTzu7WYg")).toBe(false);
 	});
 
 	it("handles empty string as unofficial", () => {
-		expect(isOfficialPano("")).toBe(false);
+		expect(StreetView.isOfficial("")).toBe(false);
 	});
 });
 
@@ -131,7 +125,7 @@ describe("capturedAfter", () => {
 	});
 });
 
-describe("mergeTimelines", () => {
+describe("StreetView.mergeTimelines", () => {
 	const pano = (over: Partial<Pano> = {}): Pano => ({ id: "p", time: [], ...over }) as Pano;
 
 	// The date picker merges an all-unofficial stack with nearby official coverage,
@@ -144,34 +138,38 @@ describe("mergeTimelines", () => {
 				{ panoId: "y", date: "2019-05-01" },
 			],
 		});
-		expect(mergeTimelines([a, b])).toEqual([
+		expect(StreetView.mergeTimelines([a, b])).toEqual([
 			{ panoId: "y", date: "2019-05-01" },
 			{ panoId: "x", date: "2022-06-01" },
 		]);
 	});
 
 	it("skips absent sources rather than failing", () => {
-		expect(mergeTimelines([null, null])).toEqual([]);
+		expect(StreetView.mergeTimelines([null, null])).toEqual([]);
 		expect(
-			mergeTimelines([null, pano({ time: [{ panoId: "x", date: "2020-01-01" }] })]),
+			StreetView.mergeTimelines([null, pano({ time: [{ panoId: "x", date: "2020-01-01" }] })]),
 		).toHaveLength(1);
 	});
 });
 
-describe("allUnofficial", () => {
+describe("StreetView.allUnofficial", () => {
 	it("flags a timeline with no official coverage, which is what triggers the wider search", () => {
-		expect(allUnofficial([{ panoId: "F:abc", date: "2020-01-01" }])).toBe(true);
-		expect(allUnofficial([{ panoId: "-zrYsLR4Fh-cfJG_EMZ1-A", date: "2020-01-01" }])).toBe(false);
+		expect(StreetView.allUnofficial([{ panoId: "F:abc", date: "2020-01-01" }])).toBe(true);
+		expect(
+			StreetView.allUnofficial([{ panoId: "-zrYsLR4Fh-cfJG_EMZ1-A", date: "2020-01-01" }]),
+		).toBe(false);
 	});
 
 	it("counts an empty stack as all-unofficial, since unofficial panos often carry none", () => {
-		expect(allUnofficial([])).toBe(true);
+		expect(StreetView.allUnofficial([])).toBe(true);
 	});
 });
 
-describe("isOfficialPano shared mirror cases", () => {
+describe("StreetView.isOfficial shared mirror cases", () => {
 	it("agrees with the store on every case", () => {
-		for (const id of mirrorCases.officialPano.official) expect(isOfficialPano(id)).toBe(true);
-		for (const id of mirrorCases.officialPano.unofficial) expect(isOfficialPano(id)).toBe(false);
+		for (const id of mirrorCases.officialPano.official)
+			expect(StreetView.isOfficial(id)).toBe(true);
+		for (const id of mirrorCases.officialPano.unofficial)
+			expect(StreetView.isOfficial(id)).toBe(false);
 	});
 });

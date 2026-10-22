@@ -20,7 +20,6 @@ import { usePluginState } from "@/plugins/pluginStorage";
 import { t } from "@/lib/i18n";
 import { toast } from "@/lib/util/toast";
 import { formatDistance } from "@/lib/util/format";
-import { panosAt } from "@/lib/sv/query";
 import { usePano } from "@/lib/hooks/usePano";
 import { Seen } from "@/lib/seen/seen";
 import type { LatLng } from "@/types";
@@ -41,6 +40,7 @@ import { GuessMap, type ResultPin } from "./GuessMap";
 import { PanoView, type PanoHandle } from "./PanoView";
 import { RoundTagBar } from "./RoundTagBar";
 import { IconButton } from "@/components/primitives/IconButton";
+import { StreetView } from "@/lib/sv/streetView";
 
 function Timer({
 	mode,
@@ -218,7 +218,7 @@ export function RoundPlayer({
 			if (!at) return;
 			setOpening(true);
 			try {
-				const [pano] = await panosAt([at], GUESS_PANO_RADIUS);
+				const [pano] = await StreetView.panosAt([at], { radius: GUESS_PANO_RADIUS });
 				if (pano?.id) Editor.preview(guessPreview(pano));
 				else toast(t("No Street View near your guess"));
 			} finally {

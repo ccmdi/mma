@@ -10,7 +10,7 @@ import { MOCK_GENERIC_IMAGE_DATE } from "./parityFixture";
  * fault cases and the scale digest stay one short script each.
  */
 
-const EVERYTHING = { type: "Everything" };
+const EVERYTHING = { type: "Everything" } as const;
 
 export interface SeedRow {
 	lat: number;
@@ -195,10 +195,8 @@ export async function runEnrich(force = true): Promise<EnrichRun> {
 export async function runPin(force = true): Promise<EnrichRun> {
 	return withApi(
 		async (api, doForce, scope) => {
-			const a = api as unknown as Record<string, unknown>;
-			const pin = a.bulkPinToPano as (t: unknown, o: unknown) => Promise<{ succeeded: number }>;
 			const start = Date.now();
-			const pinned = (await pin(scope, { force: doForce })).succeeded;
+			const pinned = (await api.StreetView.pin(scope, { force: doForce })).succeeded;
 			return {
 				durationMs: Date.now() - start,
 				outcomes: [{ id: "pinPano", success: Number(pinned ?? 0), failed: 0 }],
@@ -279,11 +277,12 @@ export async function runValidate(): Promise<{
 	states: [number, number][];
 }> {
 	return withApi(async (api, scope) => {
-		const a = api as unknown as Record<string, unknown>;
-		const validate = a.validateLocations as (t: unknown, o: unknown) => Promise<unknown>;
 		const start = Date.now();
-		const res = ((await validate(scope, {})) as { states?: Map<number, unknown[]> } | undefined)
-			?.states;
+		const res = (
+			(await api.validateLocations(scope, {})) as unknown as {
+				states?: Map<number, unknown[]>;
+			}
+		).states;
 		const states: [number, number][] = res
 			? [...res.entries()].map(([state, rows]) => [Number(state), rows.length])
 			: [];

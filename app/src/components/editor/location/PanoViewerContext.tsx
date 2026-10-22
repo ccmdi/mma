@@ -6,12 +6,10 @@ import { usePano } from "@/lib/hooks/usePano";
 import type { Pano } from "@/bindings.gen";
 import { useAsync, useAsyncSticky, useSticky, type Rerunnable } from "@/lib/hooks/useAsync";
 import { geocodeGoogle, reverseGeocode, type GeoDisplay } from "@/lib/geo/reverseGeocode";
-import { panosAt, svMetadata } from "@/lib/sv/query";
-import { allUnofficial, mergeTimelines } from "@/lib/sv/panoId";
-import { SV_OFFICIAL_FALLBACK_RADIUS, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { onFullscreenMapChanged, onLocationCleared } from "./fullscreenModeState";
 import { Editor } from "@/store/editor";
 import type { Loading } from "@/types/util";
+import { StreetView } from "@/lib/sv/streetView";
 
 export interface OnScreen {
 	/** The location's pano, null when it has none. */
@@ -43,20 +41,19 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		async (signal): Promise<OnScreen> => {
 			const nothing = { currentPano: null, timeline: [], defaultPano: null };
 			if (!location?.panoId) return nothing;
-			const [shown] = await svMetadata([location.panoId], signal);
+			const [shown] = await StreetView.metadata([location.panoId], signal);
 			if (!shown) return nothing;
 			const here = [{ lat: shown.lat, lng: shown.lng }];
-			const [atCoord] = await panosAt(here, SV_SEARCH_RADIUS, undefined, signal);
+			const [atCoord] = await StreetView.panosAt(here, { signal });
 
 			let timeline = shown.time;
-			if (allUnofficial(timeline)) {
-				const [official] = await panosAt(
-					here,
-					SV_OFFICIAL_FALLBACK_RADIUS,
-					{ sources: [PanoType.Official] },
+			if (StreetView.allUnofficial(timeline)) {
+				const [official] = await StreetView.panosAt(here, {
+					radius: StreetView.officialFallbackRadius,
+					sources: [PanoType.Official],
 					signal,
-				);
-				timeline = mergeTimelines([official, shown]);
+				});
+				timeline = StreetView.mergeTimelines([official, shown]);
 			}
 
 			return { currentPano: shown, timeline, defaultPano: atCoord ?? shown };

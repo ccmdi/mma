@@ -9,8 +9,8 @@ vi.mock("@/lib/geo/stackedMapType", async () =>
 
 import { createGoogleMapHost } from "@/lib/map/googleHost";
 import type { TileLayer } from "@/lib/geo/stackedMapType";
-import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
 import { DEFAULT_PREFS } from "@/store/mapEmbedPrefs";
+import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/geo/mapStack";
 
 type Host = ReturnType<typeof createGoogleMapHost>;
 

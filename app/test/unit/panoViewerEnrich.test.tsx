@@ -30,9 +30,13 @@ vi.mock("@/store/editor", async () => {
 	};
 });
 vi.mock("@/store/settings", () => ({ useSetting: () => false }));
-vi.mock("@/lib/sv/query", () => ({
-	svMetadata: (ids: string[]) => h.metadata(ids),
-	panosAt: async () => [{ id: "default", lat: 1, lng: 2, time: [] }],
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+
+		metadata: (ids: string[]) => h.metadata(ids),
+		panosAt: async () => [{ id: "default", lat: 1, lng: 2, time: [] }],
+	},
 }));
 vi.mock("@/lib/hooks/usePano", () => ({ usePano: () => ({ hide: () => {} }) }));
 vi.mock("@/lib/geo/reverseGeocode", () => ({

@@ -55,7 +55,12 @@ vi.mock("@/lib/i18n", () => ({
 	getLocale: () => "en",
 }));
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
-vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+		metadata: async () => [],
+	},
+}));
 
 vi.mock("@/store/edit", () => ({
 	Edit: {
@@ -84,6 +89,8 @@ vi.mock("@/bindings.consts", () => ({
 	DEFAULT_MARKER_COLOR: [42, 42, 42],
 	LocationFlag: { None: 0, LoadAsPanoId: 1, Informational: 2 },
 	PanoType: { Official: 2, Unknown: 3, UserUploaded: 10 },
+	OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$",
+	ValidationFlag: {},
 	BUILTIN_FIELDS: {
 		panoId: { label: "Pano ID", type: "string", kind: null, comparison: null },
 		heading: { label: "Heading", type: "number", kind: "writable", comparison: null },
@@ -207,15 +214,13 @@ import { Provider } from "@/lib/data/provider";
 import { disposePlugin, runAsPlugin } from "@/plugins/scope";
 import { getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { enrich } from "@/lib/sv/providers";
+import { StreetView } from "@/lib/sv/streetView";
 import {
 	BUILTIN_PROVIDERS,
 	enrichRuns,
 	panoResolveProvider,
 	svMetaProvider,
 } from "@/lib/sv/providers";
-import { bulkPinToPano } from "@/lib/sv/pinPano";
-import { bulkPanHeading } from "@/lib/sv/providers";
-
 const plainProvider: Provider = {
 	id: "prov",
 	label: "Prov",
@@ -412,8 +417,8 @@ describe("the implicit provider set", () => {
 });
 
 describe("the bulk operations name their own providers", () => {
-	it("bulkPinToPano resolves unpinned rows from official coverage, then sets the flag", async () => {
-		const out = await bulkPinToPano({ type: "Everything" });
+	it("StreetView.pin resolves unpinned rows from official coverage, then sets the flag", async () => {
+		const out = await StreetView.pin({ type: "Everything" });
 		expect(ids()).toEqual(["panoResolve"]);
 		const resolve = h.decls[0];
 		// The closest pano can be a photosphere, and a bulk pin must never relocate rows onto one.
@@ -429,7 +434,7 @@ describe("the bulk operations name their own providers", () => {
 	});
 
 	it("a capture pick forces the resolve so stored panos reach it", async () => {
-		await bulkPinToPano({ type: "Everything" }, { capture: "newest" });
+		await StreetView.pin({ type: "Everything" }, { capture: "newest" });
 		const resolve = h.decls[0];
 		expect(resolve.config).toBe(JSON.stringify({ sources: [2], capture: "newest" }));
 		expect(resolve.force).toBe(true);
@@ -437,7 +442,7 @@ describe("the bulk operations name their own providers", () => {
 	});
 
 	it("without force the resolve only sees rows that are not already pinned", async () => {
-		await bulkPinToPano({ type: "Everything" });
+		await StreetView.pin({ type: "Everything" });
 		const json = JSON.stringify(h.decls[0].select);
 		expect(json).toContain('"Invert"');
 		expect(json).toContain('"loadAsPanoId"');
@@ -445,13 +450,13 @@ describe("the bulk operations name their own providers", () => {
 	});
 
 	it("force re-resolves already pinned rows too", async () => {
-		await bulkPinToPano({ type: "Everything" }, { force: true });
+		await StreetView.pin({ type: "Everything" }, { force: true });
 		expect(h.decls[0].force).toBe(true);
 		expect(h.decls[0].select).toEqual({ type: "Everything" });
 	});
 
 	it("without the resolve step only the flag is written", async () => {
-		const out = await bulkPinToPano({ type: "Everything" }, { resolve: false });
+		const out = await StreetView.pin({ type: "Everything" }, { resolve: false });
 		expect(ids()).toEqual([]);
 		expect(h.fieldOps).toHaveLength(1);
 		expect(out).toEqual({ succeeded: 2, failed: [], resolved: 0 });
@@ -459,12 +464,12 @@ describe("the bulk operations name their own providers", () => {
 
 	it("a row the resolve fails is offered back", async () => {
 		h.failedIds = { panoResolve: [3, 9] };
-		const out = await bulkPinToPano({ type: "Everything" }, { force: true });
+		const out = await StreetView.pin({ type: "Everything" }, { force: true });
 		expect(out.failed).toEqual([3, 9]);
 	});
 
-	it("bulkPanHeading runs panoResolve then headingRoad, with the direction", async () => {
-		const out = await bulkPanHeading({ type: "Everything" }, "backwards");
+	it("StreetView.panHeading runs panoResolve then headingRoad, with the direction", async () => {
+		const out = await StreetView.panHeading({ type: "Everything" }, "backwards");
 		expect(ids()).toEqual(["panoResolve", "headingRoad"]);
 		expect(h.decls[1].config).toBe(JSON.stringify({ direction: "backwards" }));
 		expect(out.succeeded).toBe(5);

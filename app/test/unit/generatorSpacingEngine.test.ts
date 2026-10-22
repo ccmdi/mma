@@ -36,27 +36,31 @@ vi.mock("@/lib/commands", () => ({
 			}),
 	},
 }));
-vi.mock("@/lib/sv/query", () => ({
-	panosAt: (points: { lat: number; lng: number }[]) =>
-		Promise.resolve(
-			points.map(
-				({ lat, lng }, i) =>
-					({
-						id: `${i}${String(lat).padStart(21, "0")}A`,
-						description: "Main Street",
-						shortDescription: "Main Street",
-						lat,
-						lng,
-						links: [],
-						date: { year: 2020, month: 1, day: 1 },
-						imageDate: "2020-01",
-						time: [],
-						worldSize: { height: 6656 },
-						pov: { heading: 0, tilt: 90, roll: 0 },
-					}) as unknown as Pano,
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+
+		panosAt: (points: { lat: number; lng: number }[]) =>
+			Promise.resolve(
+				points.map(
+					({ lat, lng }, i) =>
+						({
+							id: `${i}${String(lat).padStart(21, "0")}A`,
+							description: "Main Street",
+							shortDescription: "Main Street",
+							lat,
+							lng,
+							links: [],
+							date: { year: 2020, month: 1, day: 1 },
+							imageDate: "2020-01",
+							time: [],
+							worldSize: { height: 6656 },
+							pov: { heading: 0, tilt: 90, roll: 0 },
+						}) as unknown as Pano,
+				),
 			),
-		),
-	svMetadata: () => Promise.resolve([]),
+		metadata: () => Promise.resolve([]),
+	},
 }));
 
 import { GenerationEngine } from "@/plugins/generator/engine/GenerationEngine";

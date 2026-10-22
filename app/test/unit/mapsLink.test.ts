@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Tag } from "@/types";
 import type { Location } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
-import { mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
+import { StreetView } from "@/lib/sv/streetView";
 
 function loc(over: Partial<Location> = {}): Location {
 	return {
@@ -39,9 +39,9 @@ const UNOFFICIAL_NO_TAGS =
 const TAGGED_LAT_LNG =
 	"https://www.google.com/maps/@35.6762,139.6503,3a,89.4y,180.00h,85.00t/data=!3m5!1e1!3m3!1sQmgLCWv3QpNiK-1F3ZK_1Q!2e0!6shttps%3A%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fpanoid%3DQmgLCWv3QpNiK-1F3ZK_1Q%26cb_client%3Dmaps_sv.share%26w%3D900%26h%3D600%26yaw%3D180%26pitch%3D5%26thumbfov%3D89?coh=235716&entry=tts&extra%5Btags%5D=Mountains&extra%5Btags%5D=Coastal&extra%5BloadMode%5D=latLng";
 
-describe("mapsPanoUrl", () => {
+describe("StreetView.mapsUrl", () => {
 	it("writes the official-pano share link the Rust reader parses", () => {
-		const url = mapsPanoUrl({
+		const url = StreetView.mapsUrl({
 			lat: 58.6190505,
 			lng: 49.7204709,
 			heading: 265.69,
@@ -53,7 +53,7 @@ describe("mapsPanoUrl", () => {
 	});
 
 	it("writes an unofficial pano without a thumbnail", () => {
-		const url = mapsPanoUrl({
+		const url = StreetView.mapsUrl({
 			lat: 1,
 			lng: 2,
 			heading: 0,
@@ -65,7 +65,7 @@ describe("mapsPanoUrl", () => {
 	});
 
 	it("carries tags and the latLng load mode", () => {
-		const url = mapsPanoUrl({
+		const url = StreetView.mapsUrl({
 			lat: 35.6762,
 			lng: 139.6503,
 			heading: 180,
@@ -73,7 +73,7 @@ describe("mapsPanoUrl", () => {
 			zoom: 0.6,
 			panoId: "QmgLCWv3QpNiK-1F3ZK_1Q",
 		});
-		appendLinkTags(
+		StreetView.appendLinkTags(
 			url,
 			loc({ lat: 35.6762, lng: 139.6503, panoId: "QmgLCWv3QpNiK-1F3ZK_1Q", tags: [7, 8] }),
 			TAGS,
@@ -82,8 +82,15 @@ describe("mapsPanoUrl", () => {
 	});
 
 	it("omits the load mode for a pinned location", () => {
-		const url = mapsPanoUrl({ lat: 1, lng: 2, heading: 0, pitch: 0, zoom: 1, panoId: "abc" });
-		appendLinkTags(url, loc({ panoId: "abc", flags: LocationFlag.LoadAsPanoId }), TAGS);
+		const url = StreetView.mapsUrl({
+			lat: 1,
+			lng: 2,
+			heading: 0,
+			pitch: 0,
+			zoom: 1,
+			panoId: "abc",
+		});
+		StreetView.appendLinkTags(url, loc({ panoId: "abc", flags: LocationFlag.LoadAsPanoId }), TAGS);
 		expect(url.searchParams.get("extra[loadMode]")).toBe(null);
 	});
 });

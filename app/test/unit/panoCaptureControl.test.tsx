@@ -27,8 +27,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/sv/panoCapture", () => ({
 	renderPanoView: mocks.render,
-	canvasToBlob: mocks.toBlob,
 }));
+vi.mock("@/lib/util/image", () => ({ canvasToBlob: mocks.toBlob }));
 vi.mock("@/lib/util/util", () => ({
 	downloadBlob: mocks.download,
 	copyImageToClipboard: mocks.copyImage,

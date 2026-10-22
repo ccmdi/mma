@@ -2,26 +2,18 @@ import type * as bindings from "@/bindings.gen";
 import type { CameraFrame, Location } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 import { isPinned, type LocationPOV, type PanoCapture, type PanoView } from "@/types";
-import { clamp, type Cancelled, type Ok } from "@/types/util";
+import { clamp, range, type Cancelled, type Ok } from "@/types/util";
 import { getSettings, panoDisplayOptions } from "@/store/settings";
 import { google } from "@/lib/sv/opensv";
 import { patchOpenSV, setPanoHovered } from "@/lib/sv/opensvPatch";
-import { lookupStreetView, nearestLinkHeading, resolvePano } from "@/lib/sv/lookup";
 import { drawScaled, hasImagery, sceneCanvas } from "@/lib/sv/panoCapture";
-import {
-	PANO_PITCH,
-	PANO_ZOOM,
-	SV_JUMP_RADIUS,
-	displayZoom,
-	storedZoom,
-	zoomInStep,
-	zoomOutStep,
-} from "@/lib/sv/constants";
-import { normalizeHeading, reverseHeading, wrapDeg } from "@/lib/geo/geo";
+import { nearestHeading, normalizeHeading, reverseHeading, wrapDeg } from "@/lib/geo/geo";
 import { serial } from "@/lib/util/concurrent";
 import { latest } from "@/lib/util/latest";
 import { toast as showToast } from "@/lib/util/toast";
 import { releaseWebglContexts } from "@/lib/render/webglContexts";
+import { emit as emitEvent } from "@/lib/events";
+import { StreetView } from "@/lib/sv/streetView";
 
 export type Pano = bindings.Pano;
 export type PanoDestination = string | google.maps.LatLngLiteral;
@@ -62,7 +54,7 @@ function resolveCached(loc: Location): Promise<Pano | null> {
 	const key = resolutionKey(loc);
 	const cached = resolutions.get(key);
 	if (cached) return cached;
-	const pending = resolvePano(loc).then(
+	const pending = StreetView.resolve(loc).then(
 		(resolved) => {
 			if (!resolved) resolutions.delete(key);
 			return resolved;
@@ -107,7 +99,7 @@ function applyFrame(sv: google.maps.StreetViewPanorama, frame: PanoFrame) {
 function applyResolved(sv: google.maps.StreetViewPanorama, to: PanoDestination, loc: Location) {
 	if (typeof to === "string") sv.setPano(to);
 	else sv.setPosition(to);
-	sv.setZoom(displayZoom(loc.zoom));
+	sv.setZoom(zoomScale.display(loc.zoom));
 	sv.setPov({ heading: loc.heading, pitch: loc.pitch });
 	sv.setVisible(true);
 	sv.focus();
@@ -118,6 +110,24 @@ function isAt(sv: google.maps.StreetViewPanorama, to: PanoDestination): boolean 
 	const at = sv.getPosition();
 	return at?.lat() === to.lat && at?.lng() === to.lng;
 }
+
+const frames = new Map<string, CameraFrame>();
+const ZOOM = range([-3, 4]);
+const PITCH = range([-90, 90]);
+
+/** The viewer's zoom scale: a location's stored zoom against the live display zoom, and
+ *  one step in or out. */
+const zoomScale = {
+	range: ZOOM,
+	/** Stored -> live pano zoom: 0 (unset) renders fully zoomed out for the current viewport. */
+	display: (stored: number) => (stored === 0 ? ZOOM.min : stored),
+	/** Live -> stored pano zoom: the fully-out floor collapses to 0 (unset); partial zooms persist. */
+	stored: (display: number) => (display <= ZOOM.min ? 0 : display),
+	/** One zoom step in: fully-out returns to 0, then the 0..4 grid. */
+	in: (z: number) => (z < 0 ? 0 : Math.min(ZOOM.max, z + 1)),
+	/** One zoom step out: down the grid to 0, then fully out. */
+	out: (z: number) => (z <= 0 ? ZOOM.min : z - 1),
+};
 
 /** Create an independent pano viewer with its own camera, requests, listeners and mounts. */
 export function createPano() {
@@ -137,6 +147,7 @@ export function createPano() {
 	const mounts: HTMLElement[] = [];
 	let containerObserver: ResizeObserver | null = null;
 	let resizeFrame = 0;
+	let lock: (PanoFrame & { zoom: number }) | null = null;
 
 	function ensureViewer(): google.maps.StreetViewPanorama | null {
 		if (viewer || !google?.maps) return viewer;
@@ -306,13 +317,13 @@ export function createPano() {
 			if (!viewer || !from || !google?.maps?.geometry) return false;
 			const target = google.maps.geometry.spherical.computeOffset(
 				from,
-				SV_JUMP_RADIUS,
+				StreetView.jumpRadius,
 				viewer.getPov().heading + headingOffset,
 			);
 			const go = reserveJump();
-			const found = await lookupStreetView(target.lat(), target.lng(), 0, {
+			const found = await StreetView.lookup(target.lat(), target.lng(), 0, {
 				onlyOfficial: true,
-				radius: SV_JUMP_RADIUS,
+				radius: StreetView.jumpRadius,
 			});
 			if (!found?.panoId) return false;
 			return go(
@@ -327,11 +338,11 @@ export function createPano() {
 	}
 
 	function zoom(): number {
-		return viewer?.getZoom() ?? PANO_ZOOM.min;
+		return viewer?.getZoom() ?? ZOOM.min;
 	}
 
 	function captureView(): LocationPOV {
-		return { ...pov(), zoom: storedZoom(zoom()) };
+		return { ...pov(), zoom: zoomScale.stored(zoom()) };
 	}
 
 	function capture(): PanoCapture | null {
@@ -378,12 +389,54 @@ export function createPano() {
 		);
 	}
 
+	async function frameOf(panoId: string): Promise<CameraFrame | null> {
+		const cached = frames.get(panoId);
+		if (cached) return cached;
+		const [data] = await StreetView.metadata([panoId]).catch(() => [null]);
+		if (!data) return null;
+		frames.set(panoId, data.cameraFrame);
+		return data.cameraFrame;
+	}
+
+	async function applyLock() {
+		const panoId = viewer?.getPano();
+		if (!lock || !panoId) return;
+		const look = reserveLook();
+		const frame = await frameOf(panoId);
+		if (!frame || !lock || viewer?.getPano() !== panoId) return;
+		look({
+			heading: normalizeHeading(frame.heading + lock.heading),
+			pitch: frame.pitch + lock.pitch,
+			zoom: lock.zoom,
+		});
+	}
+
+	async function toggleLock(): Promise<boolean> {
+		if (lock) {
+			lock = null;
+			emitEvent("viewport-lock:changed");
+			return false;
+		}
+		const panoId = viewer?.getPano();
+		if (!panoId) return false;
+		const { heading, pitch } = pov();
+		const frame = await frameOf(panoId);
+		if (!frame) return false;
+		lock = {
+			heading: normalizeHeading(heading - frame.heading),
+			pitch: pitch - frame.pitch,
+			zoom: zoom(),
+		};
+		emitEvent("viewport-lock:changed");
+		return true;
+	}
+
 	function nudge(dHeading: number, dPitch: number) {
 		if (!viewer) return;
 		const current = viewer.getPov();
 		viewer.setPov({
 			heading: wrapDeg(current.heading + dHeading, 0),
-			pitch: clamp(current.pitch + dPitch, PANO_PITCH),
+			pitch: clamp(current.pitch + dPitch, PITCH),
 		});
 	}
 
@@ -421,7 +474,7 @@ export function createPano() {
 		if (!viewer) return;
 		const { heading, pitch } = activeTurn?.target ?? pov();
 		if (Math.abs(normalizeHeading(heading)) < 2) {
-			viewer.setZoom(PANO_ZOOM.min);
+			viewer.setZoom(ZOOM.min);
 			turnTo({ heading: 0, pitch: -90 });
 		} else {
 			turnTo({ heading: 0, pitch });
@@ -432,7 +485,7 @@ export function createPano() {
 		const headings = links()
 			.map((l) => l.heading)
 			.filter((h): h is number => h != null);
-		const nearest = nearestLinkHeading(headings, pov().heading);
+		const nearest = nearestHeading(headings, pov().heading);
 		if (nearest != null) turnTo({ heading: nearest, pitch: 0 });
 	}
 
@@ -457,15 +510,15 @@ export function createPano() {
 	}
 
 	function zoomIn() {
-		if (viewer) viewer.setZoom(zoomInStep(viewer.getZoom()));
+		if (viewer) viewer.setZoom(zoomScale.in(viewer.getZoom()));
 	}
 
 	function zoomOut() {
-		if (viewer) viewer.setZoom(zoomOutStep(viewer.getZoom()));
+		if (viewer) viewer.setZoom(zoomScale.out(viewer.getZoom()));
 	}
 
 	function resetZoom() {
-		viewer?.setZoom(PANO_ZOOM.min);
+		viewer?.setZoom(ZOOM.min);
 	}
 
 	function configure(options: google.maps.StreetViewPanoramaOptions) {
@@ -613,6 +666,14 @@ export function createPano() {
 		captureImage,
 		/** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. */
 		reserveLook,
+		/** The view held relative to each pano's camera frame while the viewport is locked, or null. */
+		lockedView: () => lock,
+		/** Turn the camera to the locked view on the current pano. */
+		applyLock,
+		/** Lock the viewport to the current view, or release the lock. True when it is now locked. */
+		toggleLock,
+		/** The viewer's zoom scale: stored against display zoom, and its steps. */
+		zoomScale,
 		/** Nudge heading and pitch by a delta, keeping pitch in range. */
 		nudge,
 		/** Animate the camera to a frame, replacing any turn in progress. */

@@ -74,20 +74,18 @@ vi.mock("@/lib/commands", () => {
 		},
 	};
 });
-vi.mock("@/lib/sv/query", () => ({
-	panosAt: (
-		points: LatLng[],
-		_r: number,
-		_o: unknown,
-		_signal?: AbortSignal,
-		onPano?: (index: number, pano: unknown) => void,
-	) =>
-		new Promise((resolve) => {
-			h.calls.push({ points, onPano, finish: () => resolve(points.map(() => null)) });
-		}),
-	svMetadata: (ids: string[]) => {
-		h.metaCalls++;
-		return Promise.resolve(ids.map(() => null));
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+
+		panosAt: (points: LatLng[], { onPano }: { onPano?: (index: number, pano: unknown) => void }) =>
+			new Promise((resolve) => {
+				h.calls.push({ points, onPano, finish: () => resolve(points.map(() => null)) });
+			}),
+		metadata: (ids: string[]) => {
+			h.metaCalls++;
+			return Promise.resolve(ids.map(() => null));
+		},
 	},
 }));
 

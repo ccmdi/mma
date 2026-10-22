@@ -9,12 +9,17 @@
 
 import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, Pano, PanoAnswer } from "@/bindings.gen";
-import type { ValidateConfig } from "@/lib/sv/validate";
 import type { ValidationAnswer } from "@/lib/sv/validationCategories";
-import { capturedAfter, isOfficialPano, isUnofficial, pickCapture } from "@/lib/sv/panoId";
-import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { isPinned } from "@/types";
 import { CapturePick, ValidationFlag } from "@/bindings.consts";
+import type { ValidateConfig } from "@/lib/sv/providers";
+import {
+	SV_SEARCH_RADIUS,
+	capturedAfter,
+	isOfficialPano,
+	isUnofficial,
+	pickCapture,
+} from "@/lib/sv/rules";
 
 /** A capture worth keeping: anything else is what the badcam check is looking past. */
 function isGoodCam(m: Pano): boolean {

@@ -1,6 +1,6 @@
 /**
  * Map-click location creation: triggerClickAt drives the real pipeline
- * (Maps click event -> deck.gl pick -> handleMapClick -> lookupStreetView ->
+ * (Maps click event -> deck.gl pick -> handleMapClick -> StreetView.lookup ->
  * addLocations). Under --mock the whole lookup (StreetViewService, photometa,
  * GetMetadata) is served by svMock; unmocked it hits real Street View.
  */

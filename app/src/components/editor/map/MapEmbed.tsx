@@ -17,9 +17,7 @@ import { useMapSurface } from "@/lib/render/useMapSurface";
 import { Icon } from "@/components/primitives/Icon";
 import { Spinner } from "@/components/primitives/Spinner";
 import { useEventValue } from "@/lib/events";
-import { svThumbnailUrl, svSearchRadius } from "@/lib/sv/lookup";
 import { PanoType } from "@/bindings.consts";
-import { panosAt } from "@/lib/sv/query";
 import { log } from "@/lib/util/log";
 import { latest } from "@/lib/util/latest";
 import { delay } from "@/lib/util/concurrent";
@@ -58,6 +56,7 @@ import { FpsCounter } from "@/components/editor/map/FpsCounter";
 import { msg, t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
 import { Edit } from "@/store/edit";
+import { StreetView } from "@/lib/sv/streetView";
 
 const OPACITY_TARGET_ICONS: Record<OpacityLayer, string> = {
 	sv: mdiGoogleStreetView,
@@ -291,14 +290,13 @@ export function MapEmbed({
 			const zoom = host.getZoom();
 			void previews.replace(async (signal) => {
 				await delay(300, signal);
-				const [pano] = await panosAt(
-					[{ lat, lng }],
-					svSearchRadius(lat, zoom),
-					{ sources: [PanoType.Official] },
+				const [pano] = await StreetView.panosAt([{ lat, lng }], {
+					radius: StreetView.radiusAtZoom(lat, zoom),
+					sources: [PanoType.Official],
 					signal,
-				);
+				});
 				if (!pano) return null;
-				const res = await fetch(svThumbnailUrl(pano.id, pano.centerHeading), { signal });
+				const res = await fetch(StreetView.thumbnailUrl(pano.id, pano.centerHeading), { signal });
 				return res.ok ? URL.createObjectURL(await res.blob()) : null;
 			});
 		});

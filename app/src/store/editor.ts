@@ -91,6 +91,8 @@ export interface Draft {
 	save: (patch: DraftPatch) => Promise<number | null>;
 }
 
+let trail: [number, number][] = [];
+
 const lifetime = latest({ owner: () => state.open?.layer });
 const drafts = new WeakMap<Layer, Draft>();
 const inert: Draft = { edit: async () => null, save: async () => null };
@@ -205,6 +207,25 @@ export const Editor = {
 	get: (): Readonly<EditorState> => {
 		track("editor:changed");
 		return state;
+	},
+	/** The positions the viewer has walked through since the location opened, [lng, lat]. @unstable */
+	trail: {
+		get: (): [number, number][] => trail,
+		reset: (lng: number, lat: number) => {
+			trail = [[lng, lat]];
+			emitEvent("trail:changed");
+		},
+		push: (lng: number, lat: number) => {
+			const last = trail.at(-1);
+			if (last?.[0] === lng && last[1] === lat) return;
+			trail = [...trail, [lng, lat]];
+			emitEvent("trail:changed");
+		},
+		clear: () => {
+			if (trail.length === 0) return;
+			trail = [];
+			emitEvent("trail:changed");
+		},
 	},
 	/** Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`. */
 	use: <T>(selector: (s: EditorState) => T): T =>

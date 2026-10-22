@@ -80,8 +80,9 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 
-vi.mock("@/lib/sv/query", () => {
-	const svMetadata = (ids: string[], signal?: AbortSignal) => {
+vi.mock("@/lib/sv/streetView", async (original) => {
+	const { StreetView } = await original<typeof import("@/lib/sv/streetView")>();
+	const metadata = (ids: string[], signal?: AbortSignal) => {
 		h.fetched.push(...ids);
 		const answer = () => ids.map((id) => h.panos.get(id) ?? null);
 		return h.work ? h.work.park(answer, signal) : Promise.resolve(answer());
@@ -89,15 +90,13 @@ vi.mock("@/lib/sv/query", () => {
 	// The probe is scripted with pano ids; a location search now answers the pano itself.
 	const panosAt = (
 		points: { lat: number; lng: number }[],
-		radius: number,
-		_opts?: unknown,
-		signal?: AbortSignal,
+		{ radius, signal }: { radius: number; signal?: AbortSignal },
 	) => {
 		const ids = h.probe(points, radius);
 		const answer = () => ids.map((id) => (id ? (h.panos.get(id) ?? null) : null));
 		return h.work ? h.work.park(answer, signal) : Promise.resolve(answer());
 	};
-	return { svMetadata, panosAt };
+	return { StreetView: { ...StreetView, metadata, panosAt } };
 });
 
 import {
@@ -210,7 +209,7 @@ describe("passesDescriptionSearch", () => {
 	});
 });
 
-/** Official ids end in one of A/Q/g/w, which is what `isOfficialPano` tests. */
+/** Official ids end in one of A/Q/g/w, which is what `StreetView.isOfficial` tests. */
 const OFFICIAL_ID = `${"a".repeat(21)}A`;
 
 function pano(over: {

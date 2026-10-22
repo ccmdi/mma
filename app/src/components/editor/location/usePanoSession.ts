@@ -2,9 +2,7 @@ import { useEffect } from "react";
 import { getSettings } from "@/store/settings";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { sendHideCar } from "./PanoControls";
-import { resetTrail, pushTrail, clearTrail } from "@/lib/sv/svTrail";
 import { usePano } from "@/lib/hooks/usePano";
-import { applyViewportLock } from "@/lib/sv/viewportLock";
 import { Editor } from "@/store/editor";
 import { isPinned } from "@/types";
 import { t } from "@/lib/i18n";
@@ -29,14 +27,14 @@ export function usePanoSession() {
 			const position = pano.position();
 			if (!panoId || !position) return;
 			void edit({ panoId, ...position });
-			pushTrail(position.lng, position.lat);
+			Editor.trail.push(position.lng, position.lat);
 		});
-		const offLock = pano.on("pano_changed", () => void applyViewportLock(pano));
+		const offLock = pano.on("pano_changed", () => void pano.applyLock());
 
 		void loadOpenSV().then(async () => {
 			if (cancelled || !google?.maps) return;
 			sendHideCar(!getSettings().showCar);
-			resetTrail(location.lng, location.lat);
+			Editor.trail.reset(location.lng, location.lat);
 
 			const shown = await pano.show(location);
 			if (cancelled || shown.status === "cancelled") return;
@@ -49,7 +47,7 @@ export function usePanoSession() {
 
 		return () => {
 			cancelled = true;
-			clearTrail();
+			Editor.trail.clear();
 			offStatus();
 			offLock();
 		};

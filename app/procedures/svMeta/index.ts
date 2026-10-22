@@ -4,7 +4,7 @@ import type { Patch } from "@/types";
 
 import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, Pano } from "@/bindings.gen";
-import { SVMETA_FIELDS } from "@/lib/sv/constants";
+import { SVMETA_FIELDS } from "@/lib/sv/rules";
 
 /** How a pano becomes each field this provider produces. */
 const DERIVE: Record<(typeof SVMETA_FIELDS)[number], (p: Pano) => unknown> = {

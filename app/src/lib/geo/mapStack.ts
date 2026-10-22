@@ -15,7 +15,6 @@ import {
 	type MapStyle,
 } from "@/lib/geo/tiles";
 import { builtinStyle } from "@/lib/geo/mapStyles";
-import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
 import { createCompositeMapType, type TileLayer } from "@/lib/geo/stackedMapType";
 import { layerOpacity, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 
@@ -23,6 +22,9 @@ export interface CustomStyle {
 	name: string;
 	style: MapStyle[];
 }
+
+/** Map zoom at and below which the coverage layer draws blobs instead of lines. */
+export const BLOBBY_ZOOM_THRESHOLD = 13;
 
 export const CUSTOM_STYLES_KEY = "mma_custom_styles";
 

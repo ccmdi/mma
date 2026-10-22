@@ -28,7 +28,6 @@ vi.mock("@/lib/sv/opensvPatch", () => ({ patchOpenSV: () => {}, setPanoHovered: 
 import { Pano } from "@/lib/sv/pano";
 import { createLocation, dropLocation, type PanoCapture } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import { PANO_ZOOM } from "@/lib/sv/constants";
 
 const source = createLocation({
 	lat: 0,
@@ -58,7 +57,7 @@ describe("Pano.capture", () => {
 
 	it("returns zoom in the stored domain, so a fully-out view reads as unset", () => {
 		Pano.jump("live-pano");
-		liveZoom.value = PANO_ZOOM.min;
+		liveZoom.value = Pano.zoomScale.range.min;
 		expect(Pano.capture()?.zoom).toBe(0);
 		liveZoom.value = 2.5;
 	});

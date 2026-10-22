@@ -31,7 +31,6 @@ import {
 import { polygonLayerData } from "@/lib/render/polygonMeshes";
 import { CommitDiff } from "@/store/commitDiff";
 import { Import } from "@/store/import";
-import { getTrail } from "@/lib/sv/svTrail";
 import { Measure } from "@/lib/map/measure";
 import type { RGBA } from "@/lib/util/color";
 import { bearingDeg, unwrapRing } from "@/lib/geo/geo";
@@ -260,7 +259,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		}
 	}
 
-	const svTrail = getTrail();
+	const svTrail = Editor.trail.get();
 	if (ctx.svTrail && svTrail.length >= 2) {
 		const segments = trailSegments(svTrail);
 		layers.push(
@@ -300,7 +299,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	}
 
 	if (ctx.showPerfectScoreCircle && openLoc && cm.totalCount > 0) {
-		const trail = getTrail();
+		const trail = Editor.trail.get();
 		const last = trail.length ? trail[trail.length - 1] : null;
 		const center = last ? { lng: last[0], lat: last[1] } : { lat: openLoc.lat, lng: openLoc.lng };
 		layers.push(

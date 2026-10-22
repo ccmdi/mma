@@ -9,7 +9,6 @@ import type { ClickMode } from "@/store/mapEmbedPrefs";
 import { boundsOfCoords } from "@/lib/geo/geo";
 import { LOCATION_LAYER_ID } from "@/lib/render/buildSceneLayers";
 import { cmd } from "@/lib/commands";
-import { lookupStreetView } from "@/lib/sv/lookup";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
 import { MapHost } from "@/lib/map/mapHost";
@@ -21,6 +20,7 @@ import { openContextMenuLatLng, openContextMenuLocation } from "@/lib/map/contex
 import { trace } from "@/lib/util/debug";
 import { locId, createLocation } from "@/types";
 import type { MaybeLocation, Bounds } from "@/types";
+import { StreetView } from "@/lib/sv/streetView";
 
 export const isLocationLayer = (id?: string) =>
 	id?.startsWith(LOCATION_LAYER_ID) ||
@@ -107,7 +107,7 @@ export async function createLocationAtLatLng(
 
 	const tr = trace("add");
 	const ms = Store.get().map?.settings;
-	const loc = await lookupStreetView(lat, lng, zoom, {
+	const loc = await StreetView.lookup(lat, lng, zoom, {
 		preferOfficial: ms?.preferOfficial,
 		onlyOfficial: ms?.onlyOfficial,
 		pointAlongRoad: ms?.pointAlongRoad,

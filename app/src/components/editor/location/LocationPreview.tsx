@@ -37,7 +37,6 @@ import {
 	exitFullscreenMap,
 } from "./fullscreenModeState";
 import { FullscreenMiniLocationPreview } from "./FullscreenMiniLocationPreview";
-import { getViewportLockInfo } from "@/lib/sv/viewportLock";
 import { useEvent } from "@/lib/events";
 import { usePano } from "@/lib/hooks/usePano";
 import { PanoDatePicker } from "./PanoDatePicker";
@@ -179,7 +178,7 @@ export function LocationPreview() {
 	}, [isFullscreen, appSettings.showFullscreenTagbar, appSettings.showFullscreenDatePicker]);
 	const pano = usePano();
 	useEvent("viewport-lock:changed");
-	const lockInfo = getViewportLockInfo();
+	const lockInfo = pano.lockedView();
 
 	// A chosen date pins the draft to that pano; Default floats it on the pano Google resolves for the position.
 	const handleDateChange = useCallback(
@@ -310,10 +309,9 @@ export function LocationPreview() {
 						)}
 						{lockInfo && (
 							<div className="viewport-lock-badge">
-								{t("VIEWPORT LOCK")} h{" "}
-								<span className="mono">{lockInfo.relHeading.toFixed(1)}</span> p{" "}
-								<span className="mono">{lockInfo.relPitch.toFixed(1)}</span> z{" "}
-								<span className="mono">{lockInfo.lockedZoom.toFixed(1)}</span>
+								{t("VIEWPORT LOCK")} h <span className="mono">{lockInfo.heading.toFixed(1)}</span> p{" "}
+								<span className="mono">{lockInfo.pitch.toFixed(1)}</span> z{" "}
+								<span className="mono">{lockInfo.zoom.toFixed(1)}</span>
 							</div>
 						)}
 					</div>

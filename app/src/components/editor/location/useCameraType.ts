@@ -1,9 +1,8 @@
-import { isOfficialPano } from "@/lib/sv/panoId";
-import { svMetadata } from "@/lib/sv/query";
 import { PanoType } from "@/bindings.consts";
 import { useAsyncSticky } from "@/lib/hooks/useAsync";
 import type { CameraType } from "@/bindings.consts";
 import type { Pano } from "@/bindings.gen";
+import { StreetView } from "@/lib/sv/streetView";
 
 /** Camera type plus "unofficial", a display-only state that is never stored. */
 export type FullCameraType = CameraType | "unofficial";
@@ -20,8 +19,8 @@ export function useCameraType(panoId: string | null, known?: Pano | null): FullC
 	return useAsyncSticky<FullCameraType | null>(() => {
 		if (!panoId) return null;
 		// Immediate check: a non-official pano ID is unofficial regardless of metadata.
-		if (!isOfficialPano(panoId)) return "unofficial";
+		if (!StreetView.isOfficial(panoId)) return "unofficial";
 		if (answer) return cameraTypeOf(answer);
-		return svMetadata([panoId]).then(([data]) => data && cameraTypeOf(data));
+		return StreetView.metadata([panoId]).then(([data]) => data && cameraTypeOf(data));
 	}, [panoId, answer]).ok();
 }

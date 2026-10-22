@@ -200,7 +200,6 @@ import { MapHost } from "@/lib/map/mapHost";
 import { Maps } from "@/store/maps";
 import { Mutation } from "@/store/mutation";
 import { Pano } from "@/lib/sv/pano";
-import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { mapStorage, storage, usePluginState } from "@/plugins/pluginStorage";
 import { Procedure } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
@@ -214,7 +213,9 @@ import {
 	subdivisionProvider,
 	svMetaProvider,
 	timezoneProvider,
+	validateLocations,
 } from "@/lib/sv/providers";
+import { Query } from "@/store/query";
 import {
 	activatePlugin,
 	getPlugin,
@@ -298,8 +299,7 @@ import {
 } from "@/store/settings";
 import { sidecar } from "@/plugins/sidecar";
 import { Store } from "@/store/store";
-import { Query } from "@/store/query";
-import { panosAt, svMetadata } from "@/lib/sv/query";
+import { StreetView } from "@/lib/sv/streetView";
 import { Tag } from "@/store/tag";
 import {
 	addPendingTag,
@@ -343,7 +343,6 @@ import {
 	splitVersion,
 	toggleInSet,
 } from "@/lib/util/util";
-import { validateLocations } from "@/lib/sv/validate";
 import {
 	STANDARD_VALIDATION_CATEGORIES,
 	VALIDATION_CATEGORIES,
@@ -554,7 +553,6 @@ type MapHostApi = { MapHost: typeof MapHost };
 type MapsApi = { Maps: typeof Maps };
 type MutationApi = { Mutation: typeof Mutation };
 type PanoApi = { Pano: typeof Pano };
-type PinPanoApi = { bulkPinToPano: typeof bulkPinToPano };
 type PluginStorageApi = {
 	mapStorage: typeof mapStorage;
 	storage: typeof storage;
@@ -572,7 +570,9 @@ type ProvidersApi = {
 	subdivisionProvider: typeof subdivisionProvider;
 	svMetaProvider: typeof svMetaProvider;
 	timezoneProvider: typeof timezoneProvider;
+	validateLocations: typeof validateLocations;
 };
+type QueryApi = { Query: typeof Query };
 type RegistryApi = {
 	activatePlugin: typeof activatePlugin;
 	getPlugin: typeof getPlugin;
@@ -659,8 +659,7 @@ type SettingsApi = {
 };
 type SidecarApi = { sidecar: typeof sidecar };
 type StoreApi = { Store: typeof Store };
-type Store_QueryApi = { Query: typeof Query };
-type Sv_QueryApi = { panosAt: typeof panosAt; svMetadata: typeof svMetadata };
+type StreetViewApi = { StreetView: typeof StreetView };
 type TagApi = { Tag: typeof Tag };
 type TagsApi = {
 	addPendingTag: typeof addPendingTag;
@@ -704,7 +703,6 @@ type UtilApi = {
 	splitVersion: typeof splitVersion;
 	toggleInSet: typeof toggleInSet;
 };
-type ValidateApi = { validateLocations: typeof validateLocations };
 type ValidationCategoriesApi = {
 	STANDARD_VALIDATION_CATEGORIES: typeof STANDARD_VALIDATION_CATEGORIES;
 	VALIDATION_CATEGORIES: typeof VALIDATION_CATEGORIES;
@@ -736,11 +734,11 @@ export interface MMA
 		MapsApi,
 		MutationApi,
 		PanoApi,
-		PinPanoApi,
 		PluginStorageApi,
 		ProcedureApi,
 		ProviderApi,
 		ProvidersApi,
+		QueryApi,
 		RegistryApi,
 		ReviewApi,
 		SavedSelectionApi,
@@ -753,8 +751,7 @@ export interface MMA
 		SettingsApi,
 		SidecarApi,
 		StoreApi,
-		Store_QueryApi,
-		Sv_QueryApi,
+		StreetViewApi,
 		TagApi,
 		TagsApi,
 		TauriApi,
@@ -764,7 +761,6 @@ export interface MMA
 		UiApi,
 		UseJobApi,
 		UtilApi,
-		ValidateApi,
 		ValidationCategoriesApi {}
 
 export type { MMA as MMAApi };
@@ -962,7 +958,6 @@ const mma: MMA = {
 	Maps,
 	Mutation,
 	Pano,
-	bulkPinToPano,
 	mapStorage,
 	storage,
 	usePluginState,
@@ -977,6 +972,8 @@ const mma: MMA = {
 	subdivisionProvider,
 	svMetaProvider,
 	timezoneProvider,
+	validateLocations,
+	Query,
 	activatePlugin,
 	getPlugin,
 	getPlugins,
@@ -1053,9 +1050,7 @@ const mma: MMA = {
 	useSettings,
 	sidecar,
 	Store,
-	Query,
-	panosAt,
-	svMetadata,
+	StreetView,
 	Tag,
 	addPendingTag,
 	displayTagName,
@@ -1094,7 +1089,6 @@ const mma: MMA = {
 	shuffle,
 	splitVersion,
 	toggleInSet,
-	validateLocations,
 	STANDARD_VALIDATION_CATEGORIES,
 	VALIDATION_CATEGORIES,
 	validationCategory,

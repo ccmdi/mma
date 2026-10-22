@@ -211,7 +211,7 @@ describe("provider throughput", () => {
 						let succeeded: number;
 						let failed: number;
 						if (op === "pinPano") {
-							const o = await api.bulkPinToPano(everything, { force: true, onProgress });
+							const o = await api.StreetView.pin(everything, { force: true, onProgress });
 							succeeded = o.succeeded;
 							failed = o.failed.length;
 						} else if (op === "validate") {

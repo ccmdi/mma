@@ -20,9 +20,6 @@ import { fixtureRows, key, kindOf } from "./parityFixture";
  * introduced it.
  *
  *   MMA_E2E_SV_HIDDEN_CAPTURE=1 bash scripts/e2e.sh --mock test/e2e/procedure-parity.test.ts
- *
- * `bulkPanHeading` is absent because the app does not expose it outside its bulk
- * dialog; put it on the API and it joins this list for free.
  */
 
 const FIELDS = [

@@ -3746,6 +3746,13 @@ export interface Draft {
 declare const Editor: {
     /** Imperative snapshot of the editor state. */
     get: () => Readonly<EditorState>;
+    /** The positions the viewer has walked through since the location opened, [lng, lat]. @unstable */
+    trail: {
+        get: () => [number, number][];
+        reset: (lng: number, lat: number) => void;
+        push: (lng: number, lat: number) => void;
+        clear: () => void;
+    };
     /** Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`. */
     use: <T>(selector: (s: EditorState) => T) => T;
     /** Reread the current draft. Superseded reads and errors cannot update the next opening. @unstable */
@@ -5932,6 +5939,31 @@ declare function createPano(): {
     captureImage: (width: number, height: number) => HTMLCanvasElement | null;
     /** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. */
     reserveLook: () => (frame: PanoFrame) => boolean;
+    /** The view held relative to each pano's camera frame while the viewport is locked, or null. */
+    lockedView: () => (CameraFrame & {
+        zoom?: number;
+    } & {
+        zoom: number;
+    }) | null;
+    /** Turn the camera to the locked view on the current pano. */
+    applyLock: () => Promise<void>;
+    /** Lock the viewport to the current view, or release the lock. True when it is now locked. */
+    toggleLock: () => Promise<boolean>;
+    /** The viewer's zoom scale: stored against display zoom, and its steps. */
+    zoomScale: {
+        range: {
+            min: -3;
+            max: 4;
+        };
+        /** Stored -> live pano zoom: 0 (unset) renders fully zoomed out for the current viewport. */
+        display: (stored: number) => number;
+        /** Live -> stored pano zoom: the fully-out floor collapses to 0 (unset); partial zooms persist. */
+        stored: (display: number) => number;
+        /** One zoom step in: fully-out returns to 0, then the 0..4 grid. */
+        in: (z: number) => number;
+        /** One zoom step out: down the grid to 0, then fully out. */
+        out: (z: number) => number;
+    };
     /** Nudge heading and pitch by a delta, keeping pitch in range. */
     nudge: (dHeading: number, dPitch: number) => void;
     /** Animate the camera to a frame, replacing any turn in progress. */
@@ -6007,6 +6039,31 @@ declare const Pano: {
     captureImage: (width: number, height: number) => HTMLCanvasElement | null;
     /** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. @unstable */
     reserveLook: () => (frame: PanoFrame) => boolean;
+    /** The view held relative to each pano's camera frame while the viewport is locked, or null. @unstable */
+    lockedView: () => (CameraFrame & {
+        zoom?: number;
+    } & {
+        zoom: number;
+    }) | null;
+    /** Turn the camera to the locked view on the current pano. @unstable */
+    applyLock: () => Promise<void>;
+    /** Lock the viewport to the current view, or release the lock. True when it is now locked. @unstable */
+    toggleLock: () => Promise<boolean>;
+    /** The viewer's zoom scale: stored against display zoom, and its steps. @unstable */
+    zoomScale: {
+        range: {
+            min: -3;
+            max: 4;
+        };
+        /** Stored -> live pano zoom: 0 (unset) renders fully zoomed out for the current viewport. */
+        display: (stored: number) => number;
+        /** Live -> stored pano zoom: the fully-out floor collapses to 0 (unset); partial zooms persist. */
+        stored: (display: number) => number;
+        /** One zoom step in: fully-out returns to 0, then the 0..4 grid. */
+        in: (z: number) => number;
+        /** One zoom step out: down the grid to 0, then fully out. */
+        out: (z: number) => number;
+    };
     /** Nudge heading and pitch by a delta, keeping pitch in range. @unstable */
     nudge: (dHeading: number, dPitch: number) => void;
     /** Animate the camera to a frame, replacing any turn in progress. @unstable */
@@ -6040,23 +6097,6 @@ declare const Pano: {
     /** Release the viewer, its container and every listener; the instance is unusable afterwards. @unstable */
     dispose: () => void;
 };
-
-/** How a bulk pin settles each location's pano before pinning it. @unstable */
-export interface PinOpts extends BulkOpts {
-    /** Resolve pano ids first; off, only locations that already carry one are pinned. */
-    resolve?: boolean;
-    /** Move each resolved pano to this capture of its timeline. */
-    capture?: CapturePick | null;
-    /** Re-resolve already pinned locations too. */
-    force?: boolean;
-}
-/** What a bulk pin did: the locations newly pinned, the ones whose pano could not be
- *  resolved, and how many pano ids the resolve wrote. @unstable */
-export interface PinOutcome extends BatchOutcome {
-    resolved: number;
-}
-/** Pin every location in the selector to its pano id, resolving pano ids first when asked. @api @unstable */
-declare function bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>;
 
 /** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
  *  read. Fields not offered in the enrichment settings are always included. @api @unstable */
@@ -6099,6 +6139,21 @@ declare const BUILTIN_PROVIDERS: readonly Provider[];
 declare function enrich(selector: Selector, { resolve, ...opts }?: RunOpts & {
     resolve?: boolean;
 }): Promise<ProcedureOutcomes>;
+/** Configuration for Street View validation: the radius of the coordinate lookup. @unstable */
+export interface ValidateConfig {
+    radius: number;
+}
+/** What a validation run answered: the ids in each asked-for category that any location
+ *  fell into, keyed by category in table order, over the outcome every run reports. @unstable */
+export interface ValidationOutcome extends BatchOutcome {
+    categories: Map<string, number[]>;
+}
+/** Check that each location's Street View coverage still exists, grouping the locations
+ *  into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted). @api @unstable */
+declare function validateLocations(selector: Selector, opts?: BulkOpts & {
+    config?: Partial<ValidateConfig>;
+    categories?: readonly string[];
+}): Promise<ValidationOutcome>;
 
 /** The fields a plugin shows as itself, declared once by its manifest. */
 export type PluginIdentity = Pick<PluginManifest, "id" | "name" | "description" | "icon" | "comingSoon" | "experimental">;
@@ -6398,19 +6453,129 @@ declare function selectorForPick(choice: SelectorPick): Selector;
  *  exists, else all locations. @api @unstable */
 declare function useSelectorPick(initial?: SelectorPick): SelectorPickController;
 
+/** @unstable */
+declare function isOfficialPano(panoId: string): boolean;
+
+/** How a coordinate search runs: how far it reaches, which collections it searches, and
+ *  whether it picks the nearest or the best pano. `onPano` sees each point's answer the
+ *  moment its search resolves, ahead of the full array. @unstable */
 export interface SearchOpts {
+    radius?: number;
     sources?: PanoType[];
     preference?: RankingStrategy;
+    signal?: AbortSignal;
+    onPano?: (index: number, pano: Pano | null) => void;
 }
-/** Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
- *  not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
- *  Duplicates are deduped and large batches are split automatically. @api */
-declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(Pano | null)[]>;
-/** The nearest pano to each point, aligned to `points`, null where there is no coverage.
- *  `opts.sources` narrows which collections are searched and `opts.preference` picks
- *  nearest or best. `onPano` sees each point's answer the moment its search resolves,
- *  ahead of the full array. @api */
-declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal, onPano?: (index: number, pano: Pano | null) => void): Promise<(Pano | null)[]>;
+/** How a bulk pin settles each location's pano before pinning it. @unstable */
+export interface PinOpts extends BulkOpts {
+    /** Resolve pano ids first; off, only locations that already carry one are pinned. */
+    resolve?: boolean;
+    /** Move each resolved pano to this capture of its timeline. */
+    capture?: CapturePick | null;
+    /** Re-resolve already pinned locations too. */
+    force?: boolean;
+}
+/** What a bulk pin did: the locations newly pinned, the ones whose pano could not be
+ *  resolved, and how many pano ids the resolve wrote. @unstable */
+export interface PinOutcome extends BatchOutcome {
+    resolved: number;
+}
+/** View a Google Maps link should open at. @unstable */
+export type MapsPanoView = PanoView & Pick<Location, "lat" | "lng">;
+/** @unstable */
+export type PanoRenderMode = "equirectangular" | "perspective" | "thumbnail" | "tile";
+/** @unstable */
+export interface PanoDownloadConfig {
+    mode: PanoRenderMode;
+    zoom: number;
+    tileX: number;
+    tileY: number;
+}
+/** @unstable */
+export interface BulkDownloadResult extends BatchOutcome {
+    /** Temp file (single image or ZIP) ready for the export save dialog; null when nothing downloaded. */
+    output: {
+        path: string;
+        name: string;
+    } | null;
+}
+/** Google Street View: coverage lookups and pano metadata, search radii, pinning locations to
+ *  their panos and turning them along the road, links into Google Maps, and panorama
+ *  downloads. @api @unstable */
+declare const StreetView: {
+    /** Metres a coordinate search reaches by default. @unstable */
+    searchRadius: number;
+    /** Metres the viewer searches for official coverage when a pano's own timeline holds none. @unstable */
+    officialFallbackRadius: number;
+    /** Metres a jump to a typed-in coordinate searches. @unstable */
+    jumpRadius: number;
+    /** Whether a pano id names official Google coverage. @unstable */
+    isOfficial: typeof isOfficialPano;
+    /** A pano's stack merged with another's, for the all-unofficial case where the multi-year
+     *  history lives on official coverage nearby. Entries are keyed by pano id and later
+     *  sources win, so pass the pano itself last. Ascending by date, as every timeline is. @unstable */
+    mergeTimelines: (sources: (Pano | null)[]) => Pano["time"];
+    /** True when nothing in the timeline is official coverage, an empty stack included, so
+     *  the multi-year history lives on official coverage nearby rather than on these panos. @unstable */
+    allUnofficial: (time: Pano["time"]) => boolean;
+    /** Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
+     *  not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
+     *  Duplicates are deduped and large batches are split automatically. @unstable */
+    metadata: (panoIds: string[], signal?: AbortSignal) => Promise<(Pano | null)[]>;
+    /** The nearest pano to each point, aligned to `points`, null where there is no coverage. @unstable */
+    panosAt: (points: LatLng[], { radius, signal, onPano, ...search }?: SearchOpts) => Promise<(Pano | null)[]>;
+    /** The pano a location should display: the one it is pinned to when that still resolves,
+     *  otherwise whatever sits at its coordinates. @unstable */
+    resolve: (loc: Location) => Promise<Pano | null>;
+    /** Metres of map a search covers at `zoom` and latitude `lat`. @unstable */
+    radiusAtZoom: (lat: number, zoom: number) => number;
+    /** The radius (m) a map click searches for coverage: the zoom/lat extent, floored by
+     *  `minRadius` (the per-map searchRadius) or the default search radius. @unstable */
+    clickRadius: (lat: number, zoom: number, minRadius?: number) => number;
+    /** The heading a new location starts at, from the pano's road links and a direction preference. @unstable */
+    initialHeading: (data: Pano, opts?: {
+        pointAlongRoad?: boolean;
+        preferDirection?: string | null;
+    }) => number;
+    /** The location a map click lands on: the best panorama near the click, its heading, and
+     *  whether it must be pinned because it is not the default coverage there. @unstable */
+    lookup: (lat: number, lng: number, zoom: number, opts: {
+        preferOfficial?: boolean;
+        onlyOfficial?: boolean;
+        pointAlongRoad?: boolean;
+        preferDirection?: string | null;
+        defaultPanoId?: boolean;
+        preferHigherQuality?: boolean;
+        radius?: number;
+        minRadius?: number;
+    }) => Promise<Location | null>;
+    /** Walk linked panoramas from a starting pano in the given heading direction, returning
+     *  the locations along the road, up to `maxSteps`. @unstable */
+    follow: (startPanoId: string, heading: number, maxSteps?: number) => Promise<Location[]>;
+    /** A small preview image of a pano facing `heading`. @unstable */
+    thumbnailUrl: (panoId: string, heading: number, width?: number, height?: number) => string;
+    /** Pin every location in the selector to its pano id, resolving pano ids first when asked. @unstable */
+    pin: (selector: Selector, opts?: PinOpts) => Promise<PinOutcome>;
+    /** Pan every heading in the selector along the road. @unstable */
+    panHeading: (selector: Selector, direction: RoadDirection, opts?: BulkOpts) => Promise<BatchOutcome>;
+    /** A google.com/maps Street View link aimed at `view`. Official panos embed a thumbnail
+     *  (`!6s`) so the link unfurls with a preview; unofficial ones have none to point at. @unstable */
+    mapsUrl: (view: MapsPanoView) => URL;
+    /** Carry a location's tags (and its lat/lng load mode) on a Maps link, so importing it back
+     *  reconstructs them. @unstable */
+    appendLinkTags: (url: URL, loc: Location, tagsById: Record<number, Tag>) => void;
+    /** Copy a Maps link to the clipboard, shortened unless `long`. @unstable */
+    copyLink: (url: URL, { long }?: {
+        long?: boolean;
+    }) => Promise<void>;
+    /** A Maps link shortened through Google's own shortener, or the link unchanged when that fails. @unstable */
+    shortenLink: (longUrl: string) => Promise<string>;
+    /** Download the full panorama as a single stitched JPEG. Toasts on success/failure. @unstable */
+    download: (panoId: string, zoom?: number) => Promise<void>;
+    /** Download panoramas for `locations`, uploading each image into a session dir (via
+     *  mma-buf POST) that is packaged into a single file or Stored ZIP. @unstable */
+    downloadAll: (locations: Location[], config: PanoDownloadConfig, opts?: BulkOpts) => Promise<BulkDownloadResult>;
+};
 
 /** Sort tags by the chosen mode: name, location count, or manual order. @api */
 declare function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[];
@@ -7064,22 +7229,6 @@ declare function phaseRate(prev: PhaseRate | null, done: number, total: number, 
     rate: number | null;
 };
 
-/** Configuration for Street View validation: the radius of the coordinate lookup. @unstable */
-export interface ValidateConfig {
-    radius: number;
-}
-/** What a validation run answered: the ids in each asked-for category that any location
- *  fell into, keyed by category in table order, over the outcome every run reports. @unstable */
-export interface ValidationOutcome extends BatchOutcome {
-    categories: Map<string, number[]>;
-}
-/** Check that each location's Street View coverage still exists, grouping the locations
- *  into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted). @api @unstable */
-declare function validateLocations(selector: Selector, opts?: BulkOpts & {
-    config?: Partial<ValidateConfig>;
-    categories?: readonly string[];
-}): Promise<ValidationOutcome>;
-
 /** What validation answers for one location: its `ValidationFlag`s, and whether it was
  *  pinned when checked. @unstable */
 export interface ValidationAnswer {
@@ -7447,10 +7596,6 @@ export type PanoApi = {
     /** @unstable */
     Pano: typeof Pano;
 };
-export type PinPanoApi = {
-    /** @unstable */
-    bulkPinToPano: typeof bulkPinToPano;
-};
 export type PluginStorageApi = {
     mapStorage: typeof mapStorage;
     storage: typeof storage;
@@ -7481,6 +7626,11 @@ export type ProvidersApi = {
     svMetaProvider: typeof svMetaProvider;
     /** @unstable */
     timezoneProvider: typeof timezoneProvider;
+    /** @unstable */
+    validateLocations: typeof validateLocations;
+};
+export type QueryApi = {
+    Query: typeof Query;
 };
 export type RegistryApi = {
     /** @unstable */
@@ -7651,12 +7801,9 @@ export type SidecarApi = {
 export type StoreApi = {
     Store: typeof Store;
 };
-export type Store_QueryApi = {
-    Query: typeof Query;
-};
-export type Sv_QueryApi = {
-    panosAt: typeof panosAt;
-    svMetadata: typeof svMetadata;
+export type StreetViewApi = {
+    /** @unstable */
+    StreetView: typeof StreetView;
 };
 export type TagApi = {
     Tag: typeof Tag;
@@ -7736,10 +7883,6 @@ export type UtilApi = {
     /** @unstable */
     toggleInSet: typeof toggleInSet;
 };
-export type ValidateApi = {
-    /** @unstable */
-    validateLocations: typeof validateLocations;
-};
 export type ValidationCategoriesApi = {
     /** @unstable */
     STANDARD_VALIDATION_CATEGORIES: typeof STANDARD_VALIDATION_CATEGORIES;
@@ -7749,7 +7892,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapHostApi, MapsApi, MutationApi, PanoApi, PinPanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, Store_QueryApi, Sv_QueryApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidateApi, ValidationCategoriesApi {
+interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapHostApi, MapsApi, MutationApi, PanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, QueryApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, StreetViewApi, TagApi, TagsApi, TauriApi, TestSurfaceApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidationCategoriesApi {
 }
 
 declare global {

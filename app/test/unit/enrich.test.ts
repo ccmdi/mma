@@ -19,7 +19,12 @@ vi.mock("@/store/store", () => ({
 	},
 }));
 
-vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+		metadata: async () => [],
+	},
+}));
 vi.mock("@/lib/data/provider", async (original) => {
 	const { Provider } = await original<typeof import("@/lib/data/provider")>();
 	return {

@@ -7,17 +7,16 @@ import { getContextMenuTarget } from "@/lib/map/contextMenu";
 import { selectBorderAt } from "@/lib/map/useCountrySelect";
 import { polygonsAt, deletePolygonsAt } from "@/lib/map/useDeletePolygon";
 import { openDialog } from "@/store/dialogBus";
-import { mapsPanoUrl, appendLinkTags, copyMapsLink } from "@/lib/sv/mapsLink";
-import { downloadPano } from "@/lib/sv/panoDownload";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { t } from "@/lib/i18n";
 import { MenuPopup, MenuItem, MenuSeparator } from "@/components/primitives/Menu";
+import { StreetView } from "@/lib/sv/streetView";
 
 /** Copy a google.com/maps link aimed at the location's saved camera. Shortened when the
  *  service answers, long URL otherwise -- both open the same view. */
 async function copyLocationLink(loc: Location) {
-	const url = mapsPanoUrl({
+	const url = StreetView.mapsUrl({
 		lat: loc.lat,
 		lng: loc.lng,
 		heading: loc.heading,
@@ -25,8 +24,8 @@ async function copyLocationLink(loc: Location) {
 		zoom: loc.zoom,
 		panoId: loc.panoId ?? "",
 	});
-	appendLinkTags(url, loc, Tag.all());
-	await copyMapsLink(url);
+	StreetView.appendLinkTags(url, loc, Tag.all());
+	await StreetView.copyLink(url);
 	toast(t("Link copied"), 1500);
 }
 
@@ -69,7 +68,9 @@ function MapContextMenuItems() {
 						disabled={!location.panoId}
 						onClick={() => {
 							if (location.panoId)
-								downloadPano(location.panoId).catch((e) => log.error("[download] failed:", e));
+								StreetView.download(location.panoId).catch((e) =>
+									log.error("[download] failed:", e),
+								);
 						}}
 					>
 						{t("Download panorama")}

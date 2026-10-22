@@ -36,23 +36,14 @@ import {
 import { cmd } from "@/lib/commands";
 import { useMapSetting } from "@/store/useMapSetting";
 import { CapturePick } from "@/bindings.consts";
-import { validateLocations } from "@/lib/sv/validate";
 import {
 	STANDARD_VALIDATION_CATEGORIES,
 	VALIDATION_CATEGORIES,
 } from "@/lib/sv/validationCategories";
-import { enrich } from "@/lib/sv/providers";
+import { enrich, validateLocations, type RoadDirection } from "@/lib/sv/providers";
 import type { ProcedureOutcomes } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
 import { enabledEnrichKeys, getEnrichFieldOptions } from "@/lib/data/fieldDefs";
-import { bulkPinToPano } from "@/lib/sv/pinPano";
-import { bulkPanHeading } from "@/lib/sv/providers";
-import type { RoadDirection } from "@/lib/sv/providers";
-import {
-	bulkDownloadPanoramas,
-	type BulkDownloadResult,
-	type PanoRenderMode,
-} from "@/lib/sv/panoDownload";
 import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
 import { errText, exprErrorText, fmt } from "@/lib/util/format";
@@ -64,6 +55,7 @@ import { registerJob, type JobHandle } from "@/lib/jobs";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { openDialog } from "@/store/dialogBus";
 import { t, msg } from "@/lib/i18n";
+import { StreetView, type BulkDownloadResult, type PanoRenderMode } from "@/lib/sv/streetView";
 
 const TITLES = {
 	validate: msg("Validate locations"),
@@ -363,7 +355,7 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 					disabled: nothingToDo,
 					onClick: () =>
 						onReady(async ({ selector, signal, onProgress }) => {
-							const outcome = await bulkPinToPano(selector, {
+							const outcome = await StreetView.pin(selector, {
 								signal,
 								onProgress,
 								resolve,
@@ -628,7 +620,10 @@ function HeadingRoadSetup({ picker, onReady }: SetupProps) {
 					label: t("Start"),
 					onClick: () =>
 						onReady(async ({ selector, signal, onProgress }) => {
-							const outcome = await bulkPanHeading(selector, direction, { signal, onProgress });
+							const outcome = await StreetView.panHeading(selector, direction, {
+								signal,
+								onProgress,
+							});
 							return {
 								outcome,
 								doneMessage: t(
@@ -720,7 +715,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 						const config = { mode, zoom, tileX, tileY };
 						onReady(async ({ selector, signal, onProgress }) => {
 							const locations = await Query.read(selector, { kind: "locations" });
-							const result = await bulkDownloadPanoramas(locations, config, {
+							const result = await StreetView.downloadAll(locations, config, {
 								signal,
 								onProgress,
 							});

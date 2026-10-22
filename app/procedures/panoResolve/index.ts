@@ -6,11 +6,10 @@ import type { Patch } from "@/types";
 
 import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
-import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { pickCapture } from "@/lib/sv/panoId";
 import type { Pano } from "@/bindings.gen";
 import type { PanoType, RankingStrategy } from "@/bindings.consts";
 import type { PanoResolveConfig } from "@/lib/sv/providers";
+import { SV_SEARCH_RADIUS, pickCapture } from "@/lib/sv/rules";
 
 export function run(
 	rows: Location[],

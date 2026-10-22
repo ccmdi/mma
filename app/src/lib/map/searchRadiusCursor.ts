@@ -7,9 +7,9 @@
 // live mid-zoom instead of waiting for the next mousemove.
 import { ScatterplotLayer } from "@deck.gl/layers";
 import { Store } from "@/store/store";
-import { clickSearchRadius } from "@/lib/sv/lookup";
 import { MapHost } from "@/lib/map/mapHost";
 import type { LatLng } from "@/types";
+import { StreetView } from "@/lib/sv/streetView";
 
 const LAYER_ID = "mma-search-radius-cursor";
 
@@ -28,7 +28,7 @@ export function mountSearchRadiusCursor(): () => void {
 		if (!latLng) return;
 		const zoom = host.getZoom();
 		const minRadius = Store.get().map?.settings.searchRadius ?? undefined;
-		const radius = clickSearchRadius(latLng.lat, zoom, minRadius);
+		const radius = StreetView.clickRadius(latLng.lat, zoom, minRadius);
 		overlay.setProps({
 			layers: [
 				new ScatterplotLayer<LatLng>({

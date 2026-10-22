@@ -2,7 +2,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Pano } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
-import { PANO_ZOOM } from "@/lib/sv/constants";
 import { createLocation } from "@/types";
 import { Cancelled, Ok } from "@/types/util";
 
@@ -57,9 +56,8 @@ const sv = vi.hoisted(() => {
 	return { FakePano, instances: [] as InstanceType<typeof FakePano>[] };
 });
 const lookup = vi.hoisted(() => ({
-	resolvePano: vi.fn(),
-	lookupStreetView: vi.fn(),
-	nearestLinkHeading: vi.fn(),
+	resolve: vi.fn(),
+	lookup: vi.fn(),
 }));
 
 vi.mock("@/lib/sv/opensv", () => ({
@@ -75,7 +73,12 @@ vi.mock("@/lib/sv/opensv", () => ({
 	},
 }));
 vi.mock("@/lib/sv/opensvPatch", () => ({ patchOpenSV: () => {}, setPanoHovered: () => {} }));
-vi.mock("@/lib/sv/lookup", () => lookup);
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+		...lookup,
+	},
+}));
 const gpu = vi.hoisted(() => ({ releaseWebglContexts: vi.fn() }));
 vi.mock("@/lib/render/webglContexts", () => gpu);
 
@@ -135,7 +138,7 @@ const live = () => sv.instances[sv.instances.length - 1];
 
 beforeEach(() => {
 	sv.instances.length = 0;
-	lookup.resolvePano.mockReset();
+	lookup.resolve.mockReset();
 	vi.stubGlobal(
 		"ResizeObserver",
 		class {
@@ -149,7 +152,7 @@ describe("showing a pano", () => {
 	it("never moves the pano for a show that a newer show overtook", async () => {
 		const { pano } = await freshPano();
 		const slow = deferred<Pano | null>();
-		lookup.resolvePano.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(resolved("B"));
+		lookup.resolve.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(resolved("B"));
 		const first = pano.show(loc("A"));
 		const second = pano.show(loc("B"));
 		await expect(second).resolves.toEqual(new Ok("B"));
@@ -160,7 +163,7 @@ describe("showing a pano", () => {
 
 	it("keeps the pano hidden until the requested pano is ready", async () => {
 		const { pano, surface } = await freshPano();
-		lookup.resolvePano.mockResolvedValueOnce(resolved("A"));
+		lookup.resolve.mockResolvedValueOnce(resolved("A"));
 		await pano.show(loc("A"), { concealUntilReady: true });
 		expect(surface.style.opacity).toBe("0");
 		live().emit("status_changed");
@@ -169,46 +172,46 @@ describe("showing a pano", () => {
 
 	it("reveals at once, from the cache, when the pano is already on screen", async () => {
 		const { pano, surface } = await freshPano();
-		lookup.resolvePano.mockResolvedValueOnce(resolved("A"));
+		lookup.resolve.mockResolvedValueOnce(resolved("A"));
 		await pano.show(loc("A"), { concealUntilReady: true });
 		live().emit("status_changed");
 		surface.style.transition = "";
 		await pano.show(loc("A"), { concealUntilReady: true });
 		expect(surface.style.opacity).toBe("1");
 		expect(surface.style.transition).toContain("opacity");
-		expect(lookup.resolvePano).toHaveBeenCalledTimes(1);
+		expect(lookup.resolve).toHaveBeenCalledTimes(1);
 	});
 
 	it("resolves again after a lookup that found nothing", async () => {
 		const { pano } = await freshPano();
-		lookup.resolvePano.mockResolvedValueOnce(null).mockResolvedValueOnce(resolved("A"));
+		lookup.resolve.mockResolvedValueOnce(null).mockResolvedValueOnce(resolved("A"));
 		await pano.show(loc("A"));
 		await expect(pano.show(loc("A"))).resolves.toEqual(new Ok("A"));
-		expect(lookup.resolvePano).toHaveBeenCalledTimes(2);
+		expect(lookup.resolve).toHaveBeenCalledTimes(2);
 	});
 
 	it("keeps a pinned pano on screen when its lookup fails", async () => {
 		const { pano } = await freshPano();
-		lookup.resolvePano.mockRejectedValueOnce(new Error("offline"));
+		lookup.resolve.mockRejectedValueOnce(new Error("offline"));
 		await expect(pano.show(loc("A"))).resolves.toEqual(new Ok("A"));
 		expect(live().setPano.mock.calls).toEqual([["A"]]);
 	});
 
 	it("fails the show when an unpinned location's lookup fails", async () => {
 		const { pano } = await freshPano();
-		lookup.resolvePano.mockRejectedValueOnce(new Error("offline"));
+		lookup.resolve.mockRejectedValueOnce(new Error("offline"));
 		await expect(pano.show(createLocation({ lat: 1, lng: 2 }))).rejects.toThrow("offline");
 	});
 
 	it("sends the viewer to the coordinates when nothing resolves", async () => {
 		const { pano } = await freshPano();
-		lookup.resolvePano.mockResolvedValueOnce(null);
+		lookup.resolve.mockResolvedValueOnce(null);
 		await expect(pano.show(loc("A"))).resolves.toEqual(new Ok(null));
 	});
 
 	it("swaps without hiding or fading unless asked to conceal", async () => {
 		const { pano, surface } = await freshPano();
-		lookup.resolvePano.mockResolvedValueOnce(resolved("A")).mockResolvedValueOnce(resolved("B"));
+		lookup.resolve.mockResolvedValueOnce(resolved("A")).mockResolvedValueOnce(resolved("B"));
 		await pano.show(loc("A"));
 		await pano.show(loc("B"));
 		pano.jump("C");
@@ -221,7 +224,7 @@ describe("jumping", () => {
 	it("overtakes a show that is still resolving", async () => {
 		const { pano } = await freshPano();
 		const pending = deferred<Pano | null>();
-		lookup.resolvePano.mockReturnValueOnce(pending.promise);
+		lookup.resolve.mockReturnValueOnce(pending.promise);
 		const shown = pano.show(loc("A"));
 		pano.jump("JUMP");
 		pending.resolve(resolved("A"));
@@ -241,7 +244,7 @@ describe("preloading", () => {
 	it("never lands over a show that started after it", async () => {
 		const { pano } = await freshPano();
 		const warm = deferred<Pano | null>();
-		lookup.resolvePano.mockReturnValueOnce(warm.promise).mockResolvedValueOnce(resolved("CURRENT"));
+		lookup.resolve.mockReturnValueOnce(warm.promise).mockResolvedValueOnce(resolved("CURRENT"));
 		const warming = pano.preload(loc("NEXT"));
 		await pano.show(loc("CURRENT"));
 		warm.resolve(resolved("NEXT"));
@@ -251,7 +254,7 @@ describe("preloading", () => {
 
 	it("waits out a show whose pano is not ready yet", async () => {
 		const { pano } = await freshPano();
-		lookup.resolvePano
+		lookup.resolve
 			.mockResolvedValueOnce(resolved("CURRENT"))
 			.mockResolvedValueOnce(resolved("NEXT"));
 		await pano.show(loc("CURRENT"), { concealUntilReady: true });
@@ -300,13 +303,13 @@ describe("pointing north", () => {
 		const pano = await settledPano({ heading: 90, pitch: 25 });
 		pano.pointNorth();
 		expect(live().povState).toEqual({ heading: 0, pitch: 25 });
-		expect(live().setZoom).not.toHaveBeenCalledWith(PANO_ZOOM.min);
+		expect(live().setZoom).not.toHaveBeenCalledWith(pano.zoomScale.range.min);
 	});
 
 	it("looks straight down zoomed out within two degrees of north at any pitch", async () => {
 		const pano = await settledPano({ heading: 1.5, pitch: 30 });
 		pano.pointNorth();
-		expect(live().zoomValue).toBe(PANO_ZOOM.min);
+		expect(live().zoomValue).toBe(pano.zoomScale.range.min);
 		expect(live().povState).toEqual({ heading: 0, pitch: -90 });
 	});
 });

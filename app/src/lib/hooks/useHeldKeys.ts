@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { parseHotkey, matchesKey, eventKey, isEditableElement } from "@/lib/hooks/useHotkey";
 import { getBinding, type HotkeyAction } from "@/lib/util/hotkeys";
-import { FRAME_MS } from "@/lib/sv/constants";
+
+const FRAME_MS = 16.667;
 
 interface HeldKeyHandlers<A extends HotkeyAction> {
 	/** One animation frame while any key is held. `dt` is in frames; returning false stops the loop. */

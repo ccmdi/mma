@@ -12,12 +12,15 @@ vi.mock("@/lib/map/useDeletePolygon", () => ({
 	deletePolygonsAt: vi.fn(),
 }));
 vi.mock("@/store/dialogBus", () => ({ openDialog: vi.fn() }));
-vi.mock("@/lib/sv/mapsLink", () => ({
-	mapsPanoUrl: vi.fn(),
-	appendLinkTags: vi.fn(),
-	copyMapsLink: vi.fn(),
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+		mapsUrl: vi.fn(),
+		appendLinkTags: vi.fn(),
+		copyLink: vi.fn(),
+		download: vi.fn(),
+	},
 }));
-vi.mock("@/lib/sv/panoDownload", () => ({ downloadPano: vi.fn() }));
 vi.mock("@/lib/util/toast", () => ({ toast: vi.fn() }));
 vi.mock("@/lib/util/log", () => ({ log: { error: vi.fn() } }));
 vi.mock("@/lib/i18n", () => ({ t: (s: string) => s, msg: (s: string) => s }));

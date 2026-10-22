@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Location } from "@/bindings.gen";
 import type { Selector } from "@/types";
 import type { ProcedureSpec } from "@/lib/data/procedure";
-import type { PanoDownloadConfig } from "@/lib/sv/panoDownload";
 
 // A download resolves missing pano ids through the engine and keeps the answers to
 // itself: the user's locations are never moved onto the panorama it happened to find.
@@ -40,13 +39,16 @@ vi.mock("@/lib/commands", () => ({
 
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 vi.mock("@/lib/i18n", () => ({ t: (s: string) => s, msg: (s: string) => s }));
-vi.mock("@/lib/sv/query", () => ({
-	svMetadata: async (ids: string[]) => ids.map(() => null),
-	cameraTypeFromHeight: () => null,
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+
+		metadata: async (ids: string[]) => ids.map(() => null),
+	},
 }));
 
-import { bulkDownloadPanoramas } from "@/lib/sv/panoDownload";
 import { panoResolveProvider } from "@/lib/sv/providers";
+import { StreetView, type PanoDownloadConfig } from "@/lib/sv/streetView";
 
 function loc(id: number, panoId: string | null = null): Location {
 	return {
@@ -86,7 +88,7 @@ const thumbnail: PanoDownloadConfig = { mode: "thumbnail", zoom: 0, tileX: 0, ti
 describe("bulk pano download resolves through the engine", () => {
 	it("asks panoResolve for the rows with no pano, collecting the answers", async () => {
 		h.answers = [{ id: 2, value: { panoId: "RESOLVED_PANO" } }];
-		await bulkDownloadPanoramas([loc(1, "HAS_PANO"), loc(2)], thumbnail);
+		await StreetView.downloadAll([loc(1, "HAS_PANO"), loc(2)], thumbnail);
 
 		expect(h.runs).toHaveLength(1);
 		const [{ spec, selector, opts }] = h.runs;
@@ -98,7 +100,7 @@ describe("bulk pano download resolves through the engine", () => {
 
 	it("downloads the pano the engine answered with", async () => {
 		h.answers = [{ id: 2, value: { panoId: "RESOLVED_PANO" } }];
-		const result = await bulkDownloadPanoramas([loc(2)], thumbnail);
+		const result = await StreetView.downloadAll([loc(2)], thumbnail);
 
 		expect(h.uploaded).toEqual(["RESOLVED_PANO.png"]);
 		expect(result.succeeded).toBe(1);
@@ -107,14 +109,14 @@ describe("bulk pano download resolves through the engine", () => {
 
 	it("fails the rows the engine had no answer for", async () => {
 		h.answers = [{ id: 2, value: { panoId: "RESOLVED_PANO" } }];
-		const result = await bulkDownloadPanoramas([loc(2), loc(3)], thumbnail);
+		const result = await StreetView.downloadAll([loc(2), loc(3)], thumbnail);
 
 		expect(result.failed).toEqual([3]);
 		expect(result.succeeded).toBe(1);
 	});
 
 	it("runs nothing when every row already has a pano", async () => {
-		const result = await bulkDownloadPanoramas([loc(1, "HAS_PANO")], thumbnail);
+		const result = await StreetView.downloadAll([loc(1, "HAS_PANO")], thumbnail);
 
 		expect(h.runs).toEqual([]);
 		expect(h.uploaded).toEqual(["HAS_PANO.png"]);
@@ -123,7 +125,7 @@ describe("bulk pano download resolves through the engine", () => {
 
 	it("ignores an answer that names no pano", async () => {
 		h.answers = [{ id: 2, value: { panoId: "" } }];
-		const result = await bulkDownloadPanoramas([loc(2)], thumbnail);
+		const result = await StreetView.downloadAll([loc(2)], thumbnail);
 
 		expect(h.uploaded).toEqual([]);
 		expect(result.failed).toEqual([2]);

@@ -1,5 +1,21 @@
 import type { Pano } from "@/bindings.gen";
-import { CapturePick, OFFICIAL_ID_PATTERN } from "@/bindings.consts";
+import { CapturePick, OFFICIAL_ID_PATTERN, type KNOWN_FIELDS } from "@/bindings.consts";
+
+export const SV_SEARCH_RADIUS = 50;
+
+/** The `extra` fields the svMeta provider produces. Keys of the Rust field table, so
+ *  the filter, the enrichment picker and the provider's derivation agree by
+ *  construction. */
+export const SVMETA_FIELDS = [
+	"altitude",
+	"countryCode",
+	"cameraType",
+	"panoType",
+	"drivingDirection",
+	"uploaderName",
+	"imageDate",
+	"coverageDates",
+] as const satisfies readonly (typeof KNOWN_FIELDS)[number]["key"][];
 
 const OFFICIAL_PANO_RE = new RegExp(OFFICIAL_ID_PATTERN);
 
@@ -32,19 +48,4 @@ export function isUnofficial(p: Pano): boolean {
 	if (!p.id) return false;
 	if (p.id.length > 22) return true;
 	return /photo by|user[- ]uploaded/i.test(`${p.shortDescription} ${p.copyright}`);
-}
-
-/** A pano's stack merged with another's, for the all-unofficial case where the multi-year
- *  history lives on official coverage nearby. Entries are keyed by pano id and later
- *  sources win, so pass the pano itself last. Ascending by date, as every timeline is. */
-export function mergeTimelines(sources: (Pano | null)[]): Pano["time"] {
-	const merged = new Map<string, Pano["time"][number]>();
-	for (const p of sources) for (const t of p?.time ?? []) merged.set(t.panoId, t);
-	return [...merged.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-}
-
-/** True when nothing in the timeline is official coverage, an empty stack included, so
- *  the multi-year history lives on official coverage nearby rather than on these panos. */
-export function allUnofficial(time: Pano["time"]): boolean {
-	return time.every((t) => !isOfficialPano(t.panoId));
 }

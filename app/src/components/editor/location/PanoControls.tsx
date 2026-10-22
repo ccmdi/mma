@@ -3,8 +3,6 @@ import { memo, useEffect, useRef, useState, useCallback } from "react";
 import { Tag } from "@/store/tag";
 import { isPinned } from "@/types";
 import { useFlashState, type FlashState } from "@/lib/hooks/useFlashState";
-import { PANO_ZOOM, SV_JUMP_RADIUS, displayZoom } from "@/lib/sv/constants";
-import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
 import { fileTimestamp, formatDistance } from "@/lib/util/format";
 import { useSettings } from "@/store/settings";
 import { usePanoViewer } from "./PanoViewerContext";
@@ -13,8 +11,9 @@ import { useBinding } from "@/lib/util/hotkeys";
 import { useHotkeyRef } from "@/lib/hooks/useHotkey";
 import { usePano, usePanoEvent } from "@/lib/hooks/usePano";
 import { open } from "@tauri-apps/plugin-shell";
-import { renderPanoView, canvasToBlob } from "@/lib/sv/panoCapture";
+import { renderPanoView } from "@/lib/sv/panoCapture";
 import { downloadBlob, copyImageToClipboard } from "@/lib/util/util";
+import { canvasToBlob } from "@/lib/util/image";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { Tooltip } from "@/components/primitives/Tooltip";
@@ -37,6 +36,7 @@ import {
 } from "@mdi/js";
 import { t } from "@/lib/i18n";
 import { Editor } from "@/store/editor";
+import { StreetView } from "@/lib/sv/streetView";
 
 // --- Compass ---
 
@@ -189,9 +189,9 @@ function CompassControl() {
 
 function ZoomControl() {
 	const pano = usePano();
-	const [atMin, setAtMin] = useState(() => pano.zoom() <= PANO_ZOOM.min);
+	const [atMin, setAtMin] = useState(() => pano.zoom() <= pano.zoomScale.range.min);
 	usePanoEvent("zoom_changed", () => {
-		setAtMin(pano.zoom() <= PANO_ZOOM.min);
+		setAtMin(pano.zoom() <= pano.zoomScale.range.min);
 	});
 
 	return (
@@ -235,7 +235,7 @@ function ReturnToSpawnControl({
 		setHasChanged(
 			heading !== location.heading ||
 				pitch !== location.pitch ||
-				pano.zoom() !== displayZoom(location.zoom),
+				pano.zoom() !== pano.zoomScale.display(location.zoom),
 		);
 	};
 	usePanoEvent("pov_changed", checkChanged, [location]);
@@ -346,7 +346,7 @@ export const PanoControls = memo(function PanoControls({
 		const position = pano.position();
 		if (!panoId || !position) return null;
 		const { heading, pitch } = pano.pov();
-		return mapsPanoUrl({ ...position, heading, pitch, zoom: pano.zoom(), panoId });
+		return StreetView.mapsUrl({ ...position, heading, pitch, zoom: pano.zoom(), panoId });
 	}, [pano]);
 
 	const openInMaps = useCallback(() => {
@@ -354,22 +354,22 @@ export const PanoControls = memo(function PanoControls({
 		if (url) void open(url.toString());
 	}, [buildMapsUrl]);
 
-	// `long` skips the shortenMapsUrl redirect lookup and copies the raw long URL;
+	// `long` skips the StreetView.shortenLink redirect lookup and copies the raw long URL;
 	// `noTags` omits the tag/loadMode params.
 	const doCopy = useCallback(
 		async ({ long, noTags }: { long: boolean; noTags: boolean }) => {
 			const url = buildMapsUrl();
 			if (!url) return;
 			const location = Editor.get().open?.location;
-			if (!noTags && location) appendLinkTags(url, location, Tag.all());
-			await flashCopy(() => copyMapsLink(url, { long }));
+			if (!noTags && location) StreetView.appendLinkTags(url, location, Tag.all());
+			await flashCopy(() => StreetView.copyLink(url, { long }));
 		},
 		[buildMapsUrl, flashCopy],
 	);
 
 	const jumpForwardRef = useHotkeyRef(jumpForwardKey);
 	const jumpBackwardRef = useHotkeyRef(jumpBackwardKey);
-	const jumpDistance = formatDistance(SV_JUMP_RADIUS, 0);
+	const jumpDistance = formatDistance(StreetView.jumpRadius, 0);
 
 	const takeScreenshot = useCallback(
 		async (download: boolean) => {

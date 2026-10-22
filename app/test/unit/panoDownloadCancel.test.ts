@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Location } from "@/bindings.gen";
-import type { PanoDownloadConfig } from "@/lib/sv/panoDownload";
+import { StreetView, type PanoDownloadConfig } from "@/lib/sv/streetView";
 
 const h = vi.hoisted(() => ({
 	cancelled: [] as number[],
@@ -24,8 +24,6 @@ vi.mock("@/lib/commands", () => ({
 
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 vi.mock("@/lib/i18n", () => ({ t: (s: string) => s, msg: (s: string) => s }));
-
-import { bulkDownloadPanoramas } from "@/lib/sv/panoDownload";
 
 function loc(id: number, panoId: string): Location {
 	return {
@@ -62,7 +60,7 @@ beforeEach(() => {
 describe("a panorama download", () => {
 	it("runs each pano request under a run that aborting the download cancels", async () => {
 		const controller = new AbortController();
-		const download = bulkDownloadPanoramas([loc(1, "PANO_A")], equirect, {
+		const download = StreetView.downloadAll([loc(1, "PANO_A")], equirect, {
 			signal: controller.signal,
 		});
 		await vi.waitFor(() => expect(h.requested).toHaveLength(1));

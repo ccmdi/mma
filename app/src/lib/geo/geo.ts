@@ -21,6 +21,15 @@ export function angularDelta(a: number, b: number): number {
 	return Math.abs(normalizeHeading(a - b));
 }
 
+/** The heading among `headings` closest to `target`, the first on a tie, or null if empty. */
+export function nearestHeading(headings: readonly number[], target: number): number | null {
+	let best: number | null = null;
+	for (const h of headings) {
+		if (best === null || angularDelta(h, target) < angularDelta(best, target)) best = h;
+	}
+	return best;
+}
+
 /** The opposite bearing, in [-180, 180). */
 export function reverseHeading(h: number): number {
 	return wrapDeg(h + 180, -180);

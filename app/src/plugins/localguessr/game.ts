@@ -1,12 +1,12 @@
 import type { GeoResult, Location, Pano } from "@/bindings.gen";
 import type { LatLng, PanoCapture } from "@/types";
 import { distMeters } from "@/lib/geo/geo";
-import { calcHeading } from "@/lib/sv/lookup";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { computeScore } from "@/lib/geo/scoring";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
+import { StreetView } from "@/lib/sv/streetView";
 
 export type MovementMode = "moving" | "noMove" | "nmpz";
 export type RoundMode = "classic" | "infinite";
@@ -121,7 +121,7 @@ export function guessPreview(pano: Pano): Location {
 		lat: pano.lat,
 		lng: pano.lng,
 		panoId: pano.id,
-		heading: calcHeading(pano, { pointAlongRoad: true }),
+		heading: StreetView.initialHeading(pano, { pointAlongRoad: true }),
 		flags: LocationFlag.LoadAsPanoId,
 	});
 }

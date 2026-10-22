@@ -7,9 +7,8 @@ vi.mock("@/lib/geo/stackedMapType", async () =>
 	(await import("./fixtures/mocks")).stackedMapTypeMock(),
 );
 
-import { buildMapStack } from "@/lib/geo/mapStack";
+import { BLOBBY_ZOOM_THRESHOLD, buildMapStack } from "@/lib/geo/mapStack";
 import type { TileLayer } from "@/lib/geo/stackedMapType";
-import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
 import { DEFAULT_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 
 const base = DEFAULT_PREFS;

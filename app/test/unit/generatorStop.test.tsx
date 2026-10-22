@@ -63,37 +63,36 @@ vi.mock("@/lib/commands", () => {
 		},
 	};
 });
-vi.mock("@/lib/sv/query", () => ({
-	panosAt: (
-		points: { lat: number; lng: number }[],
-		_r: number,
-		_o: unknown,
-		signal?: AbortSignal,
-	) =>
-		h.work.park(
-			() =>
-				points.map(({ lat, lng }) => {
-					const id = `p${String(h.nextPano++).padStart(21, "0")}`;
-					const pano = {
-						id,
-						description: "Main Street",
-						shortDescription: "Main Street",
-						lat,
-						lng,
-						links: [{ heading: 90, panoId: "l".repeat(22) }],
-						date: { year: 2020, month: 6, day: 1 },
-						imageDate: "2020-06",
-						time: [],
-						worldSize: { height: 6656 },
-						pov: { heading: 0, tilt: 90, roll: 0 },
-					};
-					h.panos.set(id, pano);
-					return pano;
-				}),
-			signal,
-		),
-	svMetadata: (ids: string[], signal?: AbortSignal) =>
-		h.work.park(() => ids.map((id) => h.panos.get(id) ?? null), signal),
+vi.mock("@/lib/sv/streetView", async (original) => ({
+	StreetView: {
+		...(await original<typeof import("@/lib/sv/streetView")>()).StreetView,
+
+		panosAt: (points: { lat: number; lng: number }[], { signal }: { signal?: AbortSignal }) =>
+			h.work.park(
+				() =>
+					points.map(({ lat, lng }) => {
+						const id = `p${String(h.nextPano++).padStart(21, "0")}`;
+						const pano = {
+							id,
+							description: "Main Street",
+							shortDescription: "Main Street",
+							lat,
+							lng,
+							links: [{ heading: 90, panoId: "l".repeat(22) }],
+							date: { year: 2020, month: 6, day: 1 },
+							imageDate: "2020-06",
+							time: [],
+							worldSize: { height: 6656 },
+							pov: { heading: 0, tilt: 90, roll: 0 },
+						};
+						h.panos.set(id, pano);
+						return pano;
+					}),
+				signal,
+			),
+		metadata: (ids: string[], signal?: AbortSignal) =>
+			h.work.park(() => ids.map((id) => h.panos.get(id) ?? null), signal),
+	},
 }));
 vi.mock("@/store/store", () => ({
 	Store: {

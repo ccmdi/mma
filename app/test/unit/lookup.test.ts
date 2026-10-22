@@ -1,86 +1,59 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect } from "vitest";
-import {
-	svSearchRadius,
-	clickSearchRadius,
-	nearestLinkHeading,
-	calcHeading,
-	svThumbnailUrl,
-	rankCandidates,
-} from "@/lib/sv/lookup";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Pano } from "@/bindings.gen";
-import type { CameraType } from "@/bindings.consts";
+import { PanoType, type CameraType } from "@/bindings.consts";
+import { StreetView } from "@/lib/sv/streetView";
 
-describe("svSearchRadius", () => {
+vi.mock("@/lib/geo/photometa", () => ({ fetchPanoDotsWithIds: async () => [] }));
+
+describe("StreetView.radiusAtZoom", () => {
 	it("is unclamped at high zoom (the 25m floor now lives in the caller)", () => {
-		expect(svSearchRadius(0, 20)).toBeLessThan(1);
+		expect(StreetView.radiusAtZoom(0, 20)).toBeLessThan(1);
 	});
 
 	it("larger at low zoom", () => {
-		const lowZoom = svSearchRadius(0, 5);
-		const highZoom = svSearchRadius(0, 15);
+		const lowZoom = StreetView.radiusAtZoom(0, 5);
+		const highZoom = StreetView.radiusAtZoom(0, 15);
 		expect(lowZoom).toBeGreaterThan(highZoom);
 	});
 
 	it("accounts for latitude (smaller radius at high latitudes)", () => {
-		const equator = svSearchRadius(0, 10);
-		const polar = svSearchRadius(80, 10);
+		const equator = StreetView.radiusAtZoom(0, 10);
+		const polar = StreetView.radiusAtZoom(80, 10);
 		expect(equator).toBeGreaterThan(polar);
 	});
 
 	it("zoom 0 produces an absurdly large radius (the jump bug)", () => {
-		const r = svSearchRadius(0, 0);
+		const r = StreetView.radiusAtZoom(0, 0);
 		expect(r).toBeGreaterThan(600_000);
 	});
 
 	it("zoom 15+ produces a radius suitable for local navigation", () => {
-		const r = svSearchRadius(0, 15);
+		const r = StreetView.radiusAtZoom(0, 15);
 		expect(r).toBeLessThan(200);
 	});
 });
 
-describe("clickSearchRadius (the cursor picker must equal the real click radius)", () => {
+describe("StreetView.clickRadius (the cursor picker must equal the real click radius)", () => {
 	it("equals the rounded zoom/lat extent when above the 50m floor", () => {
-		expect(clickSearchRadius(0, 12)).toBe(Math.round(svSearchRadius(0, 12)));
+		expect(StreetView.clickRadius(0, 12)).toBe(Math.round(StreetView.radiusAtZoom(0, 12)));
 	});
 
 	it("floors at 50m when zoomed in past the default minimum", () => {
-		expect(clickSearchRadius(0, 22)).toBe(50);
+		expect(StreetView.clickRadius(0, 22)).toBe(50);
 	});
 
 	it("respects a custom minRadius floor", () => {
-		expect(clickSearchRadius(0, 22, 120)).toBe(120);
+		expect(StreetView.clickRadius(0, 22, 120)).toBe(120);
 	});
 
 	it("ignores the minRadius floor when the extent is larger", () => {
-		expect(clickSearchRadius(0, 5, 120)).toBe(Math.round(svSearchRadius(0, 5)));
+		expect(StreetView.clickRadius(0, 5, 120)).toBe(Math.round(StreetView.radiusAtZoom(0, 5)));
 	});
 });
 
-describe("nearestLinkHeading", () => {
-	it("returns null for empty input", () => {
-		expect(nearestLinkHeading([], 90)).toBeNull();
-	});
-
-	it("picks the heading with smallest angular distance", () => {
-		expect(nearestLinkHeading([0, 90, 180, 270], 80)).toBe(90);
-		expect(nearestLinkHeading([0, 90, 180, 270], 100)).toBe(90);
-	});
-
-	it("crosses the 0/360 wrap boundary", () => {
-		expect(nearestLinkHeading([10, 200], 350)).toBe(10);
-		expect(nearestLinkHeading([350, 170], 10)).toBe(350);
-	});
-
-	it("does not bias clockwise vs counterclockwise", () => {
-		// 70 and 110 are both 20deg from 90; first-seen wins on a tie
-		expect(nearestLinkHeading([70, 110], 90)).toBe(70);
-		expect(nearestLinkHeading([110, 70], 90)).toBe(110);
-	});
-});
-
-describe("calcHeading", () => {
+describe("StreetView.initialHeading", () => {
 	function makeData(opts: { centerHeading?: number; links?: { heading: number }[] }): Pano {
 		return {
 			pov: { heading: opts.centerHeading ?? 0, tilt: 90, roll: 0 },
@@ -90,96 +63,121 @@ describe("calcHeading", () => {
 	}
 
 	it("returns 0 when pointAlongRoad is false", () => {
-		expect(calcHeading(makeData({ centerHeading: 90, links: [{ heading: 45 }] }))).toBe(0);
-		expect(calcHeading(makeData({ centerHeading: 90 }), { pointAlongRoad: false })).toBe(0);
+		expect(
+			StreetView.initialHeading(makeData({ centerHeading: 90, links: [{ heading: 45 }] })),
+		).toBe(0);
+		expect(
+			StreetView.initialHeading(makeData({ centerHeading: 90 }), { pointAlongRoad: false }),
+		).toBe(0);
 	});
 
 	it("returns first link heading when no preferDirection", () => {
 		const data = makeData({ links: [{ heading: 45 }, { heading: 135 }] });
-		expect(calcHeading(data, { pointAlongRoad: true })).toBe(45);
+		expect(StreetView.initialHeading(data, { pointAlongRoad: true })).toBe(45);
 	});
 
 	it("returns center heading for forwards", () => {
 		const data = makeData({ centerHeading: 90 });
-		expect(calcHeading(data, { pointAlongRoad: true, preferDirection: "forwards" })).toBe(90);
+		expect(
+			StreetView.initialHeading(data, { pointAlongRoad: true, preferDirection: "forwards" }),
+		).toBe(90);
 	});
 
 	it("returns center - 180 for backwards", () => {
 		const data = makeData({ centerHeading: 90 });
-		expect(calcHeading(data, { pointAlongRoad: true, preferDirection: "backwards" })).toBe(-90);
+		expect(
+			StreetView.initialHeading(data, { pointAlongRoad: true, preferDirection: "backwards" }),
+		).toBe(-90);
 	});
 
 	it("picks closest link to cardinal direction", () => {
 		const data = makeData({ links: [{ heading: 10 }, { heading: 170 }, { heading: 260 }] });
-		expect(calcHeading(data, { pointAlongRoad: true, preferDirection: "south" })).toBe(170);
-		expect(calcHeading(data, { pointAlongRoad: true, preferDirection: "west" })).toBe(260);
-		expect(calcHeading(data, { pointAlongRoad: true, preferDirection: "north" })).toBe(10);
+		expect(
+			StreetView.initialHeading(data, { pointAlongRoad: true, preferDirection: "south" }),
+		).toBe(170);
+		expect(StreetView.initialHeading(data, { pointAlongRoad: true, preferDirection: "west" })).toBe(
+			260,
+		);
+		expect(
+			StreetView.initialHeading(data, { pointAlongRoad: true, preferDirection: "north" }),
+		).toBe(10);
 	});
 });
 
-describe("svThumbnailUrl", () => {
+describe("StreetView.thumbnailUrl", () => {
 	it("includes pano ID and heading", () => {
-		const url = svThumbnailUrl("ABC123", 90);
+		const url = StreetView.thumbnailUrl("ABC123", 90);
 		expect(url).toContain("panoid=ABC123");
 		expect(url).toContain("yaw=90");
 	});
 
 	it("uses default dimensions", () => {
-		const url = svThumbnailUrl("ABC123", 0);
+		const url = StreetView.thumbnailUrl("ABC123", 0);
 		expect(url).toContain("w=320");
 		expect(url).toContain("h=180");
 	});
 
 	it("respects custom dimensions", () => {
-		const url = svThumbnailUrl("ABC123", 0, 640, 360);
+		const url = StreetView.thumbnailUrl("ABC123", 0, 640, 360);
 		expect(url).toContain("w=640");
 		expect(url).toContain("h=360");
 	});
 });
 
-describe("rankCandidates", () => {
+describe("the pano a click lands on", () => {
 	function cand(id: string, cameraType: CameraType | null, imageDate = "2020-01"): Pano {
-		return { id, cameraType, imageDate, copyright: "© Google" } as unknown as Pano;
+		return { id, cameraType, imageDate, lat: 0, lng: 0, copyright: "© Google" } as unknown as Pano;
 	}
 
-	it("drops a camera type the rank table excludes", () => {
-		const out = rankCandidates([cand("t", "trekker"), cand("g", "gen4")], {
-			preferHigherQuality: true,
-		});
-		expect(out.map((c) => c.id)).toEqual(["g"]);
-	});
-
-	it("keeps an excluded type when quality is not preferred", () => {
-		const out = rankCandidates([cand("t", "trekker"), cand("g", "gen4")], {});
-		expect(out.map((c) => c.id)).toEqual(["t", "g"]);
-	});
-
-	it("orders by the rank table, not by capture date", () => {
-		const out = rankCandidates(
-			[cand("gen1", "gen1", "2024-01"), cand("tripod", "tripod", "2011-01"), cand("gen4", "gen4")],
-			{ preferHigherQuality: true },
+	/** The official search answers the first candidate, whose timeline names them all. */
+	async function landsOn(cands: Pano[], opts: Parameters<typeof StreetView.lookup>[3]) {
+		const official = { ...cands[0], time: cands.map((c) => ({ panoId: c.id })) } as Pano;
+		vi.spyOn(StreetView, "panosAt").mockImplementation(async (_points, search) => [
+			search?.sources?.[0] === PanoType.Official ? official : null,
+		]);
+		vi.spyOn(StreetView, "metadata").mockImplementation(async (ids) =>
+			ids.map((id) => cands.find((c) => c.id === id) ?? null),
 		);
-		expect(out.map((c) => c.id)).toEqual(["gen4", "tripod", "gen1"]);
+		return (await StreetView.lookup(0, 0, 18, opts))?.panoId;
+	}
+
+	afterEach(() => vi.restoreAllMocks());
+
+	it("skips a camera type the rank table excludes", async () => {
+		expect(
+			await landsOn([cand("t", "trekker"), cand("g", "gen4")], { preferHigherQuality: true }),
+		).toBe("g");
 	});
 
-	it("prefers a known camera type over an unknown one", () => {
-		const out = rankCandidates([cand("unknown", null), cand("gen1", "gen1")], {
-			preferHigherQuality: true,
-		});
-		expect(out.map((c) => c.id)).toEqual(["gen1", "unknown"]);
+	it("keeps an excluded type when quality is not preferred", async () => {
+		expect(await landsOn([cand("t", "trekker"), cand("g", "gen4")], {})).toBe("t");
 	});
 
-	it("breaks a rank tie with the newer capture", () => {
-		const out = rankCandidates([cand("old", "gen4", "2015-06"), cand("new", "gen4", "2023-02")], {
-			userUploaded: "avoid",
-			preferHigherQuality: true,
-		});
-		expect(out.map((c) => c.id)).toEqual(["new", "old"]);
+	it("ranks by the rank table, not by capture date", async () => {
+		expect(
+			await landsOn(
+				[
+					cand("gen1", "gen1", "2024-01"),
+					cand("tripod", "tripod", "2011-01"),
+					cand("gen4", "gen4"),
+				],
+				{ preferHigherQuality: true },
+			),
+		).toBe("gen4");
 	});
 
-	it("leaves the input array untouched", () => {
-		const input = [cand("b", "gen1"), cand("a", "gen4")];
-		rankCandidates(input, { preferHigherQuality: true });
-		expect(input.map((c) => c.id)).toEqual(["b", "a"]);
+	it("prefers a known camera type over an unknown one", async () => {
+		expect(
+			await landsOn([cand("unknown", null), cand("gen1", "gen1")], { preferHigherQuality: true }),
+		).toBe("gen1");
+	});
+
+	it("breaks a rank tie with the newer capture", async () => {
+		expect(
+			await landsOn([cand("old", "gen4", "2015-06"), cand("new", "gen4", "2023-02")], {
+				preferOfficial: true,
+				preferHigherQuality: true,
+			}),
+		).toBe("new");
 	});
 });
