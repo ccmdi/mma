@@ -1,3 +1,12 @@
+## v0.13.0 - 2026-10-22
+- New experimental Collaboration plugin: work on a map together with others in real time
+- Choose which of a file's tags to import
+- Tags that share a hotkey toggle together
+- Click a measurement point to remove it
+- Fixed the open location's pin following the panorama while walking
+- Fixed opening a map that is already open in another window loading a stale copy from disk
+- Fixed dialogs moving their top edge when their content changes size
+
 ## v0.12.2 - 2026-10-19
 - Re-reviewing a selection offers to add locations that newly match it
 - App zoom in, out and reset are hotkeys you can rebind
