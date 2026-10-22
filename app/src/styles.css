@@ -1133,9 +1133,12 @@ input[type="range"]:disabled {
 	position: fixed;
 	/* Auto margins centre on whole pixels; a translate(-50%) lands odd sizes on a half
 	   pixel, and the re-snap when the entrance animation ends reads as content moving.
-	   The top edge is a constant viewport line so a height change never moves it. */
+	   The top edge is a constant viewport line so a height change never moves it, and
+	   the height cap keeps at least the same gap below. */
+	--modal-top: 18vh;
+	--modal-max-h: calc(100vh - 2 * var(--modal-top));
 	inset: 0;
-	margin: 18vh auto auto;
+	margin: var(--modal-top) auto auto;
 	width: fit-content;
 	height: fit-content;
 }
@@ -1180,7 +1183,7 @@ input[type="range"]:disabled {
 	--modal-bg: var(--surface-2);
 	grid-template-rows: min-content 1fr;
 	grid-template-columns: 100%;
-	max-height: calc(77vh - 2px);
+	max-height: calc(var(--modal-max-h) - 2px);
 	padding: 1rem 0;
 	display: grid;
 }
@@ -1328,9 +1331,6 @@ input[type="range"]:disabled {
 }
 .welcome-dialog__cta {
 	width: 100%;
-}
-.edit-map-modal {
-	max-height: 90vh;
 }
 .enrichment-modal {
 	height: min(42rem, 90vh);
@@ -4766,8 +4766,7 @@ body {
 
 /* Settings page dialog */
 .settings-page {
-	height: 80vh;
-	max-height: 90vh;
+	height: var(--modal-max-h);
 	padding-bottom: 0;
 }
 /* Two columns fill the dialog body; each pane scrolls on its own. The rail
@@ -5713,7 +5712,6 @@ body:has([data-plugin-overlay]) .map-meta {
 
 /* Seen dialog */
 .seen-dialog {
-	max-height: 80vh;
 	display: flex;
 	flex-direction: column;
 }
