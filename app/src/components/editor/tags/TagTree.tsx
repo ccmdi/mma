@@ -32,7 +32,6 @@ import {
 	stepSiblingFlatOrder,
 	collectDragBlock,
 	isEffectivelySelected,
-	canDropInto,
 	moveIntoFolder,
 	hoverDrop,
 	buildTagTree,
@@ -292,7 +291,7 @@ export function TagTreeView({
 					el.style.left = `${dragPosRef.current.x - 4}px`;
 					el.style.top = `${dragPosRef.current.y - 4}px`;
 				}
-				const over = (me.target as Element).closest?.("[data-tree-path], .tag-tree__root-drop");
+				const over = (me.target as Element).closest?.("[data-tree-path]");
 				if (!over && dropTargetRef.current) applyDropTarget(null);
 			},
 			// onReorder/onMoveInto render optimistically, so clearing in the same
@@ -300,27 +299,32 @@ export function TagTreeView({
 			onDrop: () => {
 				const dropT = dropTargetRef.current;
 				if (!dropT) return;
-				if (dropT.position === "into") {
-					const move = moveIntoFolder(
-						treeRef.current,
-						[...block],
-						dropT.path,
-						tags,
-						virtualTags,
-						aliases,
-					);
-					if (move) onMoveInto(move);
-				} else {
+				const paths = [...block];
+				if (dropT.position !== "into" && dropT.parent === node.parentPath) {
 					const order = reorderSiblingsFlatOrder(
 						treeRef.current,
-						[...block],
+						paths,
 						dropT.path,
 						dropT.position,
 						node.parentPath,
 						virtualTags,
 					);
 					if (order) onReorder(order);
+					return;
 				}
+				const move =
+					dropT.position === "into"
+						? moveIntoFolder(treeRef.current, paths, dropT.path, tags, virtualTags, aliases)
+						: moveIntoFolder(
+								treeRef.current,
+								paths,
+								dropT.parent,
+								tags,
+								virtualTags,
+								aliases,
+								dropT,
+							);
+				if (move) onMoveInto(move);
 			},
 			onEnd: () => {
 				document.body.classList.remove("mm-tag-dragging");
@@ -464,19 +468,6 @@ export function TagTreeView({
 						/>
 					))}
 				</ul>
-			)}
-			{dragPaths && dragNodeRef.current && dragNodeRef.current.parentPath !== "" && (
-				<div
-					className={`tag-tree__root-drop${dropTarget?.position === "into" && dropTarget.path === "" ? " is-drop-into" : ""}`}
-					onMouseMove={() => {
-						const block = dragBlockRef.current;
-						if (!block || !canDropInto(treeRef.current, [...block], "")) return;
-						if (dropTargetRef.current?.path !== "" || dropTargetRef.current.position !== "into")
-							applyDropTarget({ path: "", position: "into" });
-					}}
-				>
-					{t("Move to top level")}
-				</div>
 			)}
 			{dragLeaf &&
 				createPortal(

@@ -401,11 +401,15 @@ export function canDropInto(tree: TagTreeNode[], dragPaths: string[], targetPath
 	return nodes[0]!.parentPath !== targetPath;
 }
 
-export type DropTarget = { path: string; position: "before" | "after" | "into" };
+/** Into a folder, or beside a node under `parent`. */
+export type DropTarget =
+	| { path: string; position: "into" }
+	| { path: string; position: "before" | "after"; parent: string };
 
 /** Where a drag of the block grabbed at `src` lands when the pointer is over `node`, `at`
  *  of the way along it. The middle half of a folder row drops into it, and its edges, like
- *  either half of a pill, place the block beside it. Null when `node` is no target. */
+ *  either half of a pill, place the block beside it, moving it to that level when it comes
+ *  from another. Null when `node` is no target. */
 export function hoverDrop(
 	tree: TagTreeNode[],
 	block: ReadonlySet<string>,
@@ -415,10 +419,21 @@ export function hoverDrop(
 	reorder: boolean,
 ): DropTarget | null {
 	if (node.isAlias || block.has(node.fullPath)) return null;
-	const into = !isLeafTag(node) && canDropInto(tree, [...block], node.fullPath);
+	const paths = [...block];
+	const into = !isLeafTag(node) && canDropInto(tree, paths, node.fullPath);
 	if (into && at > 0.25 && at < 0.75) return { path: node.fullPath, position: "into" };
-	if (reorder && src.parentPath === node.parentPath && isLeafTag(src) === isLeafTag(node))
-		return { path: node.fullPath, position: at < 0.5 ? "before" : "after" };
+	const sameKind = isLeafTag(src) === isLeafTag(node);
+	if (sameKind || !isLeafTag(node)) {
+		const parent = node.parentPath;
+		const position = at < 0.5 ? "before" : "after";
+		if (parent === src.parentPath) {
+			if (reorder && sameKind) return { path: node.fullPath, position, parent };
+		} else if (canDropInto(tree, paths, parent)) {
+			return reorder
+				? { path: node.fullPath, position, parent }
+				: { path: parent, position: "into" };
+		}
+	}
 	return into ? { path: node.fullPath, position: "into" } : null;
 }
 
@@ -470,7 +485,7 @@ export interface TagMoveResult {
 	tagRenames: TagNameChange[];
 	virtualTags: Record<string, VirtualTag>;
 	aliases: Record<string, number>;
-	/** Full DFS tag-id order with the block appended at the end of the target's children. */
+	/** Full DFS tag-id order with the block landed at its anchor, or at the end of the target's children. */
 	orderedIds: number[];
 	/** Old -> new path for each moved branch, for remapExpanded. */
 	pathRemaps: [string, string][];
@@ -478,9 +493,9 @@ export interface TagMoveResult {
 
 /** Move the sibling block `dragPaths` into folder `targetPath` (`""` is the top level):
  *  cascadeRename each block member to `targetPath/<segment>` (tags, virtualTags, and alias
- *  keys all follow), and rebase the global order so the block lands contiguously at the
- *  end of the target's children, keeping its relative order. Returns null when the drop
- *  isn't allowed. */
+ *  keys all follow), and rebase the global order so the block lands contiguously beside
+ *  the `anchor` child, or at the end of the target's children, keeping its relative order.
+ *  Returns null when the drop isn't allowed. */
 export function moveIntoFolder(
 	tree: TagTreeNode[],
 	dragPaths: string[],
@@ -488,8 +503,10 @@ export function moveIntoFolder(
 	tags: Tag[],
 	virtualTags: Record<string, VirtualTag>,
 	aliases: Record<string, number>,
+	anchor?: { path: string; position: "before" | "after" },
 ): TagMoveResult | null {
 	if (!canDropInto(tree, dragPaths, targetPath)) return null;
+	if (anchor && findByPath(tree, anchor.path)?.parentPath !== targetPath) return null;
 	const nodes = dragPaths.map((p) => findByPath(tree, p)!);
 
 	// Block members are siblings (disjoint prefixes), so the cascades never overlap.
@@ -530,16 +547,19 @@ export function moveIntoFolder(
 			emitSubtree(b, b.fullPath, newPath);
 		}
 	};
+	const before = anchor?.position === "before" ? anchor.path : null;
+	const after = anchor ? (anchor.position === "after" ? anchor.path : null) : targetPath;
 	const walk = (level: TagTreeNode[]) => {
 		for (const n of level) {
 			if (dragSet.has(n.fullPath)) continue;
+			if (n.fullPath === before) emitBlock();
 			push(flatItem(n, n.fullPath, emptyAfterMove(n)));
 			walk(n.children);
-			if (n.fullPath === targetPath) emitBlock();
+			if (n.fullPath === after) emitBlock();
 		}
 	};
 	walk(tree);
-	if (targetPath === "") emitBlock();
+	if (after === "") emitBlock();
 	const flat = flatten(items, workingVT);
 
 	return {

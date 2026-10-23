@@ -657,6 +657,27 @@ describe("canDropInto / moveIntoFolder", () => {
 	it("returns null on an invalid drop", () => {
 		expect(moveIntoFolder(tree(), ["Cars"], "Cars/Old", baseTags, {}, {})).toBeNull();
 	});
+
+	it("lands a block beside its anchor in the target folder", () => {
+		const into = (anchor: { path: string; position: "before" | "after" }, paths = ["Red"]) =>
+			moveIntoFolder(tree(), paths, "Cars", baseTags, {}, {}, anchor)!.orderedIds;
+		expect(into({ path: "Cars/a", position: "before" })).toEqual([2, 1, 3, 4, 5]);
+		expect(into({ path: "Cars/a", position: "after" })).toEqual([2, 3, 1, 4, 5]);
+		expect(into({ path: "Cars/b", position: "after" })).toEqual([2, 3, 4, 1, 5]);
+		expect(into({ path: "Cars/a", position: "after" }, ["Red", "Blue"])).toEqual([3, 1, 2, 4, 5]);
+	});
+
+	it("lands a block beside its anchor on the top level", () => {
+		const anchor = { path: "Red", position: "after" as const };
+		const move = moveIntoFolder(tree(), ["Cars/b"], "", baseTags, {}, {}, anchor);
+		expect(move!.tagRenames).toEqual([{ id: 4, name: "b" }]);
+		expect(move!.orderedIds).toEqual([1, 4, 2, 3, 5]);
+	});
+
+	it("returns null when the anchor is not a child of the target", () => {
+		const anchor = { path: "Red", position: "before" as const };
+		expect(moveIntoFolder(tree(), ["Cars/a"], "Cars/Old", baseTags, {}, {}, anchor)).toBeNull();
+	});
 });
 
 describe("hoverDrop", () => {
@@ -680,8 +701,8 @@ describe("hoverDrop", () => {
 	});
 
 	it("reorders a folder at the edges of a sibling folder row", () => {
-		expect(over("Misc", "Cars", 0.1)).toEqual({ path: "Cars", position: "before" });
-		expect(over("Misc", "Cars", 0.9)).toEqual({ path: "Cars", position: "after" });
+		expect(over("Misc", "Cars", 0.1)).toEqual({ path: "Cars", position: "before", parent: "" });
+		expect(over("Misc", "Cars", 0.9)).toEqual({ path: "Cars", position: "after", parent: "" });
 	});
 
 	it("drops into a sibling folder row anywhere when the sort order is derived", () => {
@@ -693,8 +714,35 @@ describe("hoverDrop", () => {
 	});
 
 	it("reorders a pill by which half of a sibling pill it is over", () => {
-		expect(over("Red", "Blue", 0.4)).toEqual({ path: "Blue", position: "before" });
-		expect(over("Red", "Blue", 0.6)).toEqual({ path: "Blue", position: "after" });
+		expect(over("Red", "Blue", 0.4)).toEqual({ path: "Blue", position: "before", parent: "" });
+		expect(over("Red", "Blue", 0.6)).toEqual({ path: "Blue", position: "after", parent: "" });
+	});
+
+	it("places a pill beside a pill in another folder, moving it there", () => {
+		expect(over("Red", "Cars/a", 0.4)).toEqual({
+			path: "Cars/a",
+			position: "before",
+			parent: "Cars",
+		});
+		expect(over("Misc/x", "Red", 0.6)).toEqual({ path: "Red", position: "after", parent: "" });
+	});
+
+	it("places a pill at the edge of a folder row on another level, moving it there", () => {
+		expect(over("Misc/x", "Cars", 0.1)).toEqual({ path: "Cars", position: "before", parent: "" });
+		expect(over("Misc/x", "Cars", 0.5)).toEqual({ path: "Cars", position: "into" });
+	});
+
+	it("places a folder at the edges of a row on another level, moving it there", () => {
+		expect(over("Misc", "Cars/Old", 0.1)).toEqual({
+			path: "Cars/Old",
+			position: "before",
+			parent: "Cars",
+		});
+		expect(over("Misc", "Cars/Old", 0.5)).toEqual({ path: "Cars/Old", position: "into" });
+	});
+
+	it("drops into the other folder itself when the sort order is derived", () => {
+		expect(over("Red", "Cars/a", 0.4, false)).toEqual({ path: "Cars", position: "into" });
 	});
 
 	it("is no target over the block itself or its own subtree", () => {
