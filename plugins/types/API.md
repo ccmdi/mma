@@ -8640,7 +8640,6 @@ APP_SETTINGS: PersistedStore<{
   tagFolderColor: RGB;
   tagSortMode: TagSortMode;
   tagGap: number;
-  animateTagReorder: boolean;
   borderDetail: BorderDetail;
   subdivisionDetail: SubdivisionDetail;
   previewAspectRatio: PreviewAspectRatio;
@@ -8784,7 +8783,6 @@ DEFAULTS: {
   tagSortMode: TagSortMode;
   /** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. */
   tagGap: number;
-  animateTagReorder: boolean;
   borderDetail: "heavy" | "light" | "medium";
   subdivisionDetail: "adm1" | "off";
   previewAspectRatio: "16 / 10" | "16 / 9" | "21 / 9" | "32 / 9" | "4 / 3" | "free";

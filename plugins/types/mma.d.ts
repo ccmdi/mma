@@ -5139,8 +5139,6 @@ declare const DEFAULTS: {
     /** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. @unstable */
     tagGap: number;
     /** @unstable */
-    animateTagReorder: boolean;
-    /** @unstable */
     borderDetail: BorderDetail;
     /** @unstable */
     subdivisionDetail: SubdivisionDetail;
@@ -5252,7 +5250,6 @@ declare const APP_SETTINGS: PersistedStore<{
     tagSortMode: TagSortMode;
     /** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. */
     tagGap: number;
-    animateTagReorder: boolean;
     borderDetail: BorderDetail;
     subdivisionDetail: SubdivisionDetail;
     previewAspectRatio: PreviewAspectRatio;

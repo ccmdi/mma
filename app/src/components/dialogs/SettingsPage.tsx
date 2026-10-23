@@ -874,7 +874,6 @@ function EditingBody() {
 						/>
 					</>
 				)}
-				<SettingRow setting="animateTagReorder" label={t("Animate tags during drag reorder")} />
 				<SettingRow
 					label={t("Tag gap")}
 					control={

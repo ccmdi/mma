@@ -3,7 +3,6 @@ import {
 	useState,
 	useMemo,
 	useCallback,
-	useLayoutEffect,
 	useRef,
 	useImperativeHandle,
 	createContext,
@@ -439,8 +438,6 @@ export function TagTreeView({
 
 	const rootPills = filteredTree.filter(isLeafTag);
 	const rootRows = filteredTree.filter((n) => !isLeafTag(n));
-	const rootRowsRef = useRef<HTMLUListElement>(null);
-	useSwapAnimation(rootRowsRef, rootRows, dragPaths);
 
 	return (
 		<TagTreeCtx.Provider value={treeCallbacks}>
@@ -453,7 +450,7 @@ export function TagTreeView({
 				dropTarget={dropTarget}
 			/>
 			{rootRows.length > 0 && (
-				<ul className="tag-tree" ref={rootRowsRef}>
+				<ul className="tag-tree">
 					{rootRows.map((node) => (
 						<TagTreeNodeRow
 							key={node.fullPath}
@@ -529,8 +526,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 	const isOpen = forceExpanded || expandedPaths.has(node.fullPath);
 	const childPills = hasChildren ? node.children.filter(isLeafTag) : [];
 	const childRows = hasChildren ? node.children.filter((n) => !isLeafTag(n)) : [];
-	const childRowsRef = useRef<HTMLUListElement>(null);
-	useSwapAnimation(childRowsRef, childRows, dragPaths);
 
 	const effectiveSelected = isEffectivelySelected(node, selectedTagIds);
 	const someChildrenSelected =
@@ -632,7 +627,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 						dropTarget={dropTarget}
 					/>
 					{childRows.length > 0 && (
-						<ul className="tag-tree__children" ref={childRowsRef}>
+						<ul className="tag-tree__children">
 							{childRows.map((child) => (
 								<TagTreeNodeRow
 									key={child.fullPath}
@@ -654,47 +649,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 	);
 });
 
-/** FLIP: while a drag reorders a sibling list, nodes glide to their new slot instead of
- *  teleporting. Children are matched to `display` by index (the ul renders exactly that
- *  order). The dragged node glides too — visible folder rows move with the cursor; the
- *  dragged pill is hidden anyway. */
-function useSwapAnimation(
-	ulRef: React.RefObject<HTMLUListElement | null>,
-	display: TagTreeNode[],
-	dragPaths: ReadonlySet<string> | null,
-) {
-	const animate = useSetting("animateTagReorder");
-	const prevRects = useRef(new Map<string, DOMRect>());
-	useLayoutEffect(() => {
-		const ul = ulRef.current;
-		const rects = new Map<string, DOMRect>();
-		if (ul && animate) {
-			display.forEach((node, i) => {
-				const el = ul.children[i] as HTMLElement | undefined;
-				if (!el) return;
-				el.getAnimations().forEach((a) => a.cancel());
-				rects.set(node.fullPath, el.getBoundingClientRect());
-			});
-			if (dragPaths) {
-				display.forEach((node, i) => {
-					const prev = prevRects.current.get(node.fullPath);
-					const next = rects.get(node.fullPath);
-					if (!prev || !next) return;
-					const dx = prev.left - next.left;
-					const dy = prev.top - next.top;
-					if (dx || dy) {
-						(ul.children[i] as HTMLElement).animate(
-							[{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-							{ duration: 150, easing: "ease" },
-						);
-					}
-				});
-			}
-		}
-		prevRects.current = rects;
-	});
-}
-
 /** A group of terminal tags rendered as flat pills, indented to sit under their parent
  *  folder row (depth 0 for root leaves and the whole flat view). */
 const TagLeafGroup = memo(function TagLeafGroup({
@@ -712,12 +666,9 @@ const TagLeafGroup = memo(function TagLeafGroup({
 	dragPaths: ReadonlySet<string> | null;
 	dropTarget: DropTarget | null;
 }) {
-	const ulRef = useRef<HTMLUListElement>(null);
-	useSwapAnimation(ulRef, nodes, dragPaths);
 	if (nodes.length === 0) return null;
 	return (
 		<ul
-			ref={ulRef}
 			className="tag-list tag-tree__leaves"
 			style={depth > 0 ? { marginLeft: `${depth * 1.25}rem` } : undefined}
 		>

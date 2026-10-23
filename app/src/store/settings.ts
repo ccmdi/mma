@@ -235,7 +235,6 @@ export const DEFAULTS = {
 	tagSortMode: "default" as TagSortMode,
 	/** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. */
 	tagGap: 6 as number,
-	animateTagReorder: true,
 	borderDetail: "light" as BorderDetail,
 	subdivisionDetail: "off" as SubdivisionDetail,
 	previewAspectRatio: "16 / 9" as PreviewAspectRatio,
