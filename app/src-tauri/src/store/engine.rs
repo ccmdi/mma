@@ -332,6 +332,7 @@ impl Store {
             Finished::Entry(entry) => (&**entry, !entry.selections.is_empty()),
             Finished::Base => (&empty, true),
         };
+        let t0 = Instant::now();
         let (changes, records) = (&entry.locations, &entry.records);
         let before = self.version;
         self.bump();
@@ -358,6 +359,7 @@ impl Store {
 
         // A metadata-only mutation (a value rename or reorder, a create with nothing to
         // assign) moves no rows, so there is no membership to re-test.
+        let t_index = t0.elapsed();
         let has_selections = (!changes.is_empty() || resolve_all) && !self.selections.is_empty();
         let full_resolve =
             has_selections && (resolve_all || changes.len() > 100 || self.selections.set_dependent);
@@ -376,6 +378,7 @@ impl Store {
             None
         };
 
+        let t_members = t0.elapsed();
         // Every row the frame carries states its selection, so an incremental membership
         // change needs no second channel: a row that only gained or lost a selection comes
         // out as a patch. Only a full resolve restates every cell's membership, which costs
@@ -398,6 +401,7 @@ impl Store {
         if !self.frames.is_empty() {
             self.frames.send(FrameBytes(frame.encode()));
         }
+        let t_frame = t0.elapsed();
 
         let mut patch = self.shipped();
         for (field, values) in field_values {
@@ -438,6 +442,19 @@ impl Store {
         }
         if resolve_all || records.values().any(|delta| !delta.is_empty()) {
             patch.extend(self.selections.list_patch());
+        }
+        if t0.elapsed().as_millis() > 20 {
+            log::debug!(
+                "[finish] v{} total={}ms index={}ms members={}ms frame={}ms ship={}ms rows={} full_resolve={}",
+                self.version,
+                t0.elapsed().as_millis(),
+                t_index.as_millis(),
+                (t_members - t_index).as_millis(),
+                (t_frame - t_members).as_millis(),
+                (t0.elapsed() - t_frame).as_millis(),
+                changes.len(),
+                full_resolve || resolve_all,
+            );
         }
         let result = Mutation {
             version: self.version,

@@ -1,4 +1,5 @@
 import type * as bindings from "@/bindings.gen";
+import { log } from "@/lib/util/log";
 import { Store } from "./store";
 import { Autosave } from "./autosave";
 import { Feed } from "./feed";
@@ -15,9 +16,18 @@ export const Mutation = {
 	 *  no map (version 0) settles at once. */
 	settle: async (m: Mutation): Promise<void> => {
 		if (!m.version) return;
-		const caughtUp = Promise.all([Scene.reached(m.version), Feed.waitFor(m.version)]);
+		const t0 = performance.now();
+		const scene = Scene.reached(m.version).then(() => performance.now() - t0);
+		const feed = Feed.waitFor(m.version).then(() => performance.now() - t0);
 		await Autosave.waitForInflight();
-		await caughtUp;
+		const autosaveMs = performance.now() - t0;
+		const [sceneMs, feedMs] = await Promise.all([scene, feed]);
+		const total = performance.now() - t0;
+		if (total > 50) {
+			log.debug(
+				`[settle] v${m.version} total=${total.toFixed(0)}ms autosave=${autosaveMs.toFixed(0)}ms scene=${sceneMs.toFixed(0)}ms feed=${feedMs.toFixed(0)}ms`,
+			);
+		}
 	},
 	/** Send a store write, then wait until the open map shows it. */
 	write: async <R extends Mutation | { mutation: Mutation } | null>(
