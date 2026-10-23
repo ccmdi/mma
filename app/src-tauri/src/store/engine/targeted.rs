@@ -244,15 +244,8 @@ impl<'a> Targeted<'a> {
         })
     }
 
-    /// Matching locations. Explicit map ids keep request order and duplicates; other reads
-    /// return unique locations sorted by id.
+    /// The locations `selector` matches here, unique and sorted by id.
     pub(crate) fn rows(&mut self, selector: &Selector) -> Vec<Location> {
-        if let (None, Selector::Locations { locations, .. }) = (self.layer, selector) {
-            return locations
-                .iter()
-                .filter_map(|&id| self.store.get_loc_by_id(id))
-                .collect();
-        }
         self.scope(selector)
             .read(|scope| scope.rows().map(|row| row.to_location()).collect())
     }

@@ -481,9 +481,7 @@ fn collect_everything() {
 }
 
 #[test]
-fn named_id_ordering_is_consumer_defined() {
-    // Pins the documented divergence on `Selector::Locations`: `collect` honours the
-    // caller's order and duplicates, set projections sort and dedup.
+fn named_ids_read_as_a_set() {
     let locs = vec![loc(3, 0.0, 0.0), loc(7, 1.0, 1.0)];
     let mut store = setup_store_with(&locs);
     let selector = Selector::Locations {
@@ -497,7 +495,7 @@ fn named_id_ordering_is_consumer_defined() {
         .map(|l| l.id)
         .map(Id::get)
         .collect();
-    assert_eq!(rows, vec![7, 3, 3]);
+    assert_eq!(rows, vec![3, 7]);
     let set = store.scope(&selector).ids();
     assert_eq!(set.iter().map(Id::get).collect::<Vec<u32>>(), vec![3, 7]);
 }
@@ -7740,7 +7738,7 @@ fn collect_honours_each_selector_shape() {
             .rows(&Selector::Everything)),
         vec![1, 2, 3]
     );
-    // The named-ids fast path keeps request order and skips dead ids.
+    // Named ids read as a set, dead ids skipped.
     assert_eq!(
         ids(store
             .at(&Target::Map { id: None })
@@ -7748,7 +7746,7 @@ fn collect_honours_each_selector_shape() {
                 locations: loc_ids([3, 1, 9]),
                 name: None,
             })),
-        vec![3, 1]
+        vec![1, 3]
     );
     assert_eq!(
         ids(store.at(&Target::Map { id: None }).rows(&Selector::Manual {
