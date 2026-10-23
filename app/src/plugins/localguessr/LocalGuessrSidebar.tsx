@@ -447,7 +447,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 							{config.timerMode === "countdown" && (
 								<Field label={t("Time")}>
 									<Slider
-										min={15}
+										min={5}
 										max={300}
 										step={5}
 										value={config.timeLimit}
