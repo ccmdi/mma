@@ -6316,7 +6316,11 @@ fn find_nearest_agrees_with_brute_force() {
     };
     let check = |store: &mut Store, lat: f64, lng: f64| {
         let id = nearest(store, lat, lng).expect("nonempty map");
-        let (la, ln) = store.coords_of(Id::new(id)).expect("alive id");
+        let (la, ln) = store
+            .view()
+            .get(Id::new(id))
+            .map(|row| (row.lat(), row.lng()))
+            .expect("alive id");
         let d = mma_geo::haversine_m(lat, lng, la, ln);
         let want = brute_nearest(store, lat, lng);
         assert!((d - want).abs() < 1e-6, "({lat},{lng}): {d} != {want}");
@@ -6373,7 +6377,7 @@ fn coord_lookup(store: &Store) -> HashMap<Id<Location>, (f64, f64)> {
         .selections
         .ids
         .iter()
-        .filter_map(|id| store.coords_of(id).map(|c| (id, c)))
+        .filter_map(|id| store.view().get(id).map(|row| (id, (row.lat(), row.lng()))))
         .collect()
 }
 

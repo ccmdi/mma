@@ -6,7 +6,7 @@ use crate::procedure::registry::Providers;
 use crate::runs;
 use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
-use mma_algebra::{Change, Counts, Delta, Id, Ids, PatchOp};
+use mma_algebra::{Change, Counts, Delta, Follows, Id, Ids, PatchOp};
 use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
@@ -883,6 +883,16 @@ impl<T> Ensured<T> {
     /// Install a value computed elsewhere (an open-time scan that already walked the rows).
     pub(crate) fn seed(&mut self, value: T) {
         self.0 = Some(value);
+    }
+
+    /// Bring the value in step with `change` when built; never builds.
+    pub(crate) fn apply<R>(&mut self, change: &Change<R>)
+    where
+        T: Follows<R>,
+    {
+        if let Some(value) = &mut self.0 {
+            value.apply(change);
+        }
     }
 
     /// Maintain in place when built; never builds. Staleness is the next read's problem.

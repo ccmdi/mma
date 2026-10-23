@@ -923,6 +923,11 @@ impl<K: Clone + Eq + Hash + Ord, V> Keyed for (K, V) {
     }
 }
 
+/// A value kept in step with a collection by applying each change to it.
+pub trait Follows<T> {
+    fn apply(&mut self, change: &Change<T>);
+}
+
 /// Keyed rows, at most one under each key.
 pub trait Table<T: Keyed> {
     /// The row under `key`.

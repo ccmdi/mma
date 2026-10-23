@@ -195,3 +195,35 @@ fn non_finite_coords_are_ignored() {
     ix.candidates(f64::NAN, 10.0, 100.0, &mut out);
     assert!(out.is_empty());
 }
+
+fn moved(id: u32, from: Option<(f64, f64)>, to: Option<(f64, f64)>) -> Change<(u32, (f64, f64))> {
+    std::iter::once(mma_algebra::Transition::new(
+        from.map(|p| (id, p)),
+        to.map(|p| (id, p)),
+    ))
+    .collect()
+}
+
+#[test]
+fn applying_a_change_moves_its_points_in_and_out() {
+    let mut ix = SpatialIndex::new(25.0);
+    ix.apply(&moved(1, None, Some((10.0, 10.0))));
+    assert_eq!(query(&ix, 10.0, 10.0, 5.0), vec![1]);
+
+    ix.apply(&moved(1, Some((10.0, 10.0)), Some((20.0, 20.0))));
+    assert!(query(&ix, 10.0, 10.0, 5.0).is_empty());
+    assert_eq!(query(&ix, 20.0, 20.0, 5.0), vec![1]);
+
+    ix.apply(&moved(1, Some((20.0, 20.0)), None));
+    assert!(ix.is_empty());
+}
+
+#[test]
+fn a_change_from_a_stale_position_still_moves_the_point() {
+    let mut ix = SpatialIndex::new(25.0);
+    ix.insert(1, 10.0, 10.0);
+    ix.apply(&moved(1, Some((50.0, 50.0)), Some((20.0, 20.0))));
+    assert!(query(&ix, 10.0, 10.0, 5.0).is_empty());
+    assert_eq!(query(&ix, 20.0, 20.0, 5.0), vec![1]);
+    assert_eq!(ix.len(), 1);
+}

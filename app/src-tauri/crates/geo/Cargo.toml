@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+mma-algebra = { path = "../algebra" }
 i_overlay = "9.1"
 i_triangle = "0.50"

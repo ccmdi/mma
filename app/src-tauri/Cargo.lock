@@ -3936,6 +3936,7 @@ version = "0.1.0"
 dependencies = [
  "i_overlay",
  "i_triangle",
+ "mma-algebra",
 ]
 
 [[package]]

@@ -190,12 +190,6 @@ fn even_picks(
 }
 
 impl Store {
-    /// Current coordinates of an alive location, without cloning the full Location.
-    #[inline]
-    pub(super) fn coords_of(&self, id: Id<Location>) -> Option<(f64, f64)> {
-        self.view().get(id).map(|row| (row.lat(), row.lng()))
-    }
-
     /// Whole-map bounding box, cached. Recomputes O(N) only when stale (after a
     /// removal or bulk change); otherwise O(1). The scoring UI refreshes this on
     /// every edit, so it must not scan the whole map per mutation.

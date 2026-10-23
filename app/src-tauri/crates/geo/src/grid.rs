@@ -7,6 +7,7 @@
 //! id->cell reverse map is needed; a full-scan fallback guards against drift.
 
 use crate::{covering_cells, M_PER_DEG};
+use mma_algebra::{Change, Follows};
 use std::collections::HashMap;
 
 #[inline]
@@ -54,11 +55,10 @@ impl SpatialIndex {
         self.len += 1;
     }
 
-    /// Remove `id`, deriving its cell from the coordinates it was indexed under.
-    /// If the coords don't locate it (a caller passed stale state), fall back to a
-    /// full scan so the index never silently keeps a dead entry; returns false when
-    /// that fallback was needed.
-    pub fn remove(&mut self, id: u32, lat: f64, lng: f64) -> bool {
+    /// Remove `id`, deriving its cell from the coordinates it was indexed under. If the
+    /// coords don't locate it (stale state), a full scan finds it so the index never
+    /// keeps a dead entry.
+    fn remove(&mut self, id: u32, lat: f64, lng: f64) {
         let key = cell_for(self.cell_deg, lat, lng);
         if let Some(v) = self.cells.get_mut(&key) {
             if let Some(pos) = v.iter().position(|&x| x == id) {
@@ -67,7 +67,7 @@ impl SpatialIndex {
                     self.cells.remove(&key);
                 }
                 self.len -= 1;
-                return true;
+                return;
             }
         }
         for (k, v) in &mut self.cells {
@@ -81,7 +81,6 @@ impl SpatialIndex {
                 break;
             }
         }
-        false
     }
 
     /// Ids in every cell touching the `radius_m` disc around the point (antimeridian
@@ -145,6 +144,20 @@ impl SpatialIndex {
             }
         }
         false
+    }
+}
+
+impl Follows<(u32, (f64, f64))> for SpatialIndex {
+    /// Move each point `change` moves out of where it was and into where it is now.
+    fn apply(&mut self, change: &Change<(u32, (f64, f64))>) {
+        for transition in change.transitions() {
+            if let Some(&(id, (lat, lng))) = transition.before {
+                self.remove(id, lat, lng);
+            }
+            if let Some(&(id, (lat, lng))) = transition.after {
+                self.insert(id, lat, lng);
+            }
+        }
     }
 }
 

@@ -399,27 +399,8 @@ impl Store {
         if change.is_empty() {
             return;
         }
-        if self.spatial.peek().is_some() {
-            for transition in change.transitions() {
-                let before = transition
-                    .before
-                    .map(|row| (row.id, self.coords_of(row.id).unwrap_or((row.lat, row.lng))));
-                let after = transition.after.map(|row| (row.id, (row.lat, row.lng)));
-                if before == after {
-                    continue;
-                }
-                if let Some(index) = self.spatial.if_built_mut() {
-                    if let Some((id, (lat, lng))) = before {
-                        if !index.remove(id.get(), lat, lng) {
-                            log::warn!("[spatial] remove miss for id {}", id);
-                        }
-                    }
-                    if let Some((id, (lat, lng))) = after {
-                        index.insert(id.get(), lat, lng);
-                    }
-                }
-            }
-        }
+        self.spatial
+            .apply(&change.project(|row| (row.id.get(), (row.lat, row.lng))));
         self.overlay.edit().apply(change, self.batch.as_ref());
     }
 }
