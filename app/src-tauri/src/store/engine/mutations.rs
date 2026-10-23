@@ -399,8 +399,9 @@ impl Store {
         if change.is_empty() {
             return;
         }
-        self.spatial
-            .apply(&change.project(|row| (row.id.get(), (row.lat, row.lng))));
+        let points = change.project(|row| (row.id.get(), (row.lat, row.lng)));
+        self.spatial.apply(&points);
+        self.bounds.apply(&points);
         self.overlay.edit().apply(change, self.batch.as_ref());
     }
 }

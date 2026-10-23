@@ -46,13 +46,16 @@ impl Cached for SpatialIndex {
     }
 }
 
-impl Cached for At<Option<BoundsAcc>> {
-    fn valid(&self, store: &Store) -> bool {
-        self.current(store.version)
+/// The whole map's bounding box, `None` for a map with no rows.
+pub(crate) struct Bounds(Option<BoundsAcc>);
+
+impl Cached for Bounds {
+    fn valid(&self, _: &Store) -> bool {
+        true
     }
 
     fn build(store: &Store) -> Self {
-        At::new(store.version, store.all().bounds())
+        Bounds(store.all().bounds())
     }
 
     fn slot(store: &mut Store) -> &mut Ensured<Self> {
@@ -61,6 +64,29 @@ impl Cached for At<Option<BoundsAcc>> {
 
     fn slot_ref(store: &Store) -> &Ensured<Self> {
         &store.bounds
+    }
+}
+
+impl Follows<(u32, (f64, f64))> for Bounds {
+    /// Grow the box to take in arriving points. A box cannot shrink, so a removal or a move
+    /// from its edge leaves it to be rebuilt.
+    fn apply(&mut self, change: &Change<(u32, (f64, f64))>) -> bool {
+        if !change.removed.is_empty() {
+            return false;
+        }
+        if let Some(acc) = self.0 {
+            if change
+                .updated
+                .iter()
+                .any(|((_, (lat, lng)), _)| acc.on_edge(*lat, *lng))
+            {
+                return false;
+            }
+        }
+        for &(_, (lat, lng)) in change.after() {
+            self.0 = Some(BoundsAcc::fold(self.0, lat, lng));
+        }
+        true
     }
 }
 
@@ -194,32 +220,7 @@ impl Store {
     /// removal or bulk change); otherwise O(1). The scoring UI refreshes this on
     /// every edit, so it must not scan the whole map per mutation.
     pub(crate) fn cached_bounds(&mut self) -> Option<[f64; 4]> {
-        Ensured::<At<Option<BoundsAcc>>>::with(self, |b, _| b.value().map(BoundsAcc::resolve))
-    }
-
-    /// Update cached bounds if the change can only grow them.
-    /// Removals or updates at an old edge invalidate the cache for the next read.
-    pub(super) fn update_bounds(&mut self, changes: &Change<Location>, before: u64) {
-        let Some(at) = self.bounds.if_built_mut().filter(|b| b.current(before)) else {
-            return;
-        };
-        if !changes.removed.is_empty() {
-            return;
-        }
-        let mut acc = *at.value();
-        if let Some(a) = acc {
-            if changes
-                .updated
-                .iter()
-                .any(|(old, _)| a.on_edge(old.lat, old.lng))
-            {
-                return;
-            }
-        }
-        for loc in changes.after() {
-            acc = Some(BoundsAcc::fold(acc, loc.lat, loc.lng));
-        }
-        self.bounds.seed(At::new(self.version, acc));
+        Ensured::<Bounds>::with(self, |b, _| b.0.map(BoundsAcc::resolve))
     }
 
     /// Every alive row: the scope for walks that resolve no selector.

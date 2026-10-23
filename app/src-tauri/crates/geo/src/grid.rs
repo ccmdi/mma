@@ -149,7 +149,7 @@ impl SpatialIndex {
 
 impl Follows<(u32, (f64, f64))> for SpatialIndex {
     /// Move each point `change` moves out of where it was and into where it is now.
-    fn apply(&mut self, change: &Change<(u32, (f64, f64))>) {
+    fn apply(&mut self, change: &Change<(u32, (f64, f64))>) -> bool {
         for transition in change.transitions() {
             if let Some(&(id, (lat, lng))) = transition.before {
                 self.remove(id, lat, lng);
@@ -158,6 +158,7 @@ impl Follows<(u32, (f64, f64))> for SpatialIndex {
                 self.insert(id, lat, lng);
             }
         }
+        true
     }
 }
 

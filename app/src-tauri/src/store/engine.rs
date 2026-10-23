@@ -188,10 +188,9 @@ pub struct Store {
     /// Per-value counts come from index membership.
     field_indexes: selections::FieldIndexes,
     pub(crate) steps: Timelines,
-    /// Whole-map bounds as of a store version. `update_bounds` carries it across a
-    /// mutation when the change can only grow the box; otherwise it is left behind and
-    /// the next read rescans. Resolved to `[w,s,e,n]` on read.
-    pub(crate) bounds: Ensured<At<Option<BoundsAcc>>>,
+    /// Lazy whole-map bounds, grown by [`Store::put`] and dropped for a rescan when a change
+    /// could shrink them. Resolved to `[w,s,e,n]` on read.
+    pub(crate) bounds: Ensured<Bounds>,
     /// Lazy spatial index over alive locations, maintained incrementally by [`Store::put`].
     /// Validity is a length match against the alive rows, so any bulk path that bypasses
     /// `put` degrades to a rebuild, never wrong results.
@@ -388,9 +387,7 @@ impl Store {
         };
         let t0 = Instant::now();
         let (changes, records) = (&entry.locations, &entry.records);
-        let before = self.version;
         self.bump();
-        self.update_bounds(changes, before);
 
         let mut moved = self.reindex(projections);
         for (field, delta) in records {
@@ -813,7 +810,7 @@ pub struct StoreStatus {
 }
 
 /// Something that was correct at revision `rev` of its source: a consumer's watermark
-/// (`At<()>`, satisfied by any later revision) or a derived cache (valid at exactly one).
+/// (`At<()>`, satisfied by any later revision) or a value stamped with the revision it holds.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct At<T> {
     rev: u64,
@@ -823,11 +820,6 @@ pub(crate) struct At<T> {
 impl<T> At<T> {
     pub(crate) fn new(rev: u64, value: T) -> Self {
         Self { rev, value }
-    }
-
-    /// A derived value is right only for the revision it was computed at.
-    pub(crate) fn current(&self, rev: u64) -> bool {
-        self.rev == rev
     }
 
     /// A consumer that has seen `self.rev` has seen everything up to it.
@@ -880,24 +872,15 @@ impl<T: Cached> Ensured<T> {
 }
 
 impl<T> Ensured<T> {
-    /// Install a value computed elsewhere (an open-time scan that already walked the rows).
-    pub(crate) fn seed(&mut self, value: T) {
-        self.0 = Some(value);
-    }
-
-    /// Bring the value in step with `change` when built; never builds.
+    /// Bring the value in step with `change` when built, dropping it for the next read to
+    /// rebuild when it cannot follow; never builds.
     pub(crate) fn apply<R>(&mut self, change: &Change<R>)
     where
         T: Follows<R>,
     {
-        if let Some(value) = &mut self.0 {
-            value.apply(change);
+        if self.0.as_mut().is_some_and(|value| !value.apply(change)) {
+            self.0 = None;
         }
-    }
-
-    /// Maintain in place when built; never builds. Staleness is the next read's problem.
-    pub(crate) fn if_built_mut(&mut self) -> Option<&mut T> {
-        self.0.as_mut()
     }
 
     /// Read the cached value without checking validity. The caller must ensure it first.

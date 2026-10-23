@@ -943,7 +943,8 @@ impl<T: Keyed + PartialEq> Holds<T> for BTreeMap<T::Key, T> {
 
 /// A value kept in step with a collection by applying each change to it.
 pub trait Follows<T> {
-    fn apply(&mut self, change: &Change<T>);
+    /// Apply `change`, answering false when the value can no longer stand for the collection.
+    fn apply(&mut self, change: &Change<T>) -> bool;
 }
 
 /// Keyed rows, at most one under each key.

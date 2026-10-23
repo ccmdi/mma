@@ -1192,44 +1192,21 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 0.0, 0.0]));
 
     // Add outside the box -> grows incrementally, no recompute.
-    let a = loc(2, 10.0, 10.0);
     store.put(&Change {
-        added: vec![a.clone()],
+        added: vec![loc(2, 10.0, 10.0)],
         ..Default::default()
     });
-    let before = store.version;
-    store.bump();
-    store.update_bounds(
-        &Change {
-            added: vec![a],
-            ..Default::default()
-        },
-        before,
-    );
     assert!(
-        store
-            .bounds
-            .peek()
-            .is_some_and(|b| b.current(store.version)),
-        "add carries the cache forward"
+        store.bounds.peek().is_some(),
+        "an add carries the cache forward"
     );
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 10.0, 10.0]));
 
     // Add inside the box -> no change.
-    let b = loc(3, 5.0, 5.0);
     store.put(&Change {
-        added: vec![b.clone()],
+        added: vec![loc(3, 5.0, 5.0)],
         ..Default::default()
     });
-    let before = store.version;
-    store.bump();
-    store.update_bounds(
-        &Change {
-            added: vec![b],
-            ..Default::default()
-        },
-        before,
-    );
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 10.0, 10.0]));
 
     // Remove the extreme point -> invalidates, recompute shrinks the box.
@@ -1237,25 +1214,40 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
         removed: vec![loc(2, 10.0, 10.0)],
         ..Default::default()
     });
-    let before = store.version;
-    store.bump();
-    store.update_bounds(
-        &Change {
-            removed: vec![loc(2, 10.0, 10.0)],
-            ..Default::default()
-        },
-        before,
-    );
-    assert!(
-        !store
-            .bounds
-            .peek()
-            .is_some_and(|b| b.current(store.version)),
-        "removal leaves the cache behind"
-    );
+    assert!(store.bounds.peek().is_none(), "a removal drops the cache");
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 5.0, 5.0]));
 
     // The cache must never diverge from a fresh O(N) compute.
+    assert_eq!(
+        store.cached_bounds(),
+        store.all().bounds().map(BoundsAcc::resolve)
+    );
+}
+
+#[test]
+fn cached_bounds_follow_moves_inside_and_drop_on_a_move_from_the_edge() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 10.0, 10.0), loc(3, 5.0, 5.0)]);
+    assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 10.0, 10.0]));
+
+    store.put(&Change {
+        updated: vec![(loc(3, 5.0, 5.0), loc(3, 20.0, 20.0))],
+        ..Default::default()
+    });
+    assert!(
+        store.bounds.peek().is_some(),
+        "a move from inside the box carries the cache forward"
+    );
+    assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 20.0, 20.0]));
+
+    store.put(&Change {
+        updated: vec![(loc(3, 20.0, 20.0), loc(3, 5.0, 5.0))],
+        ..Default::default()
+    });
+    assert!(
+        store.bounds.peek().is_none(),
+        "a move from the edge drops the cache"
+    );
+    assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 10.0, 10.0]));
     assert_eq!(
         store.cached_bounds(),
         store.all().bounds().map(BoundsAcc::resolve)
@@ -2765,7 +2757,7 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
     assert!(touched(&feed.last(), &["selectionCounts"]));
     assert_eq!(store.selections.ids.len(), 1);
     assert!(
-        store.bounds.peek().unwrap().current(store.version),
+        store.bounds.peek().is_some(),
         "a selection change moves no row, so the bounds carry over"
     );
     assert_eq!(store.cached_bounds(), bounds);
