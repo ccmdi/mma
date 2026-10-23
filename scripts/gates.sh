@@ -34,6 +34,7 @@ plugin-build      node  fresh   .              fresh_plugins
 cargo-fmt         rust  cargo   app/src-tauri  cargo fmt --all -- --check
 clippy            rust  cargo   app/src-tauri  cargo clippy -- -D clippy::correctness -D dead_code
 cargo-test        rust  cargo   app/src-tauri  cargo test --lib
+bench-compiles    rust  cargo   app/src-tauri  cargo check --features bench --benches
 mma-geo           rust  cargo   app/src-tauri  cargo test -p mma-geo
 mma-algebra       rust  -       app/src-tauri  cargo test --manifest-path crates/algebra/Cargo.toml
 mma-fields        rust  cargo   app/src-tauri  cargo test -p mma-fields

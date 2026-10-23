@@ -297,8 +297,16 @@ impl BenchApp {
     }
 
     fn step(&self, stack: Stack) -> Mutation {
-        async_runtime::block_on(store_step(label(), self.state(), stack, Timeline::Edits))
-            .expect("step")
+        with_target(&self.state(), &label(), &MAP, |store| {
+            let map_id = store.meta.id.clone();
+            store
+                .step(stack, Timeline::Edits, |seq| {
+                    load_edit(&storage::open_db()?, &map_id, seq)
+                })
+                .settled()
+        })
+        .expect("step")
+        .expect("nothing to step through")
     }
 
     /// Replace the listed selections with one per selector.
