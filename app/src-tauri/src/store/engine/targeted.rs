@@ -258,12 +258,13 @@ impl<'a> Targeted<'a> {
     }
 
     /// This handle for rows from another map, whose references to interned values use the
-    /// ids of `records`.
+    /// ids of `records`, refused unless the map interns every field they bring.
     pub(crate) fn from<'h>(
         &'h mut self,
         records: &'h HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
-    ) -> Foreign<'h, 'a> {
-        Foreign { at: self, records }
+    ) -> AppResult<Foreign<'h, 'a>> {
+        self.store.check_interned(records.keys())?;
+        Ok(Foreign { at: self, records })
     }
 
     /// `field`'s value records here, refused unless the map interns the field's values.

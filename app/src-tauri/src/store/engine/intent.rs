@@ -187,7 +187,6 @@ impl Intent {
                 (store.entry(&layer, entry), edited)
             }
             Intent::Values { field, edits } => {
-                store.check_interned([&field])?;
                 let edits = edits
                     .into_iter()
                     .map(named)

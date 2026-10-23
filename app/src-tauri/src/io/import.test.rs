@@ -1074,6 +1074,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     store
         .at(&Target::Map { id: None })
         .from(&parsed.records)
+        .unwrap()
         .write(
             parsed
                 .locations

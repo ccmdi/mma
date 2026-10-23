@@ -774,6 +774,23 @@ fn redo_stack_cleared_on_new_edit() {
 }
 
 #[test]
+fn rows_bringing_records_for_a_field_the_map_does_not_intern_are_refused_at_the_door() {
+    let mut store = setup_store_with(&[]);
+    let records = HashMap::from([(
+        "heading".to_string(),
+        HashMap::from([(
+            Id::new(1),
+            ValueRecord {
+                id: Id::new(1),
+                ..named("north")
+            },
+        )]),
+    )]);
+    assert!(store.at(&Target::Map { id: None }).from(&records).is_err());
+    assert_eq!(store.view().len(), 0);
+}
+
+#[test]
 fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
     let mut store = setup_store_with(&[]);
     click_add(&mut store, 0.0, 0.0);
@@ -3522,8 +3539,7 @@ fn a_drop_at_another_map_creates_its_missing_tags_there_undoably_and_leaves_the_
         dropped(r#"{"tags":{"1":{"id":1,"name":"shared"},"2":{"id":2,"name":"New"}}}"#);
 
     with_target(&state, &WindowLabel("w1".into()), &target, |store| {
-        store.check_interned(records.keys())?;
-        Ok(store.at(&target).from(&records).write(edits).now())
+        Ok(store.at(&target).from(&records)?.write(edits).now())
     })
     .unwrap();
 
@@ -3607,8 +3623,7 @@ fn a_drop_on_this_map_reuses_its_tags_by_name_and_leaves_other_rows_alone() {
         dropped(r#"{"tags":{"1":{"id":1,"name":"kept"},"2":{"id":2,"name":"Fresh"}}}"#);
 
     with_target(&state, &w1, &here, |store| {
-        store.check_interned(records.keys())?;
-        Ok(store.at(&here).from(&records).write(edits).now())
+        Ok(store.at(&here).from(&records)?.write(edits).now())
     })
     .unwrap();
 
@@ -8614,6 +8629,7 @@ fn undoing_a_landing_removes_the_tags_it_interned() {
                 },
             )]),
         )]))
+        .unwrap()
         .write(vec![Op::Add(loc_with_tags(0, 1.0, 1.0, vec![5]))])
         .now();
     let interned = tag_records(&store);
@@ -8657,11 +8673,13 @@ fn a_layer_holds_the_records_its_edits_carry_until_it_lands() {
     store
         .at(&layer)
         .from(&carried(9, "Dropped"))
+        .unwrap()
         .write(vec![Op::Add(loc_with_tags(0, 1.0, 1.0, vec![9]))])
         .now();
     store
         .at(&layer)
         .from(&carried(9, "kept"))
+        .unwrap()
         .write(Vec::new())
         .now();
     assert_eq!(tag_records(&store).len(), 1);

@@ -109,7 +109,7 @@ pub(super) fn stage_parsed(
         .collect();
     store
         .at(&import_target(window))
-        .from(&records)
+        .from(&records)?
         .write(edits)
         .settled()?;
     Ok(())
@@ -443,7 +443,7 @@ pub(super) fn confirm_staged(
     }
 
     let mut staged = store.at(&target);
-    staged.from(&records).write(edits).settled()?;
+    staged.from(&records)?.write(edits).settled()?;
     let imported_count = rows.len() as u32;
     let landed = staged.land();
     Ok(landed.map(move |mutation| EditorImportResult {

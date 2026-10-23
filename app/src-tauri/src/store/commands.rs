@@ -244,8 +244,7 @@ impl Edits {
         };
         Ok(match self {
             Edits::Locations { edits, records, .. } => {
-                store.check_interned(records.keys())?;
-                let edited = store.at(target).from(&records).write(edits.read()?);
+                let edited = store.at(target).from(&records)?.write(edits.read()?);
                 edited.map(|edited| Edited::Locations(received(edited)))
             }
             Edits::Values { field, edits } => store
@@ -487,7 +486,7 @@ async fn copy_locations_to_map(
                     })
                 })
                 .collect();
-            let copied = target.at(&there).from(&records).write(adds);
+            let copied = target.at(&there).from(&records)?.write(adds);
             Ok((copied, total))
         })
     })?;

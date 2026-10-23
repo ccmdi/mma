@@ -896,7 +896,7 @@ fn apply_pull(
 
     let result = store
         .at(&Target::Map { id: None })
-        .from(&records)
+        .from(&records)?
         .write(edits)
         .settled()?
         .mutation;
