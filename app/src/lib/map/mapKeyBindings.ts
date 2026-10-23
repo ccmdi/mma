@@ -12,15 +12,6 @@ import { persisted } from "@/lib/hooks/useLocalStorage";
  *  a map's own binding on the same key shadows them. */
 export const GLOBAL_COPY_BINDINGS = persisted<MapKeyBinding[]>("globalCopyBindings", []);
 
-/**
- * Per-map key binding layer. Bindings live on `MapSettings.keyBindings`; each maps
- * a combo string (same format as global hotkeys) to a MapKeyAction. Action handlers
- * are registered by the component that owns the relevant state (e.g. the location
- * editor registers applyTag while a location is open), so an action only consumes
- * the key when it is currently applicable — otherwise the event falls through to
- * the global hotkey layer.
- */
-
 type ActionType = MapKeyAction["type"];
 type ActionOf<T extends ActionType> = Extract<MapKeyAction, { type: T }>;
 
