@@ -19,6 +19,7 @@ import { getSettings } from "@/store/settings";
 import { loadSession, saveSession } from "@/store/session";
 import { openWindow, openWindows, closeWindows } from "@/lib/window";
 import { cmd } from "@/lib/commands";
+import { Database } from "@/lib/database";
 import { isWeb } from "@/lib/util/util";
 import { getJobs, confirmMapExit } from "@/lib/jobs";
 import { markReady } from "@/plugins/registry";
@@ -55,22 +56,28 @@ async function boot() {
 	mark("initLogging");
 	await initLocale(getSettings().language);
 	mark("initLocale");
-	await cmd.startupCheck();
-	await Promise.all(BUILTIN_PROVIDERS.map(Provider.register));
-	await Maps.init();
-	mark("initStore");
+	try {
+		await cmd.startupCheck();
+		await Promise.all(BUILTIN_PROVIDERS.map(Provider.register));
+		await Maps.init();
+		mark("initStore");
+	} catch (e) {
+		log.error("[boot] database unavailable:", e);
+		Database.fail(e);
+	}
 
-	initRouter();
-	mark("initRouter");
-
-	markReady();
+	if (Database.ready()) {
+		initRouter();
+		mark("initRouter");
+		markReady();
+	}
 	log.info("App booted");
 
 	void appWindow.onCloseRequested(async (event) => {
 		event.preventDefault();
 		if (getJobs().some((j) => j.scope === "map") && !(await confirmMapExit("quit"))) return;
 		log.info("Window close requested, closing map...");
-		if (appWindow.type === "list" && getSettings().restoreSession) {
+		if (Database.ready() && appWindow.type === "list" && getSettings().restoreSession) {
 			const openIds = (await openWindows("editor")).map((w) => w.mapId);
 			saveSession(openIds);
 			log.info(`[session] saved ${openIds.length} open map(s): ${openIds.join(", ")}`);
@@ -106,7 +113,9 @@ async function boot() {
 	mark("show");
 	const jsTotal = performance.now();
 
-	if (appWindow.type === "list" && getSettings().restoreSession) restoreSession();
+	if (Database.ready() && appWindow.type === "list" && getSettings().restoreSession) {
+		restoreSession();
+	}
 
 	cmd
 		.appReady()

@@ -30,6 +30,7 @@ import { ToastContainer } from "@/components/primitives/Toast";
 import { JobTray, JobExitDialog } from "@/components/primitives/JobTray";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
 import { ErrorScreen } from "@/components/primitives/ErrorScreen";
+import { Database } from "@/lib/database";
 import { useUpdateState, dismissUpdate, describeUpdate } from "@/lib/util/updateCheck";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { APP_NAME } from "@/lib/util/format";
@@ -77,6 +78,8 @@ export default function App() {
 		<TooltipProvider>
 			{closing ? (
 				<Blank />
+			) : !Database.ready() ? (
+				<ErrorScreen message={Database.failure() ?? ""} />
 			) : targetMapId ? (
 				<EditorRoot />
 			) : (
@@ -190,13 +193,17 @@ function AppChrome() {
 						label={t("Manual")}
 						onClick={() => openManual()}
 					/>
-					<IconButton
-						icon={mdiMapOutline}
-						size={18}
-						label={t("Scratch map")}
-						onClick={() => void Maps.openScratch()}
-					/>
-					<PluginButtons mapList />
+					{Database.ready() && (
+						<>
+							<IconButton
+								icon={mdiMapOutline}
+								size={18}
+								label={t("Scratch map")}
+								onClick={() => void Maps.openScratch()}
+							/>
+							<PluginButtons mapList />
+						</>
+					)}
 				</div>
 			)}
 			<WelcomeDialog
@@ -236,13 +243,15 @@ function AppChrome() {
 								)}
 							</div>
 						)}
-					{isMapList && <BulkActions />}
-					<IconButton
-						icon={mdiPuzzle}
-						size={18}
-						label={t("Plugins")}
-						onClick={() => setShowPlugins(true)}
-					/>
+					{Database.ready() && isMapList && <BulkActions />}
+					{Database.ready() && (
+						<IconButton
+							icon={mdiPuzzle}
+							size={18}
+							label={t("Plugins")}
+							onClick={() => setShowPlugins(true)}
+						/>
+					)}
 					<IconButton
 						icon={mdiCog}
 						size={18}
