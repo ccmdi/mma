@@ -264,7 +264,7 @@ pub(crate) fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
     let LocationAggregates { alive, bounds } = store.scan_locations();
     store.alive_count = Tracked::new(alive);
     store.bounds.seed(At::new(store.version, bounds));
-    store.pending_counts = Tracked::new(store.overlay_diff_counts());
+    store.pending_counts = Tracked::new(store.overlay.counts());
     storage::set_map_counts(&conn, map_id, alive, *store.pending_counts)?;
     store.steps[Timeline::Edits] = Tracked::new(edits);
 

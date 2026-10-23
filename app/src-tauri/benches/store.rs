@@ -165,6 +165,65 @@ fn row_ops(c: &mut Criterion) {
     g.finish();
 }
 
+fn overlay(c: &mut Criterion) {
+    let mut group = c.benchmark_group("overlay");
+    let mut sizes = vec![1, n().min(1_000), n()];
+    sizes.sort_unstable();
+    sizes.dedup();
+    for size in sizes {
+        let rows = bench::locations(size, 0xADD5);
+        let mut store = bench::Fixture::new(0).store();
+        bench::put(
+            &mut store,
+            &Change {
+                added: rows,
+                ..Change::default()
+            },
+        );
+        let before = bench::get_loc_by_id(&store, 1).unwrap();
+        let after = Location {
+            heading: before.heading + 1.0,
+            ..before.clone()
+        };
+        let mut change = Change {
+            updated: vec![(before, after)],
+            ..Change::default()
+        };
+        group.bench_function(BenchmarkId::new("update_added_row", size), |b| {
+            b.iter(|| {
+                bench::put(&mut store, black_box(&change));
+                let (before, after) = &mut change.updated[0];
+                std::mem::swap(before, after);
+            });
+        });
+
+        let mut store = bench::Fixture::new(size).store();
+        let before: Vec<_> = (1..=size as u32)
+            .map(|id| bench::get_loc_by_id(&store, id).unwrap())
+            .collect();
+        bench::put(
+            &mut store,
+            &Change {
+                updated: before
+                    .into_iter()
+                    .map(|row| {
+                        let after = Location {
+                            heading: row.heading + 1.0,
+                            ..row.clone()
+                        };
+                        (row, after)
+                    })
+                    .collect(),
+                ..Change::default()
+            },
+        );
+        group.bench_function(BenchmarkId::new("pending_counts", size), |b| {
+            b.iter(|| black_box(bench::pending(black_box(&store))));
+        });
+    }
+    group.finish();
+}
+
 fn selections(c: &mut Criterion) {
     let n = n();
     let fx = bench::Fixture::new(n);
@@ -503,6 +562,7 @@ criterion_group!(
     update_locations,
     noop_updates,
     row_ops,
+    overlay,
     selections,
     scope_traversal,
     spatial_queries,

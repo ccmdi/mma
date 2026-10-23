@@ -442,46 +442,37 @@ impl Store {
         }
     }
 
-    /// Apply row changes to the store: removed rows die, updated rows are rewritten where they
-    /// sit (an added row in its sorted slot, a base row as its patch), and added rows join.
-    /// The spatial index moves only a row whose coordinates did.
+    /// Apply row changes and move the spatial index with their coordinates.
     pub(crate) fn put(&mut self, change: &Change<Location>) {
         if change.is_empty() {
             return;
         }
-        let mut removed: HashSet<Id<Location>> = HashSet::new();
-        for loc in &change.removed {
-            removed.insert(loc.id);
-            *self.alive_count.edit() -= 1;
-            // Index under the current coords, not the caller's copy: a patched
-            // location's overlay coords are where the index filed it.
-            let (lat, lng) = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
-            if let Some(ix) = self.spatial.if_built_mut() {
-                if !ix.remove(loc.id.get(), lat, lng) {
-                    log::warn!("[spatial] remove miss for id {}", loc.id);
+        if self.spatial.peek().is_some() {
+            for transition in change.transitions() {
+                let before = transition
+                    .before
+                    .map(|row| (row.id, self.coords_of(row.id).unwrap_or((row.lat, row.lng))));
+                let after = transition.after.map(|row| (row.id, (row.lat, row.lng)));
+                if before == after {
+                    continue;
                 }
-            }
-            self.overlay.edit().updated.remove(&loc.id);
-        }
-        let overlay = self.overlay.edit();
-        overlay.removed.extend(removed.iter().copied());
-        overlay.added.retain(|l| !removed.contains(&l.id));
-        for (_, loc) in &change.updated {
-            let at = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
-            if at != (loc.lat, loc.lng) {
-                if let Some(ix) = self.spatial.if_built_mut() {
-                    if !ix.remove(loc.id.get(), at.0, at.1) {
-                        log::warn!("[spatial] remove miss for id {}", loc.id);
+                if let Some(index) = self.spatial.if_built_mut() {
+                    if let Some((id, (lat, lng))) = before {
+                        if !index.remove(id.get(), lat, lng) {
+                            log::warn!("[spatial] remove miss for id {}", id);
+                        }
                     }
-                    ix.insert(loc.id.get(), loc.lat, loc.lng);
+                    if let Some((id, (lat, lng))) = after {
+                        index.insert(id.get(), lat, lng);
+                    }
                 }
             }
-            match self.overlay.added.binary_search_by_key(&loc.id, |l| l.id) {
-                Ok(ix) => self.overlay.edit().added[ix] = loc.clone(),
-                Err(_) => self.overlay_patch(loc.clone()),
-            }
         }
-        self.overlay_add(change.added.clone());
+        if change.added.len() != change.removed.len() {
+            *self.alive_count.edit() =
+                *self.alive_count + change.added.len() - change.removed.len();
+        }
+        self.overlay.edit().apply(change, self.batch.as_ref());
     }
 }
 

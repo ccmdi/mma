@@ -429,12 +429,17 @@ pub fn get_loc_by_id(store: &Store, id: u32) -> Option<Location> {
 }
 
 pub fn base_loc_by_id(store: &Store, id: u32) -> Option<Location> {
-    store.base_loc_by_id(Id::new(id))
+    let cols = Columns::of(store.batch.as_ref()?);
+    Some(cols.location(cols.row_of(Id::new(id))?))
 }
 
 /// Apply a row change to the store.
 pub fn put(store: &mut Store, change: &Change<Location>) {
     store.put(change);
+}
+
+pub fn pending(store: &Store) -> Counts {
+    store.overlay.counts()
 }
 
 /// The in-memory half of a commit: merge the overlay into a new base and adopt it.

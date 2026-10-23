@@ -149,7 +149,10 @@ fn setup_store_with(locs: &[Location]) -> Store {
     });
     store.batch = Some(RecordBatch::new_empty(arrow::schema()));
     for l in locs {
-        store.overlay_add(vec![l.clone()]);
+        store.put(&Change {
+            added: vec![l.clone()],
+            ..Default::default()
+        });
         let ci = render_cell_idx(l.lat, l.lng);
         store.cell_add_render(ci, l.id);
     }
@@ -165,7 +168,10 @@ fn setup_store_with(locs: &[Location]) -> Store {
 fn overlay_add_increments_alive_count() {
     let mut store = setup_store_with(&[]);
     let l = loc(1, 10.0, 20.0);
-    store.overlay_add(vec![l]);
+    store.put(&Change {
+        added: vec![l],
+        ..Default::default()
+    });
     assert_eq!(*store.alive_count, 1);
 }
 
@@ -173,7 +179,10 @@ fn overlay_add_increments_alive_count() {
 fn overlay_add_then_get() {
     let mut store = setup_store_with(&[]);
     let l = loc(1, 10.0, 20.0);
-    store.overlay_add(vec![l.clone()]);
+    store.put(&Change {
+        added: vec![l.clone()],
+        ..Default::default()
+    });
     let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 10.0);
     assert_eq!(got.lng, 20.0);
@@ -186,7 +195,10 @@ fn overlay_add_batch_merges_into_sorted_adds() {
     // Odd ids, handed over unsorted, all below/among/above the existing range.
     let mut odd: Vec<Location> = (0..=500).map(|i| loc(i * 2 + 1, 1.0, 1.0)).collect();
     odd.reverse();
-    store.overlay_add(odd);
+    store.put(&Change {
+        added: odd,
+        ..Default::default()
+    });
 
     let ids: Vec<u32> = store
         .overlay
@@ -498,7 +510,10 @@ fn named_id_ordering_is_consumer_defined() {
 fn overlay_rev_bumps_on_every_mutation() {
     let mut store = setup_store_with(&[]);
     let r0 = store.overlay.rev();
-    store.overlay_add(vec![loc(1, 0.0, 0.0)]);
+    store.put(&Change {
+        added: vec![loc(1, 0.0, 0.0)],
+        ..Default::default()
+    });
     let r1 = store.overlay.rev();
     assert!(r1 > r0);
     overlay_update(&mut store, &patch!(1; lat: 5.0));
@@ -540,7 +555,7 @@ fn bake_skips_empty_overlay() {
 #[test]
 fn commit_diff_counts_session_adds() {
     let store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    assert_eq!(store.overlay_diff_counts(), net(2, 0, 0));
+    assert_eq!(store.overlay.counts(), net(2, 0, 0));
 }
 
 #[test]
@@ -548,10 +563,10 @@ fn commit_diff_counts_patch_on_base_row_without_undo() {
     // An overlay edit that never touches the undo stack still shows up in the commit diff.
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.bake_overlay();
-    assert_eq!(store.overlay_diff_counts(), net(0, 0, 0));
+    assert_eq!(store.overlay.counts(), net(0, 0, 0));
     overlay_update(&mut store, &patch!(1; lat: 5.0));
     assert!(store.steps[Timeline::Edits].len(Stack::Undo) == 0);
-    assert_eq!(store.overlay_diff_counts(), net(0, 0, 1));
+    assert_eq!(store.overlay.counts(), net(0, 0, 1));
 }
 
 #[test]
@@ -563,7 +578,7 @@ fn commit_diff_counts_removed_base_row() {
         removed: vec![l],
         ..Default::default()
     });
-    assert_eq!(store.overlay_diff_counts(), net(0, 1, 0));
+    assert_eq!(store.overlay.counts(), net(0, 1, 0));
 }
 
 #[test]
@@ -574,7 +589,59 @@ fn commit_diff_add_then_remove_is_noop() {
         removed: vec![l],
         ..Default::default()
     });
-    assert_eq!(store.overlay_diff_counts(), net(0, 0, 0));
+    assert_eq!(store.overlay.counts(), net(0, 0, 0));
+    assert!(store.overlay.is_empty());
+}
+
+proptest::proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    #[test]
+    fn overlay_normalization_matches_content_across_edits_and_reloads(
+        ops in collection::vec((1u32..17, 0u8..5, 0u16..360), 1..80),
+    ) {
+        let initial: Vec<_> = (1..9).map(|id| loc(id, 0.0, 0.0)).collect();
+        let mut store = setup_store_with(&initial);
+        store.bake_overlay();
+        let mut current: BTreeMap<_, _> = initial.into_iter().map(|row| (row.id, row)).collect();
+        let mut base = current.clone();
+
+        for (id, op, heading) in ops {
+            let id = Id::new(id);
+            match op {
+                3 => {
+                    store.bake_overlay();
+                    base = current.clone();
+                }
+                4 => {
+                    let delta = store.overlay.to_delta(store.batch.as_ref());
+                    store.overlay = Tracked::new(Overlay::from_delta(&delta));
+                }
+                _ => {
+                    let before = current.get(&id).cloned();
+                    let after = match op {
+                        0 => None,
+                        1 => base.get(&id).cloned().or_else(|| Some(loc(id.get(), 0.0, 0.0))),
+                        _ => Some(Location {
+                            heading: f64::from(heading),
+                            ..before.clone().unwrap_or_else(|| loc(id.get(), 0.0, 0.0))
+                        }),
+                    };
+                    let change = Change::from_iter([mma_algebra::Transition::new(before, after)]);
+                    change.apply_to(&mut current);
+                    store.put(&change);
+                }
+            }
+            let expected = Change::between(&base, &current).counts();
+            proptest::prop_assert_eq!(store.overlay.counts(), expected);
+            proptest::prop_assert_eq!(store.overlay.is_empty(), expected == Counts::default());
+            proptest::prop_assert_eq!(*store.alive_count, current.len());
+            let actual: BTreeMap<_, _> = store.all().rows()
+                .map(|row| (row.id(), row.to_location())).collect();
+            proptest::prop_assert_eq!(&actual, &current);
+            proptest::prop_assert!(store.overlay.added.windows(2).all(|rows| rows[0].id < rows[1].id));
+        }
+    }
 }
 
 // -----------------------------------------------------------------------
@@ -1112,7 +1179,10 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
 
     // Add outside the box -> grows incrementally, no recompute.
     let a = loc(2, 10.0, 10.0);
-    store.overlay_add(vec![a.clone()]);
+    store.put(&Change {
+        added: vec![a.clone()],
+        ..Default::default()
+    });
     let before = store.version;
     store.bump();
     store.update_bounds(
@@ -1133,7 +1203,10 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
 
     // Add inside the box -> no change.
     let b = loc(3, 5.0, 5.0);
-    store.overlay_add(vec![b.clone()]);
+    store.put(&Change {
+        added: vec![b.clone()],
+        ..Default::default()
+    });
     let before = store.version;
     store.bump();
     store.update_bounds(
@@ -1376,7 +1449,10 @@ fn readd_after_remove_via_overlay() {
 
     // re-add with different position
     let l2 = loc(1, 50.0, 60.0);
-    store.overlay_add(vec![l2]);
+    store.put(&Change {
+        added: vec![l2],
+        ..Default::default()
+    });
     assert_eq!(*store.alive_count, 1);
     let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 50.0);
@@ -1610,7 +1686,10 @@ fn a_patch_index_counts_a_later_move_out_of_its_cell() {
 fn overlay_update_on_overlay_add_item() {
     let mut store = setup_store_with(&[]);
     let l = loc(1, 10.0, 20.0);
-    store.overlay_add(vec![l]);
+    store.put(&Change {
+        added: vec![l],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(1; lat: 50.0));
     let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 50.0);
@@ -1640,7 +1719,10 @@ fn collect_all_with_dead_patches_and_adds() {
     overlay_update(&mut store, &patch!(2; lat: 99.0));
     // add l4
     let l4 = loc(4, 70.0, 80.0);
-    store.overlay_add(vec![l4]);
+    store.put(&Change {
+        added: vec![l4],
+        ..Default::default()
+    });
     store.alive_count = Tracked::new(3); // l2, l3, l4
 
     let all = store
@@ -1677,7 +1759,10 @@ fn bake_overlay_all_three_simultaneously() {
     overlay_update(&mut store, &patch!(2; heading: 180.0));
     // add: new l3
     let l3 = loc(3, 50.0, 60.0);
-    store.overlay_add(vec![l3]);
+    store.put(&Change {
+        added: vec![l3],
+        ..Default::default()
+    });
     store.alive_count = Tracked::new(2); // l2, l3
 
     store.bake_overlay();
@@ -1712,8 +1797,14 @@ fn sidecar_round_trips_an_empty_overlay() {
 #[test]
 fn sidecar_round_trips_every_overlay_kind_to_an_equal_overlay() {
     let mut store = store_with_full_overlay_base();
-    store.overlay_add(vec![loc(12, 12.0, 12.0)]);
-    store.overlay_add(vec![loc(10, 10.0, 10.0), loc(11, 11.0, 11.0)]);
+    store.put(&Change {
+        added: vec![loc(12, 12.0, 12.0)],
+        ..Default::default()
+    });
+    store.put(&Change {
+        added: vec![loc(10, 10.0, 10.0), loc(11, 11.0, 11.0)],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(2; heading: 45.0));
     let l3 = store.get_loc_by_id(Id::new(3)).unwrap();
     let l11 = store.get_loc_by_id(Id::new(11)).unwrap();
@@ -1722,8 +1813,8 @@ fn sidecar_round_trips_every_overlay_kind_to_an_equal_overlay() {
         ..Default::default()
     });
     assert!(
-        store.overlay.removed.contains(Id::new(11)),
-        "sanity: an added-then-removed id is dead"
+        !store.overlay.removed.contains(Id::new(11)),
+        "an added-then-removed id has no base difference"
     );
 
     let restored = through_sidecar(&store);
@@ -1734,13 +1825,8 @@ fn sidecar_round_trips_every_overlay_kind_to_an_equal_overlay() {
         "adds come back sorted by id"
     );
     assert_eq!(
-        restored,
-        Overlay {
-            added: store.overlay.added.clone(),
-            removed: [3].into_iter().map(Id::new).collect(),
-            updated: store.overlay.updated.clone(),
-        },
-        "an id added then removed has no base row behind it and is dropped"
+        restored, *store.overlay,
+        "the in-memory overlay already contains only base differences"
     );
 }
 
@@ -1751,7 +1837,10 @@ fn delta_overlay_preserves_extra_fields() {
     l.pano_id = Some("CAoSLEF".into());
     l.modified_at = Some(1_705_276_800);
     let mut store = store_with_full_overlay_base();
-    store.overlay_add(vec![l.clone()]);
+    store.put(&Change {
+        added: vec![l.clone()],
+        ..Default::default()
+    });
     let restored = through_sidecar(&store);
     assert_eq!(restored.added[0].extra, l.extra);
     assert_eq!(restored.added[0].pano_id, l.pano_id);
@@ -1854,7 +1943,10 @@ fn alive_count_stays_correct_through_all_mutations() {
     // Add 3
     let locs = vec![loc(1, 0.0, 0.0), loc(2, 1.0, 1.0), loc(3, 2.0, 2.0)];
     for l in &locs {
-        store.overlay_add(vec![l.clone()]);
+        store.put(&Change {
+            added: vec![l.clone()],
+            ..Default::default()
+        });
     }
     assert_eq!(*store.alive_count, 3);
 
@@ -1874,7 +1966,10 @@ fn alive_count_stays_correct_through_all_mutations() {
     assert_eq!(*store.alive_count, 2);
 
     // Add 1 more
-    store.overlay_add(vec![loc(4, 3.0, 3.0)]);
+    store.put(&Change {
+        added: vec![loc(4, 3.0, 3.0)],
+        ..Default::default()
+    });
     assert_eq!(*store.alive_count, 3);
 
     // Remove 2
@@ -1918,7 +2013,10 @@ fn overlay_consistency_no_id_in_both_dead_and_adds() {
     assert!(!store.overlay.added.iter().any(|l| l.id == Id::new(1)));
 
     // Re-add it (overlay_add on a known batch ID goes to patches)
-    store.overlay_add(vec![loc(1, 50.0, 60.0)]);
+    store.put(&Change {
+        added: vec![loc(1, 50.0, 60.0)],
+        ..Default::default()
+    });
     // After re-add, it should NOT be in dead
     assert!(
         !store.overlay.removed.contains(Id::new(1)),
@@ -1930,7 +2028,10 @@ fn overlay_consistency_no_id_in_both_dead_and_adds() {
 fn overlay_consistency_add_new_id_goes_to_adds() {
     let mut store = setup_store_with(&[]);
     store.batch = Some(RecordBatch::new_empty(arrow::schema()));
-    store.overlay_add(vec![loc(99, 10.0, 20.0)]);
+    store.put(&Change {
+        added: vec![loc(99, 10.0, 20.0)],
+        ..Default::default()
+    });
     assert!(store.overlay.added.iter().any(|l| l.id == Id::new(99)));
     assert!(!store.overlay.updated.contains_key(&Id::new(99)));
 }
@@ -1950,7 +2051,10 @@ fn overlay_consistency_update_batch_id_goes_to_patches() {
 fn overlay_consistency_update_add_id_stays_in_adds() {
     let mut store = setup_store_with(&[]);
     store.batch = Some(RecordBatch::new_empty(arrow::schema()));
-    store.overlay_add(vec![loc(1, 10.0, 20.0)]);
+    store.put(&Change {
+        added: vec![loc(1, 10.0, 20.0)],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(1; heading: 45.0));
     // Should still be in overlay.added, updated in place
     assert_eq!(store.overlay.added.len(), 1);
@@ -2269,7 +2373,10 @@ fn delta_overlay_round_trip_preserves_store_state() {
 
     // Add l3, remove l1, patch l2
     let l3 = loc(3, 50.0, 60.0);
-    store.overlay_add(vec![l3.clone()]);
+    store.put(&Change {
+        added: vec![l3.clone()],
+        ..Default::default()
+    });
     store.put(&Change {
         removed: vec![l1.clone()],
         ..Default::default()
@@ -2868,7 +2975,10 @@ fn bake_preserves_sorted_ids_after_mixed_ops() {
     });
     overlay_update(&mut store, &patch!(2; lat: 99.0));
     let l3 = loc(3, 50.0, 50.0);
-    store.overlay_add(vec![l3]);
+    store.put(&Change {
+        added: vec![l3],
+        ..Default::default()
+    });
     store.bake_overlay();
     assert!(ids_sorted(&store));
     let ids: Vec<u32> = {
@@ -2884,7 +2994,10 @@ fn bake_sorted_ids_survive_multiple_cycles() {
     store.bake_overlay();
     for round in 0..5 {
         let new_id = 10 + round;
-        store.overlay_add(vec![loc(new_id, round as f64, round as f64)]);
+        store.put(&Change {
+            added: vec![loc(new_id, round as f64, round as f64)],
+            ..Default::default()
+        });
         if round % 2 == 0 {
             overlay_update(&mut store, &patch!(2; heading: round as f64));
         }
@@ -2950,11 +3063,17 @@ fn overlay_add_distinguishes_batch_vs_new_ids() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 30.0, 40.0)]);
     store.bake_overlay();
     // Adding id=1 again should go to patches (exists in batch)
-    store.overlay_add(vec![loc(1, 99.0, 99.0)]);
+    store.put(&Change {
+        added: vec![loc(1, 99.0, 99.0)],
+        ..Default::default()
+    });
     assert!(store.overlay.updated.contains_key(&Id::new(1)));
     assert!(store.overlay.added.is_empty());
     // Adding id=5 should go to adds (not in batch)
-    store.overlay_add(vec![loc(5, 50.0, 50.0)]);
+    store.put(&Change {
+        added: vec![loc(5, 50.0, 50.0)],
+        ..Default::default()
+    });
     assert_eq!(store.overlay.added.len(), 1);
     assert_eq!(store.overlay.added[0].id, Id::new(5));
 }
@@ -2971,7 +3090,10 @@ fn full_lifecycle_add_bake_remove_bake_undo() {
     assert_eq!(*store.alive_count, 2);
 
     // Add loc 3, bake
-    store.overlay_add(vec![loc(3, 20.0, 20.0)]);
+    store.put(&Change {
+        added: vec![loc(3, 20.0, 20.0)],
+        ..Default::default()
+    });
     store.bake_overlay();
     assert!(ids_sorted(&store));
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 3);
@@ -3280,7 +3402,7 @@ fn a_reopened_map_announces_the_pending_changes_its_delta_holds() {
 
     let mut reopened = load_store(&closed).unwrap();
     let pending = reopened.open_status().derived.pending;
-    assert_eq!(pending, reopened.overlay_diff_counts());
+    assert_eq!(pending, reopened.overlay.counts());
     assert_ne!(pending, Counts::default());
     assert_eq!(reopened.map().pending, pending);
 }
@@ -4393,7 +4515,10 @@ fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[
             ..Default::default()
         });
     }
-    store.overlay_add(adds);
+    store.put(&Change {
+        added: adds,
+        ..Default::default()
+    });
     for k in keys {
         store.field_defs.edit().insert((*k).to_string(), def_of(k));
     }
@@ -4507,13 +4632,16 @@ fn a_boolean_field_answers_from_the_postings_over_stored_and_overlay_rows() {
         loc(2, 10.1, 20.1),
     ]);
     store.bake_overlay();
-    store.overlay_add(vec![
-        Location {
-            flags: LocationFlags::LOAD_AS_PANO_ID,
-            ..loc(3, 10.2, 20.2)
-        },
-        loc(4, 10.3, 20.3),
-    ]);
+    store.put(&Change {
+        added: vec![
+            Location {
+                flags: LocationFlags::LOAD_AS_PANO_ID,
+                ..loc(3, 10.2, 20.2)
+            },
+            loc(4, 10.3, 20.3),
+        ],
+        ..Default::default()
+    });
     store.scope(&flag_filter(true));
 
     assert_eq!(
@@ -4643,7 +4771,10 @@ fn insert_tag(store: &mut Store, id: u32, count: usize) {
     let locs: Vec<Location> = (0..count)
         .map(|i| loc_with_tags(10_000 + id * 100 + i as u32, 0.0, 0.0, vec![id]))
         .collect();
-    store.overlay_add(locs);
+    store.put(&Change {
+        added: locs,
+        ..Default::default()
+    });
 }
 
 #[test]
@@ -5281,7 +5412,10 @@ fn click_add(store: &mut Store, lat: f64, lng: f64) -> u32 {
         Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))),
         None,
     );
-    store.overlay_add(vec![l]);
+    store.put(&Change {
+        added: vec![l],
+        ..Default::default()
+    });
     id.get()
 }
 
@@ -5836,7 +5970,10 @@ fn redo_of_add_after_reopen_does_not_collide() {
 #[should_panic(expected = "duplicate id 112")]
 fn overlay_add_duplicate_id_asserts_in_debug() {
     let mut store = setup_store_with(&[loc(112, 1.0, 1.0)]);
-    store.overlay_add(vec![loc(112, 9.0, 9.0)]);
+    store.put(&Change {
+        added: vec![loc(112, 9.0, 9.0)],
+        ..Default::default()
+    });
 }
 
 // -----------------------------------------------------------------------
@@ -6075,7 +6212,10 @@ fn spatial_matches_brute_force_across_mutations() {
         ..Default::default()
     });
     overlay_update(&mut store, &patch!(3; lat: base.0, lng: base.1));
-    store.overlay_add(vec![loc(6, base.0, base.1 + m)]);
+    store.put(&Change {
+        added: vec![loc(6, base.0, base.1 + m)],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(4; lat: 10.0)); // move far away
 
     for r in [0.0, 2.0, 50.0, 1000.0] {
@@ -6569,7 +6709,10 @@ fn store_with_full_overlay() -> Store {
     });
 
     let new_id = store.next_id.take().unwrap();
-    store.overlay_add(vec![loc(new_id.get(), 9.0, 9.0)]);
+    store.put(&Change {
+        added: vec![loc(new_id.get(), 9.0, 9.0)],
+        ..Default::default()
+    });
 
     store
 }
@@ -6660,7 +6803,10 @@ fn failed_base_write_keeps_the_overlay_and_the_delta() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
     store.meta.edit().id = map;
     store.bake_overlay();
-    store.overlay_add(vec![loc(2, 2.0, 2.0)]);
+    store.put(&Change {
+        added: vec![loc(2, 2.0, 2.0)],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(1; lat: 5.0));
     let delta_bytes = sidecar_bytes(&store);
     fs::write(&delta, &delta_bytes).unwrap();
@@ -6793,7 +6939,10 @@ fn location_aggregates_include_effective_tag_membership() {
         removed: vec![base[1].clone()],
         ..Default::default()
     });
-    store.overlay_add(vec![loc_with_tags(3, -5.0, -10.0, vec![1, 2])]);
+    store.put(&Change {
+        added: vec![loc_with_tags(3, -5.0, -10.0, vec![1, 2])],
+        ..Default::default()
+    });
 
     let LocationAggregates { alive, bounds } = store.scan_locations();
 

@@ -55,6 +55,69 @@ pub(crate) struct Overlay {
 }
 
 impl Overlay {
+    pub(crate) fn counts(&self) -> Counts {
+        Counts {
+            added: self.added.len() as u32,
+            removed: self.removed.len() as u32,
+            updated: self.updated.len() as u32,
+        }
+    }
+
+    /// Apply a change relative to the base, retaining only its net difference.
+    fn apply(&mut self, change: &Change<Location>, base: Option<&RecordBatch>) {
+        let base = base.map(Columns::of);
+        if !change.removed.is_empty() {
+            let mut removed: HashSet<_> = change.removed.iter().map(|row| row.id).collect();
+            self.added.retain(|row| !removed.remove(&row.id));
+            for id in removed {
+                self.updated.remove(&id);
+                if base.as_ref().is_some_and(|base| base.row_of(id).is_some()) {
+                    self.removed.insert(id);
+                }
+            }
+        }
+
+        let mut added = Vec::new();
+        for transition in change.transitions() {
+            let Some(row) = transition.after else {
+                continue;
+            };
+            self.removed.remove(row.id);
+            if transition.before.is_some() {
+                if let Ok(i) = self.added.binary_search_by_key(&row.id, |row| row.id) {
+                    self.added[i] = row.clone();
+                    continue;
+                }
+            }
+            if let Some((base, i)) = base
+                .as_ref()
+                .and_then(|base| Some((base, base.row_of(row.id)?)))
+            {
+                if base.location(i) == *row {
+                    self.updated.remove(&row.id);
+                } else {
+                    self.updated.insert(row.id, row.clone());
+                }
+            } else {
+                added.push(row.clone());
+            }
+        }
+        if added.is_empty() {
+            return;
+        }
+        added.sort_unstable_by_key(|row| row.id);
+        let above = self.added.last().is_none_or(|last| last.id < added[0].id);
+        self.added.extend(added);
+        if !above {
+            self.added.sort_by_key(|row| row.id);
+        }
+        if cfg!(debug_assertions) {
+            if let Some(rows) = self.added.windows(2).find(|rows| rows[0].id == rows[1].id) {
+                panic!("duplicate id {}", rows[0].id);
+            }
+        }
+    }
+
     /// No uncommitted content. An autosaved overlay is clean but stays non-empty until baked.
     pub(crate) fn is_empty(&self) -> bool {
         self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
@@ -118,7 +181,7 @@ pub struct Store {
     pub(crate) alive_count: Tracked<usize>,
 
     overlay: Tracked<Overlay>,
-    /// Net row changes since the last commit, recounted whenever a moved overlay ships.
+    /// Net row changes since the last commit.
     pub(crate) pending_counts: Tracked<Counts>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
@@ -236,7 +299,7 @@ impl Store {
     /// Changes that are not held in a tracked slice, such as field values, join it per change.
     fn shipped(&mut self) -> Vec<PatchOp> {
         if self.overlay.ship() {
-            let counts = self.overlay_diff_counts();
+            let counts = self.overlay.counts();
             if counts != *self.pending_counts {
                 self.pending_counts.replace(counts);
             }
@@ -478,96 +541,6 @@ impl Store {
     /// Look up a location by ID across updated rows, added rows (binary search), and batch.
     pub(crate) fn get_loc_by_id(&self, id: Id<Location>) -> Option<Location> {
         self.view().get(id).map(|row| row.to_location())
-    }
-
-    /// Read a single location from the committed base batch by id (ignores the
-    /// overlay). O(log n). Used to recover the pre-edit version of a row.
-    fn base_loc_by_id(&self, id: Id<Location>) -> Option<Location> {
-        let cols = Columns::of(self.batch.as_ref()?);
-        Some(cols.location(cols.row_of(id)?))
-    }
-
-    /// Net row changes since the last commit, counted off the overlay without cloning rows,
-    /// since undo history is capped and drops oversized steps. Rows added and then removed
-    /// contribute nothing.
-    pub(crate) fn overlay_diff_counts(&self) -> Counts {
-        let in_base = |id: Id<Location>| {
-            self.batch
-                .as_ref()
-                .is_some_and(|b| Columns::of(b).row_of(id).is_some())
-        };
-        let mut added = self.overlay.added.len() as u32;
-        let mut updated = 0u32;
-        for &id in self.overlay.updated.keys() {
-            if in_base(id) {
-                updated += 1;
-            } else {
-                added += 1;
-            }
-        }
-        let removed = self
-            .overlay
-            .removed
-            .iter()
-            .filter(|&id| in_base(id))
-            .count() as u32;
-        Counts {
-            added,
-            removed,
-            updated,
-        }
-    }
-
-    /// Insert or restore locations in the overlay. `added` stays sorted by id (the invariant
-    /// the bake asserts): fresh ids sort above everything and are appended, O(k);
-    /// anything else (an undo re-adding old ids) joins by a stable sort, which merges the two
-    /// sorted runs in O(n + k) where inserting each row into its slot would cost O(n * k).
-    fn overlay_add(&mut self, locs: Vec<Location>) {
-        let mut fresh: Vec<Location> = Vec::with_capacity(locs.len());
-        for loc in locs {
-            *self.alive_count.edit() += 1;
-            if let Some(ix) = self.spatial.if_built_mut() {
-                ix.insert(loc.id.get(), loc.lat, loc.lng);
-            }
-            self.overlay.edit().removed.remove(loc.id);
-            let in_batch = self
-                .batch
-                .as_ref()
-                .and_then(|b| Columns::of(b).row_of(loc.id))
-                .is_some();
-            if in_batch {
-                self.overlay_patch(loc);
-            } else {
-                fresh.push(loc);
-            }
-        }
-        if fresh.is_empty() {
-            return;
-        }
-        fresh.sort_unstable_by_key(|l| l.id);
-        let adds = &mut self.overlay.edit().added;
-        let above = adds.last().is_none_or(|last| last.id < fresh[0].id);
-        adds.extend(fresh);
-        if !above {
-            adds.sort_by_key(|l| l.id);
-        }
-        if cfg!(debug_assertions) {
-            if let Some(w) = adds.windows(2).find(|w| w[0].id == w[1].id) {
-                panic!(
-                    "overlay_add duplicate id {} -- next_id allocation bug",
-                    w[1].id
-                );
-            }
-        }
-    }
-
-    /// File a base row's new state as its patch, or drop the patch when it matches the base.
-    fn overlay_patch(&mut self, loc: Location) {
-        if self.base_loc_by_id(loc.id).as_ref() == Some(&loc) {
-            self.overlay.edit().updated.remove(&loc.id);
-        } else {
-            self.overlay.edit().updated.insert(loc.id, loc);
-        }
     }
 
     /// Make `batch` the base and clear the overlay it already holds.
