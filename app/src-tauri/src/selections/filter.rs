@@ -1,13 +1,14 @@
 //! Field filters: the built-in field table and value comparison rules.
 
 use super::*;
+use crate::store::engine::ValueRecord;
 use crate::store::maps::{ComparisonType, FieldDef, FieldType};
 use crate::types::{location_fields, AppError, AppResult, Location};
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
-use mma_algebra::{Field, JsonWrite, Patch};
+use mma_algebra::{Edit, Field, Id, JsonWrite, Op, Patch, Patchable};
 use serde::Serialize;
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ptr;
 use std::sync::OnceLock;
 
@@ -277,9 +278,105 @@ macro_rules! field_address {
     };
 }
 
+fn remap_ids<T>(ids: &mut Vec<Id<T>>, mut map: impl FnMut(Id<T>) -> Option<Id<T>>) -> bool {
+    let before = ids.len();
+    let mut changed = false;
+    let mut seen = HashSet::new();
+    ids.retain_mut(|id| match map(*id) {
+        Some(next) if seen.insert(next) => {
+            changed |= next != *id;
+            *id = next;
+            true
+        }
+        _ => false,
+    });
+    changed || ids.len() != before
+}
+
+fn remap_value(
+    value: &mut serde_json::Value,
+    map: impl FnMut(Id<ValueRecord>) -> Option<Id<ValueRecord>>,
+) -> bool {
+    let Some(values) = value.as_array() else {
+        return false;
+    };
+    let mut ids: Vec<_> = values
+        .iter()
+        .filter_map(|value| Some(Id::new(u32::try_from(value.as_u64()?).ok()?)))
+        .collect();
+    let changed = remap_ids(&mut ids, map);
+    if changed {
+        *value = ids
+            .into_iter()
+            .map(|id| serde_json::Value::from(id.get()))
+            .collect();
+    }
+    changed
+}
+
+macro_rules! remap_interned {
+    (interned, row, $row:ident, $col:ident, $key:literal, $map:ident) => {
+        remap_ids(&mut $row.$col, |id| $map($key, id));
+    };
+    (interned, patch, $patch:ident, $col:ident, $key:literal, $map:ident) => {
+        if let Some(ids) = &mut $patch.$col {
+            remap_ids(ids, |id| $map($key, id));
+        }
+    };
+    (not_interned, $kind:ident, $row:ident, $col:ident, $key:literal, $map:ident) => {};
+}
+
 macro_rules! expand_location_fields {
     ($({ $key:literal, $label:literal, $ty:ty, $kind:ident, $cmp:tt, $interned:ident,
          $cat:ident, $col:ident, $f:ident }),* $(,)?) => {
+        impl FieldRegistry<'_> {
+            /// Remap the references an edit writes, preserving its patch policies.
+            pub fn remap(
+                &self,
+                mut edit: Edit<Location>,
+                mut map: impl FnMut(&str, Id<ValueRecord>) -> Option<Id<ValueRecord>>,
+            ) -> Edit<Location> {
+                let interned = |key: &str| self.get(key)
+                    .is_some_and(|def| def.interned && def.builtin.is_none());
+                match &mut edit {
+                    Op::Add(row) | Op::Set(row) => {
+                        $(remap_interned!($interned, row, row, $col, $key, map);)*
+                        if let Some(extra) = &row.extra {
+                            let mut changed = serde_json::Map::new();
+                            extra.for_each_field(|key, raw| {
+                                if interned(key) {
+                                    if let Ok(mut value) = serde_json::from_str(raw) {
+                                        if remap_value(&mut value, |id| map(key, id)) {
+                                            changed.insert(key.to_string(), value);
+                                        }
+                                    }
+                                }
+                            });
+                            if !changed.is_empty() {
+                                row.extra = row.extra.patched(&Field::Set(JsonWrite::Merge(
+                                    serde_json::Value::Object(changed),
+                                )));
+                            }
+                        }
+                    }
+                    Op::Put(patch) => {
+                        $(remap_interned!($interned, patch, patch, $col, $key, map);)*
+                        if let Field::Set(JsonWrite::Merge(value) | JsonWrite::Replace(value)) = &mut patch.extra {
+                            if let Some(fields) = value.as_object_mut() {
+                                for (key, value) in fields {
+                                    if interned(key) {
+                                        remap_value(value, |id| map(key, id));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Op::Remove(_) => {}
+                }
+                edit
+            }
+        }
+
         /// Every built-in field's definition, in declaration order. Nullability is probed
         /// rather than declared: whatever a default location lacks, a row can lack.
         fn builtin_defs() -> Vec<(&'static str, FieldDef)> {

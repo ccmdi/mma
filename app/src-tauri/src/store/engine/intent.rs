@@ -151,10 +151,35 @@ impl Intent {
             ..EditResult::default()
         };
         Ok(match self {
-            Intent::Edit { edits, records } => {
+            Intent::Edit {
+                edits,
+                records: incoming,
+            } => {
+                let mut records = HashMap::new();
+                let mut remaps = HashMap::new();
+                for (field, held) in incoming.into_iter().filter(|(_, held)| !held.is_empty()) {
+                    let floor = store.fields([field.as_str()])[0].floor();
+                    let before = store.records(&field);
+                    let mut after = before.clone();
+                    let remap = reconcile_values_by_name(held.values(), &mut after, floor);
+                    records.insert(
+                        field.clone(),
+                        Change::at(&before, &after, remap.values().copied()),
+                    );
+                    remaps.insert(field, remap);
+                }
+                let registry = store.registry();
                 let mut layer = Layer::default();
-                layer.write(edits);
-                let (layer, records) = store.reconcile_incoming(layer, records);
+                layer.write(edits.into_iter().map(|edit| {
+                    registry.remap(edit, |field, id| match remaps.get(field) {
+                        Some(remap) => remap.get(&id).copied(),
+                        None => store
+                            .records
+                            .get(field)
+                            .is_some_and(|records| records.contains_key(&id))
+                            .then_some(id),
+                    })
+                }));
                 let entry = Entry {
                     records,
                     ..Entry::default()
@@ -207,16 +232,11 @@ impl Intent {
                         if !current.iter().any(|id| applied.redirects.contains_key(id)) {
                             continue;
                         }
-                        let mut merged: Vec<Id<ValueRecord>> = Vec::with_capacity(current.len());
-                        for &id in &current {
-                            let into = survivor(&applied.redirects, id);
-                            if !merged.contains(&into) {
-                                merged.push(into);
-                            }
-                        }
                         let mut patch = Patch::<Location>::of(row.id());
-                        to.write(&mut patch, row.flags(), &serde_json::json!(merged))?;
-                        layer.write([Op::Put(patch)]);
+                        to.write(&mut patch, row.flags(), &serde_json::json!(current))?;
+                        layer.write([store.registry().remap(Op::Put(patch), |_, id| {
+                            Some(survivor(&applied.redirects, id))
+                        })]);
                     }
                 }
                 let entry = Entry {

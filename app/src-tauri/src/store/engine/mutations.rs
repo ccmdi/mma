@@ -316,48 +316,6 @@ impl Store {
             .unwrap_or_default()
     }
 
-    /// `layer` with the incoming records its rows reference matched to the map's by name and
-    /// the references remapped to them, and what that did to the map's records. A field that
-    /// brings no records keeps only the references the map holds a record for.
-    pub(super) fn reconcile_incoming(
-        &mut self,
-        mut layer: Layer<Location>,
-        mut incoming: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
-    ) -> (
-        Layer<Location>,
-        HashMap<String, Change<(Id<ValueRecord>, ValueRecord)>>,
-    ) {
-        let mut records = HashMap::new();
-        let mut fields: BTreeSet<String> = self.registry().interned().map(str::to_string).collect();
-        fields.extend(incoming.keys().cloned());
-        for field in fields {
-            let remap = match incoming.remove(&field).filter(|held| !held.is_empty()) {
-                Some(held) => {
-                    let floor = self.fields([field.as_str()])[0].floor();
-                    let before = self.records(&field);
-                    let mut after = before.clone();
-                    let remap = reconcile_values_by_name(held.values(), &mut after, floor);
-                    records.insert(
-                        field.clone(),
-                        Change::at(&before, &after, remap.values().copied()),
-                    );
-                    remap
-                }
-                None => self
-                    .records
-                    .get(&field)
-                    .map(|held| held.keys().map(|&id| (id, id)).collect())
-                    .unwrap_or_default(),
-            };
-            let registry = FieldRegistry::new(&self.field_defs);
-            let to = registry
-                .assign(&field)
-                .expect("declared interned fields are writable");
-            layer = layer.map_edits(|edit| remap_written(edit, &to, &remap));
-        }
-        (layer, records)
-    }
-
     /// Remove closed layers nothing still writes to, then announce which layers are being
     /// written if that moved.
     pub(crate) fn settle_layers(&mut self) {
@@ -618,44 +576,6 @@ pub struct WorkResult {
     pub changed: u32,
     /// Locations an expression could not evaluate.
     pub failed: Vec<Id<Location>>,
-}
-
-/// `edit` with the incoming ids it writes to `to`'s field replaced by their map ids.
-/// An edit that writes no ids there, including a patch that leaves the field alone, is unchanged.
-fn remap_written(
-    edit: Edit<Location>,
-    to: &FieldWriter<'_>,
-    remap: &HashMap<Id<ValueRecord>, Id<ValueRecord>>,
-) -> Edit<Location> {
-    let written = |row: &Location| {
-        let ids = held_ids(&selections::RowRef::from_loc(row), to.key());
-        let mapped: Vec<Id<ValueRecord>> =
-            ids.iter().filter_map(|id| remap.get(id).copied()).collect();
-        (mapped != ids)
-            .then(|| serde_json::Value::Array(mapped.iter().map(|id| id.get().into()).collect()))
-    };
-    let write = |patch: &mut Patch<Location>, row: &Location, ids: &serde_json::Value| {
-        to.write(patch, row.flags, ids)
-            .expect("declared interned fields hold id lists");
-    };
-    match edit {
-        Op::Set(row) => match written(&row) {
-            Some(ids) => {
-                let mut patch = Patch::<Location>::of(row.id);
-                write(&mut patch, &row, &ids);
-                Op::Set(row.patched(&patch))
-            }
-            None => Op::Set(row),
-        },
-        Op::Put(mut patch) => {
-            let probe = Location::default().patched(&patch);
-            if let Some(ids) = written(&probe) {
-                write(&mut patch, &probe, &ids);
-            }
-            Op::Put(patch)
-        }
-        remove => remove,
-    }
 }
 
 impl Targeted<'_> {

@@ -4242,6 +4242,126 @@ fn map_def(field_type: FieldType) -> FieldDef {
 }
 
 #[test]
+fn reference_remapping_visits_only_written_references_and_keeps_patch_policies() {
+    use mma_algebra::{Field, JsonWrite, Op, Patch, Patchable};
+    let defs = HashMap::from([(
+        "refs".to_string(),
+        FieldDef {
+            interned: true,
+            ..map_def(FieldType::Array)
+        },
+    )]);
+    let fields = FieldRegistry::new(&defs);
+    for extra in [Field::Keep, Field::Clear] {
+        let patch = Patch::<Location> {
+            id: Id::new(1),
+            pitch: Some(7.0),
+            extra,
+            ..Default::default()
+        };
+        assert_eq!(
+            fields.remap(Op::Put(patch.clone()), |_, _| panic!(
+                "no references written"
+            )),
+            Op::Put(patch)
+        );
+    }
+    let raw = serde_json::json!({ "refs": [1, 2, 1], "ordinary": [2], "cleared": null });
+    for write in [
+        JsonWrite::Merge(raw.clone()),
+        JsonWrite::Replace(raw.clone()),
+    ] {
+        let policy = write.policy();
+        let patch = Patch::<Location> {
+            id: Id::new(1),
+            tags: Some(tag_ids([1, 2, 1])),
+            extra: Field::Set(write),
+            ..Default::default()
+        };
+        let mut visited = Vec::new();
+        let Op::Put(mapped) = fields.remap(Op::Put(patch), |field, id| {
+            visited.push((field.to_string(), id.get()));
+            (id.get() == 1).then_some(Id::new(7))
+        }) else {
+            panic!("a patch stays a patch")
+        };
+        assert_eq!(mapped.tags, Some(tag_ids([7])));
+        assert_eq!(
+            visited,
+            [
+                ("tags", 1),
+                ("tags", 2),
+                ("tags", 1),
+                ("refs", 1),
+                ("refs", 2),
+                ("refs", 1)
+            ]
+            .map(|(field, id)| (field.to_string(), id))
+        );
+        let Field::Set(ref extra) = mapped.extra else {
+            panic!("the extra write remains")
+        };
+        assert_eq!(extra.policy(), policy);
+        assert_eq!(
+            *extra.value(),
+            serde_json::json!({ "refs": [7], "ordinary": [2], "cleared": null })
+        );
+        let before = Location {
+            extra: RawExtra::from_value(&serde_json::json!({"unwritten": 9})),
+            ..loc(1, 0.0, 0.0)
+        };
+        let after = before.patched(&mapped);
+        assert_eq!(
+            after.extra.unwrap().get("unwritten").is_some(),
+            policy == mma_algebra::Policy::Merge
+        );
+    }
+}
+
+#[test]
+fn full_rows_remap_declared_references_without_rewriting_other_values() {
+    use mma_algebra::{Field, JsonWrite, Op, Patch};
+    let defs = HashMap::from([(
+        "refs".to_string(),
+        FieldDef {
+            interned: true,
+            ..map_def(FieldType::Array)
+        },
+    )]);
+    let fields = FieldRegistry::new(&defs);
+    let row = Location {
+        tags: tag_ids([1, 2]),
+        extra: RawExtra::from_value(&serde_json::json!({"refs": [1, 2], "other": {"kept": true}})),
+        ..loc(1, 0.0, 0.0)
+    };
+    for edit in [Op::Add(row.clone()), Op::Set(row)] {
+        let mapped = fields.remap(edit, |_, id| (id.get() == 1).then_some(Id::new(7)));
+        let (Op::Add(row) | Op::Set(row)) = mapped else {
+            panic!("the row stays whole")
+        };
+        assert_eq!(row.tags, tag_ids([7]));
+        assert_eq!(
+            row.extra.unwrap().to_map(),
+            serde_json::json!({"refs": [7], "other": {"kept": true}})
+                .as_object()
+                .unwrap()
+                .clone()
+        );
+    }
+    let patch = Patch::<Location> {
+        id: Id::new(1),
+        extra: Field::Set(JsonWrite::Merge(
+            serde_json::json!({"refs": [1, "unparsed"]}),
+        )),
+        ..Default::default()
+    };
+    assert_eq!(
+        fields.remap(Op::Put(patch.clone()), |_, id| Some(id)),
+        Op::Put(patch)
+    );
+}
+
+#[test]
 fn builtins_and_map_fields_answer_through_one_lookup() {
     let map = HashMap::from([
         ("cameraType".to_string(), map_def(FieldType::Enum)),
