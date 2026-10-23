@@ -88,13 +88,13 @@ pub async fn store_commit(
     let (pre_bake, current_fallback, location_count, status) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_map(&map_id)?;
-        let location_count = *store.alive_count as u32;
+        let location_count = store.view().len() as u32;
 
         // Read the changeset before the bake folds it in; a saved overlay still holds it.
         let pre_bake = if !genesis && !store.overlay().is_empty() {
             Some((
                 store.overlay().to_delta(store.batch.as_ref()),
-                *store.pending_counts,
+                store.overlay().counts(),
             ))
         } else {
             None

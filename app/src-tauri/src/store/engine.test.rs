@@ -165,14 +165,14 @@ fn setup_store_with(locs: &[Location]) -> Store {
 // -----------------------------------------------------------------------
 
 #[test]
-fn overlay_add_increments_alive_count() {
+fn overlay_add_grows_the_alive_count() {
     let mut store = setup_store_with(&[]);
     let l = loc(1, 10.0, 20.0);
     store.put(&Change {
         added: vec![l],
         ..Default::default()
     });
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
 }
 
 #[test]
@@ -208,7 +208,7 @@ fn overlay_add_batch_merges_into_sorted_adds() {
         .map(Id::get)
         .collect();
     assert_eq!(ids, (1..=1001).collect::<Vec<u32>>());
-    assert_eq!(*store.alive_count, 1001);
+    assert_eq!(store.view().len(), 1001);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().lat, 1.0);
     assert_eq!(store.get_loc_by_id(Id::new(1000)).unwrap().lat, 0.0);
     assert_eq!(store.get_loc_by_id(Id::new(1001)).unwrap().lat, 1.0);
@@ -230,7 +230,7 @@ fn updating_an_uncommitted_add_rewrites_only_its_slot() {
     expected[2] = store.get_loc_by_id(Id::new(6)).unwrap();
     assert_eq!(expected[2].lat, 1.0);
     assert_eq!(store.overlay.added, expected);
-    assert_eq!(*store.alive_count, 5);
+    assert_eq!(store.view().len(), 5);
     assert!(store.overlay.updated.is_empty());
     assert!(store.overlay.removed.is_empty());
 }
@@ -268,19 +268,19 @@ fn undo_of_a_page_keeps_the_overlay_sorted() {
         .collect();
     assert_eq!(ids, (1..=2000).collect::<Vec<u32>>());
     assert_eq!(store.get_loc_by_id(Id::new(700)).unwrap().lat, 0.0);
-    assert_eq!(*store.alive_count, 2000);
+    assert_eq!(store.view().len(), 2000);
 }
 
 #[test]
 fn a_removed_row_leaves_the_alive_count() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(slice::from_ref(&l));
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
     store.put(&Change {
         removed: vec![l],
         ..Default::default()
     });
-    assert_eq!(*store.alive_count, 0);
+    assert_eq!(store.view().len(), 0);
 }
 
 #[test]
@@ -635,7 +635,7 @@ proptest::proptest! {
             let expected = Change::between(&base, &current).counts();
             proptest::prop_assert_eq!(store.overlay.counts(), expected);
             proptest::prop_assert_eq!(store.overlay.is_empty(), expected == Counts::default());
-            proptest::prop_assert_eq!(*store.alive_count, current.len());
+            proptest::prop_assert_eq!(store.view().len(), current.len());
             let actual: BTreeMap<_, _> = store.all().rows()
                 .map(|row| (row.id(), row.to_location())).collect();
             proptest::prop_assert_eq!(&actual, &current);
@@ -698,7 +698,7 @@ fn undo_add() {
     );
 
     let _delta = reverse(&mut store, &Change::from_sides(vec![l], vec![]));
-    assert_eq!(*store.alive_count, 0);
+    assert_eq!(store.view().len(), 0);
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
 }
 
@@ -708,7 +708,7 @@ fn undo_remove() {
     let mut store = setup_store_with(&[]);
     // simulate: location was removed, undo should re-add it
     let _delta = reverse(&mut store, &Change::from_sides(vec![], vec![l.clone()]));
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
     let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 10.0);
 }
@@ -733,10 +733,10 @@ fn redo_after_undo() {
     let entry = Change::from_sides(vec![l.clone()], vec![]);
 
     reverse(&mut store, &entry);
-    assert_eq!(*store.alive_count, 0);
+    assert_eq!(store.view().len(), 0);
 
     forward(&mut store, &entry);
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
     assert!(store.get_loc_by_id(Id::new(1)).is_some());
 }
 
@@ -793,7 +793,7 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
         .write(vec![Op::Add(loc(0, 0.0, 0.0))])
         .now();
     assert!(!small.mutation.history_cleared);
-    assert_eq!(*store.alive_count, MAX_UNDO_LOCATIONS + 3);
+    assert_eq!(store.view().len(), MAX_UNDO_LOCATIONS + 3);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 0);
 }
@@ -1438,13 +1438,13 @@ fn noop_batch_is_removed_before_selection_and_render_work() {
 fn readd_after_remove_via_overlay() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(slice::from_ref(&l));
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
 
     store.put(&Change {
         removed: vec![l.clone()],
         ..Default::default()
     });
-    assert_eq!(*store.alive_count, 0);
+    assert_eq!(store.view().len(), 0);
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
 
     // re-add with different position
@@ -1453,7 +1453,7 @@ fn readd_after_remove_via_overlay() {
         added: vec![l2],
         ..Default::default()
     });
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
     let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 50.0);
 }
@@ -1466,11 +1466,11 @@ fn readd_after_remove_through_undo() {
     // remove it
     let remove_entry = Change::from_sides(vec![], vec![l.clone()]);
     forward(&mut store, &remove_entry);
-    assert_eq!(*store.alive_count, 0);
+    assert_eq!(store.view().len(), 0);
 
     // undo the removal
     reverse(&mut store, &remove_entry);
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
     let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 10.0);
 }
@@ -1723,7 +1723,6 @@ fn collect_all_with_dead_patches_and_adds() {
         added: vec![l4],
         ..Default::default()
     });
-    store.alive_count = Tracked::new(3); // l2, l3, l4
 
     let all = store
         .at(&Target::Map { id: None })
@@ -1763,7 +1762,6 @@ fn bake_overlay_all_three_simultaneously() {
         added: vec![l3],
         ..Default::default()
     });
-    store.alive_count = Tracked::new(2); // l2, l3
 
     store.bake_overlay();
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 2);
@@ -1938,7 +1936,7 @@ fn an_undo_stack_round_trips_through_the_stored_blobs() {
 #[test]
 fn alive_count_stays_correct_through_all_mutations() {
     let mut store = setup_store_with(&[]);
-    assert_eq!(*store.alive_count, 0);
+    assert_eq!(store.view().len(), 0);
 
     // Add 3
     let locs = vec![loc(1, 0.0, 0.0), loc(2, 1.0, 1.0), loc(3, 2.0, 2.0)];
@@ -1948,29 +1946,29 @@ fn alive_count_stays_correct_through_all_mutations() {
             ..Default::default()
         });
     }
-    assert_eq!(*store.alive_count, 3);
+    assert_eq!(store.view().len(), 3);
 
     // Remove 1
     store.put(&Change {
         removed: vec![locs[0].clone()],
         ..Default::default()
     });
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
 
     // Update (should not change count)
     overlay_update(&mut store, &patch!(2; heading: 90.0));
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
 
     // Bake (should not change count)
     store.bake_overlay();
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
 
     // Add 1 more
     store.put(&Change {
         added: vec![loc(4, 3.0, 3.0)],
         ..Default::default()
     });
-    assert_eq!(*store.alive_count, 3);
+    assert_eq!(store.view().len(), 3);
 
     // Remove 2
     let l2 = store.get_loc_by_id(Id::new(2)).unwrap();
@@ -1979,12 +1977,12 @@ fn alive_count_stays_correct_through_all_mutations() {
         removed: vec![l2, l3],
         ..Default::default()
     });
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
 
     // Undo the remove (re-adds 2)
     let entry = Change::from_sides(vec![], vec![loc(2, 1.0, 1.0), loc(3, 2.0, 2.0)]);
     reverse(&mut store, &entry);
-    assert_eq!(*store.alive_count, 3);
+    assert_eq!(store.view().len(), 3);
 }
 
 #[test]
@@ -2311,11 +2309,11 @@ fn tag_counts_correct_after_bulk_add_then_undo() {
     let entry = Change::from_sides(locs.clone(), vec![]);
     edit_and_finish(&mut store, &entry, false);
     assert_eq!(tag_count(&mut store, 5), 0);
-    assert_eq!(*store.alive_count, 0);
+    assert_eq!(store.view().len(), 0);
 
     edit_and_finish(&mut store, &entry, true);
     assert_eq!(tag_count(&mut store, 5), 10);
-    assert_eq!(*store.alive_count, 10);
+    assert_eq!(store.view().len(), 10);
 }
 
 #[test]
@@ -3087,7 +3085,7 @@ fn full_lifecycle_add_bake_remove_bake_undo() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 10.0, 10.0)]);
     store.bake_overlay();
     assert!(ids_sorted(&store));
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
 
     // Add loc 3, bake
     store.put(&Change {
@@ -3140,13 +3138,11 @@ fn manager_insert_and_lookup() {
         id: Id::new("map-a".into()),
         ..Default::default()
     });
-    s1.alive_count = Tracked::new(10);
     let mut s2 = Store::new();
     s2.meta = Tracked::new(MapMeta {
         id: Id::new("map-b".into()),
         ..Default::default()
     });
-    s2.alive_count = Tracked::new(20);
 
     mgr.stores.insert(Id::new("map-a".into()), s1);
     mgr.stores.insert(Id::new("map-b".into()), s2);
@@ -3160,28 +3156,26 @@ fn manager_insert_and_lookup() {
     );
 
     assert_eq!(
-        *mgr.store_for_window(&WindowLabel("win-1".into()))
+        mgr.store_for_window(&WindowLabel("win-1".into()))
             .unwrap()
-            .alive_count,
-        10
+            .meta
+            .id,
+        Id::new("map-a".into())
     );
     assert_eq!(
-        *mgr.store_for_window(&WindowLabel("win-2".into()))
+        mgr.store_for_window(&WindowLabel("win-2".into()))
             .unwrap()
-            .alive_count,
-        20
+            .meta
+            .id,
+        Id::new("map-b".into())
     );
     assert_eq!(
-        *mgr.store_for_map(&Id::new("map-a".into()))
-            .unwrap()
-            .alive_count,
-        10
+        mgr.store_for_map(&Id::new("map-a".into())).unwrap().meta.id,
+        Id::new("map-a".into())
     );
     assert_eq!(
-        *mgr.store_for_map(&Id::new("map-b".into()))
-            .unwrap()
-            .alive_count,
-        20
+        mgr.store_for_map(&Id::new("map-b".into())).unwrap().meta.id,
+        Id::new("map-b".into())
     );
 }
 
@@ -3650,7 +3644,6 @@ fn manager_remove_preserves_other() {
         id: Id::new("map-b".into()),
         ..Default::default()
     });
-    s2.alive_count = Tracked::new(99);
 
     mgr.stores.insert(Id::new("map-a".into()), s1);
     mgr.stores.insert(Id::new("map-b".into()), s2);
@@ -3669,17 +3662,16 @@ fn manager_remove_preserves_other() {
 
     assert!(mgr.store_for_window(&WindowLabel("win-1".into())).is_err());
     assert_eq!(
-        *mgr.store_for_window(&WindowLabel("win-2".into()))
+        mgr.store_for_window(&WindowLabel("win-2".into()))
             .unwrap()
-            .alive_count,
-        99
+            .meta
+            .id,
+        Id::new("map-b".into())
     );
     assert!(mgr.store_for_map(&Id::new("map-a".into())).is_err());
     assert_eq!(
-        *mgr.store_for_map(&Id::new("map-b".into()))
-            .unwrap()
-            .alive_count,
-        99
+        mgr.store_for_map(&Id::new("map-b".into())).unwrap().meta.id,
+        Id::new("map-b".into())
     );
 }
 
@@ -4507,7 +4499,6 @@ fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[
         ..Default::default()
     });
     store.batch = Some(arrow::locations_to_batch(base));
-    store.alive_count = Tracked::new(base.len());
     for &id in dead {
         let l = store.get_loc_by_id(Id::new(id)).unwrap();
         store.put(&Change {
@@ -5238,7 +5229,7 @@ fn merge_group_applies_and_undo_restores() {
     let a = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let b = loc_with_tags(2, 0.0, 0.0, vec![20]);
     let mut store = setup_store_with(&[a.clone(), b.clone()]);
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
 
     let members = vec![a.clone(), b.clone()];
     let survivor = merge_group(
@@ -5250,7 +5241,7 @@ fn merge_group_applies_and_undo_restores() {
     let entry = Change::from_sides(vec![survivor], members);
 
     forward(&mut store, &entry);
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
     assert_eq!(
         store.get_loc_by_id(Id::new(1)).unwrap().tags,
         tag_ids([10, 20])
@@ -5258,7 +5249,7 @@ fn merge_group_applies_and_undo_restores() {
     assert!(store.get_loc_by_id(Id::new(2)).is_none());
 
     reverse(&mut store, &entry);
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([10]));
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, tag_ids([20]));
 }
@@ -5399,7 +5390,6 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
     reopened.batch = Some(RecordBatch::new_empty(arrow::schema()));
     reopened.overlay = Tracked::new(delta);
     reopened.next_id = seed_next_id(None, &reopened.overlay.added, history_max);
-    reopened.alive_count = Tracked::new(reopened.overlay.added.len());
     reopened.steps[Timeline::Edits] = Tracked::new(edits);
     reopened
 }
@@ -5946,7 +5936,7 @@ fn undo_of_delete_after_reopen_does_not_collide() {
     press_undo(&mut store); // resurrects `id`
     let new_id = click_add(&mut store, 2.0, 2.0);
     assert_ne!(new_id, id);
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
     assert_bake_sorted(&mut store);
 }
 
@@ -5962,7 +5952,7 @@ fn redo_of_add_after_reopen_does_not_collide() {
     press_redo(&mut store); // resurrects `id`
     let new_id = click_add(&mut store, 2.0, 2.0);
     assert_ne!(new_id, id);
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
     assert_bake_sorted(&mut store);
 }
 
@@ -6225,7 +6215,7 @@ fn spatial_matches_brute_force_across_mutations() {
             "radius {r} after mutations"
         );
     }
-    assert_eq!(store.spatial.peek().unwrap().len(), *store.alive_count);
+    assert_eq!(store.spatial.peek().unwrap().len(), store.view().len());
 }
 
 #[test]
@@ -6264,7 +6254,7 @@ fn spatial_survives_bake_and_undo_roundtrip() {
 }
 
 #[test]
-fn spatial_rebuilds_when_alive_count_drifts() {
+fn spatial_rebuilds_when_rows_change_behind_its_back() {
     let mut store = setup_store_with(&[loc(1, 10.0, 10.0)]);
     assert_eq!(indexed_nearby(&mut store, 10.0, 10.0, 5.0), vec![1]);
 
@@ -6272,7 +6262,6 @@ fn spatial_rebuilds_when_alive_count_drifts() {
     // must force a rebuild instead of returning stale results.
     let pos = store.overlay.added.partition_point(|l| l.id < Id::new(2));
     store.overlay.edit().added.insert(pos, loc(2, 10.0, 10.0));
-    *store.alive_count.edit() += 1;
     assert_eq!(indexed_nearby(&mut store, 10.0, 10.0, 5.0), vec![1, 2]);
 }
 
@@ -6689,7 +6678,6 @@ fn store_with_full_overlay_base() -> Store {
         ..Default::default()
     });
     store.batch = Some(arrow::locations_to_batch(&base));
-    store.alive_count = Tracked::new(base.len());
     store.next_id = Ids::above([Id::new(9)]);
     store
 }
@@ -6858,7 +6846,6 @@ fn patches_only_base_write_replaces_the_mapped_file_it_was_read_from() {
     let (batch, handle) = arrow::read_arrow_ipc_mmap(&base).unwrap();
     store.batch = Some(batch);
     store.mmap_handle = Some(handle);
-    store.alive_count = Tracked::new(2);
     let lats = |path: &Path| -> Vec<f64> {
         arrow::batch_to_locations(&arrow::read_arrow_ipc(path).unwrap())
             .iter()
@@ -6885,7 +6872,6 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
         ..Default::default()
     });
     store.batch = Some(arrow::locations_to_batch(&x));
-    store.alive_count = Tracked::new(x.len());
 
     // Stale delta from before the bake: re-adds the same ids the base now already has.
     let delta = Overlay::from_delta(&arrow::delta_to_batch(&x, &[]));
@@ -6893,14 +6879,11 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
     // Mirror store_open_map's delta-application block exactly.
     store.overlay = Tracked::new(delta);
 
-    // Mirror the post-load alive_count recompute via scan_locations.
-    let LocationAggregates { alive, .. } = store.scan_locations();
-    store.alive_count = Tracked::new(alive);
-
     // Known bug: a stale delta re-adds rows already in the base.
     // This test records the duplicate rows produced by the current behaviour.
     assert_eq!(
-        *store.alive_count, 4,
+        store.view().len(),
+        4,
         "stale delta double-counts ids already in the baked base"
     );
 
@@ -6922,7 +6905,7 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
 
     // get_loc_by_id resolves via overlay.added (binary search) before ever touching
     // the batch, so single-id lookups don't see the duplicate -- only bulk
-    // enumeration (alive_count, collect, tag counts, render) is corrupted.
+    // enumeration (alive count, collect, tag counts, render) is corrupted.
     assert_eq!(store.get_loc_by_id(Id::new(5)), Some(loc(5, 5.0, 5.0)));
 }
 
@@ -6944,9 +6927,7 @@ fn location_aggregates_include_effective_tag_membership() {
         ..Default::default()
     });
 
-    let LocationAggregates { alive, bounds } = store.scan_locations();
-
-    assert_eq!(alive, 2);
+    assert_eq!(store.view().len(), 2);
     assert_eq!(
         {
             let fields = store.fields(["tags"]);
@@ -6967,7 +6948,7 @@ fn location_aggregates_include_effective_tag_membership() {
     assert_eq!(resolved(&mut store, &Selector::tag(1)), vec![3]);
     assert_eq!(resolved(&mut store, &Selector::tag(2)), vec![1, 3]);
     assert_eq!(
-        bounds.map(BoundsAcc::resolve),
+        store.all().bounds().map(BoundsAcc::resolve),
         Some([-10.0, -5.0, 20.0, 10.0])
     );
 }
@@ -7117,9 +7098,9 @@ proptest::proptest! {
         for (step, op) in ops.iter().enumerate() {
             apply_model_op(&mut store, &mut model, &mut alive_ids, op);
             proptest::prop_assert_eq!(
-                *store.alive_count,
+                store.view().len(),
                 model.len(),
-                "alive_count drifted from model at step {}: {:?}", step, op
+                "alive count drifted from model at step {}: {:?}", step, op
             );
             proptest::prop_assert_eq!(
                 store_snapshot(&mut store),
@@ -7143,13 +7124,13 @@ proptest::proptest! {
             press_undo(&mut store);
         }
         proptest::prop_assert_eq!(store_snapshot(&mut store), initial_snapshot.clone(), "full undo did not reach initial state");
-        proptest::prop_assert_eq!(*store.alive_count, initial.len());
+        proptest::prop_assert_eq!(store.view().len(), initial.len());
 
         for _ in 0..pushed {
             press_redo(&mut store);
         }
         proptest::prop_assert_eq!(store_snapshot(&mut store), final_snapshot.clone(), "full redo did not reach final state");
-        proptest::prop_assert_eq!(*store.alive_count, model.len());
+        proptest::prop_assert_eq!(store.view().len(), model.len());
 
         // Interleaved: undo k then redo k, starting from the final state above, must
         // land back on the final state.
@@ -7161,7 +7142,7 @@ proptest::proptest! {
             press_redo(&mut store);
         }
         proptest::prop_assert_eq!(store_snapshot(&mut store), final_snapshot, "interleaved undo/redo(k) did not land on final state");
-        proptest::prop_assert_eq!(*store.alive_count, model.len());
+        proptest::prop_assert_eq!(store.view().len(), model.len());
     }
 }
 
@@ -7888,7 +7869,7 @@ fn uploaded_add_rejects_malformed_chunk_before_mutating() {
         add_rows(&mut store, locs);
     }
 
-    assert_eq!(*store.alive_count, 1);
+    assert_eq!(store.view().len(), 1);
     assert!(store.steps[Timeline::Edits].len(Stack::Undo) == 0);
 }
 
@@ -8643,7 +8624,7 @@ fn undoing_a_landing_removes_the_tags_it_interned() {
 
     press_undo(&mut store);
     assert_eq!(tag_records(&store), before);
-    assert_eq!(*store.alive_count, 0);
+    assert_eq!(store.view().len(), 0);
 
     press_redo(&mut store);
     assert_eq!(tag_records(&store), interned);
@@ -9183,7 +9164,7 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
         }))
         .now();
     assert_eq!(out.changed, 4);
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
     assert_eq!(
         store.get_loc_by_id(Id::new(1)).unwrap().tags,
         tag_ids([10, 20])

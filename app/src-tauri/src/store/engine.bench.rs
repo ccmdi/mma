@@ -172,7 +172,6 @@ impl Fixture {
     /// A store holding the whole population as a committed base batch, empty overlay.
     pub fn store(&self) -> Store {
         let mut store = bench_store(self.batch.clone(), &self.tags);
-        store.alive_count = Tracked::new(self.n);
         store.field_defs = Tracked::new(self.field_defs.clone());
         store
     }
@@ -414,14 +413,9 @@ pub fn serialize_overlay(store: &Store) -> Vec<u8> {
         .expect("serialize overlay")
 }
 
-/// The open-time O(N) pass: alive count and bounds.
-pub fn scan(store: &Store) -> usize {
-    store.scan_locations().alive
-}
-
 /// Alive row count, so a bench can consume a store without naming its fields.
 pub fn alive(store: &Store) -> usize {
-    *store.alive_count
+    store.view().len()
 }
 
 pub fn get_loc_by_id(store: &Store, id: u32) -> Option<Location> {
@@ -462,15 +456,11 @@ pub fn write_arrow(path: &Path, batch: &RecordBatch) {
     arrow::write_arrow_ipc(path, batch).expect("write arrow");
 }
 
-/// The in-process half of `store_open_map`: mmap the Arrow file, then derive the alive
-/// count and bounds. The SQLite and edit-history halves are left out, as they need an
-/// app data dir.
+/// The in-process half of `store_open_map`: mmap the Arrow file. The SQLite and
+/// edit-history halves are left out, as they need an app data dir.
 pub fn open_from_arrow(path: &Path, fx: &Fixture) -> Store {
     let (batch, handle) = arrow::read_arrow_ipc_mmap(path).expect("read arrow");
     let mut store = bench_store(batch, &fx.tags);
     store.mmap_handle = Some(handle);
-    let agg = store.scan_locations();
-    store.alive_count = Tracked::new(agg.alive);
-    store.bounds.seed(At::new(store.version, agg.bounds));
     store
 }

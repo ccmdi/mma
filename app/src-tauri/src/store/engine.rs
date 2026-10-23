@@ -178,11 +178,8 @@ pub struct Store {
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
     pub(crate) next_id: Ids<Id<Location>>,
     pub(crate) version: u64,
-    pub(crate) alive_count: Tracked<usize>,
 
     overlay: Tracked<Overlay>,
-    /// Net row changes since the last commit.
-    pub(crate) pending_counts: Tracked<Counts>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
     /// Each interned field's value records.
@@ -196,7 +193,7 @@ pub struct Store {
     /// the next read rescans. Resolved to `[w,s,e,n]` on read.
     pub(crate) bounds: Ensured<At<Option<BoundsAcc>>>,
     /// Lazy spatial index over alive locations, maintained incrementally by [`Store::put`].
-    /// Validity is a length match against `alive_count`, so any bulk path that bypasses
+    /// Validity is a length match against the alive rows, so any bulk path that bypasses
     /// `put` degrades to a rebuild, never wrong results.
     pub(crate) spatial: Ensured<SpatialIndex>,
     /// The windows drawing this store. A store opened afresh has none: each window
@@ -247,9 +244,7 @@ impl Store {
             mmap_handle: None,
             next_id: Ids::default(),
             version: 0,
-            alive_count: Tracked::default(),
             overlay: Tracked::default(),
-            pending_counts: Tracked::default(),
             render: RenderState {
                 cells: [const { None }; 32],
                 id_to_cell_idx: Vec::new(),
@@ -289,8 +284,8 @@ impl Store {
             extra: maps::MapExtra {
                 fields: (*self.field_defs).clone(),
             },
-            location_count: *self.alive_count as i64,
-            pending: *self.pending_counts,
+            location_count: self.view().len() as i64,
+            pending: self.overlay.counts(),
             ..(*self.meta).clone()
         }
     }
@@ -298,22 +293,14 @@ impl Store {
     /// The derived state whose sources moved since they last shipped, as patch operations.
     /// Changes that are not held in a tracked slice, such as field values, join it per change.
     fn shipped(&mut self) -> Vec<PatchOp> {
-        if self.overlay.ship() {
-            let counts = self.overlay.counts();
-            if counts != *self.pending_counts {
-                self.pending_counts.replace(counts);
-            }
-        }
         let unsaved = self.is_unsaved();
         if unsaved != *self.has_unsaved {
             self.has_unsaved.replace(unsaved);
         }
         let mut patch = Vec::new();
-        if self.alive_count.ship() {
-            patch.push(PatchOp::replace(["locationCount"], *self.alive_count));
-        }
-        if self.pending_counts.ship() {
-            patch.push(PatchOp::replace(["pending"], *self.pending_counts));
+        if self.overlay.ship() {
+            patch.push(PatchOp::replace(["locationCount"], self.view().len()));
+            patch.push(PatchOp::replace(["pending"], self.overlay.counts()));
         }
         if self.meta.ship() {
             patch.push(PatchOp::replace(
@@ -371,8 +358,8 @@ impl Store {
         StoreStatus {
             version: self.version,
             derived: Derived {
-                location_count: *self.alive_count,
-                pending: *self.pending_counts,
+                location_count: self.view().len(),
+                pending: self.overlay.counts(),
                 map: maps::MapDetails((*self.meta).clone()),
                 history: self.history(),
                 field_values,

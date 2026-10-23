@@ -20,7 +20,7 @@ pub(crate) const SPATIAL_CELL_M: f64 = 25.0;
 
 impl Cached for SpatialIndex {
     fn valid(&self, store: &Store) -> bool {
-        self.len() == *store.alive_count
+        self.len() == store.view().len()
     }
 
     fn build(store: &Store) -> Self {
@@ -62,13 +62,6 @@ impl Cached for At<Option<BoundsAcc>> {
     fn slot_ref(store: &Store) -> &Ensured<Self> {
         &store.bounds
     }
-}
-
-/// Everything derived from a single O(N) pass over all alive locations. Computed
-/// once on map open; add new whole-map derivations here rather than scanning again.
-pub(crate) struct LocationAggregates {
-    pub(crate) alive: usize,
-    pub(crate) bounds: Option<BoundsAcc>,
 }
 
 /// Incremental bounds using two longitude ranges to choose the shorter span.
@@ -235,20 +228,6 @@ impl Store {
         self.bounds.seed(At::new(self.version, acc));
     }
 
-    /// Single O(N) pass over all alive locations deriving every open-time aggregate:
-    /// alive count and the bounding box. Seeding the bbox here means the first
-    /// `store_bounds` after open is an O(1) cache hit instead of a second full scan.
-    /// Per-value counts are not here: they are the field indexes' postings.
-    pub(crate) fn scan_locations(&self) -> LocationAggregates {
-        let mut alive = 0usize;
-        let mut bounds: Option<BoundsAcc> = None;
-        for row in self.all().rows() {
-            alive += 1;
-            bounds = Some(BoundsAcc::fold(bounds, row.lat(), row.lng()));
-        }
-        LocationAggregates { alive, bounds }
-    }
-
     /// Every alive row: the scope for walks that resolve no selector.
     pub(crate) fn all(&self) -> selections::Scope<'_, '_> {
         self.view().all()
@@ -274,7 +253,7 @@ impl Store {
             .resolve_forest(sels)
     }
 
-    pub(super) fn view(&self) -> selections::LocView<'_> {
+    pub(crate) fn view(&self) -> selections::LocView<'_> {
         selections::LocView::new(
             self.batch.as_ref(),
             &self.overlay.removed,

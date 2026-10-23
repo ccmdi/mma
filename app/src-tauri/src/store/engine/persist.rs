@@ -261,11 +261,7 @@ pub(crate) fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
     }
     store.next_id = seed_next_id(max_id, &store.overlay.added, history_max);
 
-    let LocationAggregates { alive, bounds } = store.scan_locations();
-    store.alive_count = Tracked::new(alive);
-    store.bounds.seed(At::new(store.version, bounds));
-    store.pending_counts = Tracked::new(store.overlay.counts());
-    storage::set_map_counts(&conn, map_id, alive, *store.pending_counts)?;
+    storage::set_map_counts(&conn, map_id, store.view().len(), store.overlay.counts())?;
     store.steps[Timeline::Edits] = Tracked::new(edits);
 
     let mut meta = maps::read_map_meta(&conn, map_id).map_err(|e| match e {
@@ -442,8 +438,8 @@ impl Store {
                 let steps = &self.steps[Timeline::Edits];
                 steps.is_unsaved().then(|| steps.stamp((**steps).clone()))
             },
-            alive: *self.alive_count,
-            pending: *self.pending_counts,
+            alive: self.view().len(),
+            pending: self.overlay.counts(),
         }))
     }
 

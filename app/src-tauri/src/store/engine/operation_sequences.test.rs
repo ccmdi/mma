@@ -44,7 +44,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
             model_snapshot(model),
             "rows diverged: {context}"
         );
-        assert_eq!(*store.alive_count, model.len(), "alive count: {context}");
+        assert_eq!(store.view().len(), model.len(), "alive count: {context}");
         assert_eq!(
             store.steps[Timeline::Edits].len(Stack::Undo),
             undo,

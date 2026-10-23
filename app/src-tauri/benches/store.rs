@@ -540,16 +540,8 @@ fn map_open(c: &mut Criterion) {
     let mut g = c.benchmark_group("map_open");
     g.sample_size(10);
     g.throughput(Throughput::Elements(n as u64));
-    // Arrow mmap + the O(N) aggregate scan.
-    g.bench_function(format!("{n}/arrow_mmap_and_scan"), |b| {
+    g.bench_function(format!("{n}/arrow_mmap"), |b| {
         b.iter(|| black_box(bench::alive(&bench::open_from_arrow(&path, &fx))));
-    });
-    g.bench_function(format!("{n}/scan_aggregates"), |b| {
-        b.iter_batched_ref(
-            || fx.store(),
-            |store| black_box(bench::scan(store)),
-            BatchSize::PerIteration,
-        );
     });
     g.finish();
     fs::remove_file(&path).ok();

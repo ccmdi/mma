@@ -468,10 +468,6 @@ impl Store {
                 }
             }
         }
-        if change.added.len() != change.removed.len() {
-            *self.alive_count.edit() =
-                *self.alive_count + change.added.len() - change.removed.len();
-        }
         self.overlay.edit().apply(change, self.batch.as_ref());
     }
 }

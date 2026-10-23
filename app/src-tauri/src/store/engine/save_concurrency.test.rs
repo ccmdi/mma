@@ -50,7 +50,7 @@ fn acknowledging_an_inflight_save_preserves_later_rows_and_history_as_dirty() {
     );
     assert!(store.overlay.is_unsaved());
     assert!(store.steps[Timeline::Edits].is_unsaved());
-    assert_eq!(*store.alive_count, 2);
+    assert_eq!(store.view().len(), 2);
 
     let remaining = store.unsaved().unwrap().unwrap();
     remaining.write(&conn, &Id::new("m".into()), &path).unwrap();
@@ -114,5 +114,5 @@ fn a_repeated_old_acknowledgement_cannot_rewind_a_newer_completed_save() {
     store.saved(&older);
     assert!(store.overlay.is_unsaved());
     assert!(store.steps[Timeline::Edits].is_unsaved());
-    assert_eq!(*store.alive_count, 3);
+    assert_eq!(store.view().len(), 3);
 }

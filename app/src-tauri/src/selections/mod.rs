@@ -861,6 +861,11 @@ impl<'a> LocView<'a> {
         self.cols.map_or(0, |c| c.id.len())
     }
 
+    /// How many rows are alive.
+    pub fn len(&self) -> usize {
+        self.batch_rows() + self.adds.len() - self.dead.len() as usize
+    }
+
     /// Read the raw batch ID at row `i` (no overlay check).
     fn batch_id(&self, i: usize) -> Id<Location> {
         Id::new(self.cols.unwrap().id.value(i))
