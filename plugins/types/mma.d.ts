@@ -1530,8 +1530,6 @@ type EditorImportPreview = {
 type EditorImportResult = {
     mutation: Mutation;
     importedCount: number;
-    /**  True when the import was too large to undo; the caller commits it. */
-    autoCommit: boolean;
 };
 /**  A change to the map: its locations, an interned field's values, or the selection list. */
 type Edits = 

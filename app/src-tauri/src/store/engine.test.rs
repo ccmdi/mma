@@ -785,14 +785,13 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
     let big: Vec<Edit<Location>> = (0..=MAX_UNDO_LOCATIONS as u32)
         .map(|_| Op::Add(loc(0, 0.0, 0.0)))
         .collect();
-    let written = store.at(&Target::Map { id: None }).write(big).now();
-
-    assert!(written.mutation.history_cleared);
-    let small = store
+    store.at(&Target::Map { id: None }).write(big).now();
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 0);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 0);
+    store
         .at(&Target::Map { id: None })
         .write(vec![Op::Add(loc(0, 0.0, 0.0))])
         .now();
-    assert!(!small.mutation.history_cleared);
     assert_eq!(store.view().len(), MAX_UNDO_LOCATIONS + 3);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 0);

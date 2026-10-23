@@ -1192,7 +1192,6 @@ fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
     let confirmed = confirm_staged(&mut store, "tags-win", &[], &[], &[])
         .unwrap()
         .now();
-    assert!(!confirmed.auto_commit);
     assert_eq!(confirmed.imported_count, 2);
     let unique = store.records["tags"]
         .iter()

@@ -360,10 +360,10 @@ impl Store {
     }
 
     /// File `entry`'s undo step as `recording` says, in the entry's timeline for a new step.
-    /// An entry too large to undo clears its timeline instead, and this returns true.
-    pub(super) fn record(&mut self, entry: &Arc<Entry>, recording: &mut Recording) -> bool {
+    /// An entry too large to undo clears its timeline instead.
+    pub(super) fn record(&mut self, entry: &Arc<Entry>, recording: &mut Recording) {
         match recording {
-            Recording::Off => false,
+            Recording::Off => {}
             Recording::Moving { .. } => {
                 let Recording::Moving {
                     timeline,
@@ -374,24 +374,22 @@ impl Store {
                     unreachable!("matched as moving");
                 };
                 self.steps[timeline].edit().push(onto, step);
-                false
             }
             Recording::Step(join) => {
                 let Some(timeline) = entry.timeline() else {
-                    return false;
+                    return;
                 };
                 let steps = self.steps[timeline].edit();
                 if too_large_to_undo(entry.locations.len()) {
                     steps.clear();
-                    return true;
+                    return;
                 }
                 if let Some(held) = *join {
                     if steps.fold_into_newest(held, (**entry).clone()).is_ok() {
-                        return false;
+                        return;
                     }
                 }
                 *join = Some(steps.record(Arc::clone(entry), *join));
-                false
             }
         }
     }

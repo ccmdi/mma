@@ -582,7 +582,6 @@ impl Write for SelectionOp {
         Mutation {
             version: edited.mutation.version,
             keys: Vec::new(),
-            history_cleared: edited.mutation.history_cleared,
         }
     }
 }

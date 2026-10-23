@@ -66,7 +66,7 @@ export const Import = {
 		if (!importState.staging) return null;
 		await Autosave.waitForInflight();
 
-		const settings = importState.staging.preview.settings;
+		const { settings, willAutoCommit } = importState.staging.preview;
 		const r = await cmd.storeImportFile(
 			droppedFields,
 			tagNames.map((n) => n.trim()).filter(Boolean),
@@ -77,7 +77,7 @@ export const Import = {
 
 		if (Object.keys(settings).length) await Edit.meta({ settings });
 
-		if (r.autoCommit) {
+		if (willAutoCommit) {
 			const mapId = Store.get().mapId;
 			if (mapId) {
 				await Scene.settled();

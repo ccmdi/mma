@@ -197,11 +197,8 @@ impl<'a> Targeted<'a> {
         }
         let entry = Arc::new(entry);
         self.store.put_entry(&entry);
-        let history_cleared = self.store.record(&entry, &mut self.filing);
-        Mutation {
-            history_cleared,
-            ..self.store.finish(Finished::Entry(entry), &projections)
-        }
+        self.store.record(&entry, &mut self.filing);
+        self.store.finish(Finished::Entry(entry), &projections)
     }
 
     /// Make `write` here, where a landed layer's writes join its undo step while it is the
@@ -321,7 +318,6 @@ impl Values<'_, '_> {
             .map(|edited| Mutation {
                 keys: edited.records,
                 version: edited.mutation.version,
-                history_cleared: edited.mutation.history_cleared,
             })
     }
 }

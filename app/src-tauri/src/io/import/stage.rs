@@ -329,8 +329,6 @@ pub async fn store_import_preview(
 pub struct EditorImportResult {
     pub mutation: engine::Mutation,
     pub imported_count: u32,
-    /// True when the import was too large to undo; the caller commits it.
-    pub auto_commit: bool,
 }
 
 /// Import the staged file, dropping chosen fields and tags and applying each supplied tag to every location.
@@ -450,7 +448,6 @@ pub(super) fn confirm_staged(
     let landed = staged.land();
     Ok(landed.map(move |mutation| EditorImportResult {
         imported_count,
-        auto_commit: mutation.history_cleared,
         mutation,
     }))
 }

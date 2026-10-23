@@ -74,8 +74,6 @@ pub struct Mutation<_T = Location> {
     pub version: u64,
     /// The key the store gave each keyless set, in the order they were written.
     pub keys: Vec<Id<_T>>,
-    #[serde(skip)]
-    pub(crate) history_cleared: bool,
 }
 
 /// What a location edit did.
@@ -401,11 +399,7 @@ impl Store {
     }
     /// Result for a staged edit that did not change the map, at version 0 so nothing waits on it.
     fn held(&self, keys: Vec<Id<Location>>) -> Mutation {
-        Mutation {
-            version: 0,
-            keys,
-            history_cleared: false,
-        }
+        Mutation { version: 0, keys }
     }
 
     /// Apply row, value-record, and field-definition changes to the store. A change to the
