@@ -401,6 +401,27 @@ export function canDropInto(tree: TagTreeNode[], dragPaths: string[], targetPath
 	return nodes[0]!.parentPath !== targetPath;
 }
 
+export type DropTarget = { path: string; position: "before" | "after" | "into" };
+
+/** Where a drag of the block grabbed at `src` lands when the pointer is over `node`, `at`
+ *  of the way along it. The middle half of a folder row drops into it, and its edges, like
+ *  either half of a pill, place the block beside it. Null when `node` is no target. */
+export function hoverDrop(
+	tree: TagTreeNode[],
+	block: ReadonlySet<string>,
+	src: TagTreeNode,
+	node: TagTreeNode,
+	at: number,
+	reorder: boolean,
+): DropTarget | null {
+	if (node.isAlias || block.has(node.fullPath)) return null;
+	const into = !isLeafTag(node) && canDropInto(tree, [...block], node.fullPath);
+	if (into && at > 0.25 && at < 0.75) return { path: node.fullPath, position: "into" };
+	if (reorder && src.parentPath === node.parentPath && isLeafTag(src) === isLeafTag(node))
+		return { path: node.fullPath, position: at < 0.5 ? "before" : "after" };
+	return into ? { path: node.fullPath, position: "into" } : null;
+}
+
 /** The full tag order, and the declared empty folders re-placed among it. */
 export interface FlatOrder {
 	orderedIds: number[];

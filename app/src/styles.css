@@ -3900,6 +3900,26 @@ body.mm-tag-dragging * {
 	opacity: 0.85;
 	outline: 1px dashed rgba(255, 255, 255, 0.5);
 }
+.tag-tree__row.is-drop-before {
+	box-shadow:
+		var(--shadow-1),
+		0 -3px 0 #fff;
+}
+.tag-tree__row.is-drop-after {
+	box-shadow:
+		var(--shadow-1),
+		0 3px 0 #fff;
+}
+.tag.is-drop-before {
+	box-shadow:
+		var(--shadow-1),
+		-4px 0 0 #fff;
+}
+.tag.is-drop-after {
+	box-shadow:
+		var(--shadow-1),
+		4px 0 0 #fff;
+}
 /* Folder row currently hovered as a drag-into target. */
 .tag-tree__row.is-drop-into {
 	opacity: 1;

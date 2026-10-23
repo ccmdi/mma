@@ -34,6 +34,7 @@ import {
 	isEffectivelySelected,
 	canDropInto,
 	moveIntoFolder,
+	hoverDrop,
 	buildTagTree,
 	sumCounts,
 	isLeafTag,
@@ -44,14 +45,13 @@ import {
 	type TagMoveResult,
 	type TagTreeExpansionIntent,
 	type FlatOrder,
+	type DropTarget,
 } from "./tagTreeModel";
 import type { TagSortMode } from "@/types";
 import type { VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";
-
-type DropTarget = { path: string; position: "before" | "after" | "into" };
 
 /** Identity-stable gesture handlers -- volatile drag state travels as separate
  *  dragPaths/dropTarget props so memoized rows aren't invalidated by this object. */
@@ -292,6 +292,8 @@ export function TagTreeView({
 					el.style.left = `${dragPosRef.current.x - 4}px`;
 					el.style.top = `${dragPosRef.current.y - 4}px`;
 				}
+				const over = (me.target as Element).closest?.("[data-tree-path], .tag-tree__root-drop");
+				if (!over && dropTargetRef.current) applyDropTarget(null);
 			},
 			// onReorder/onMoveInto render optimistically, so clearing in the same
 			// batch settles the drop instantly with no flash back to the old slot.
@@ -340,45 +342,15 @@ export function TagTreeView({
 	const handleDragMouseMove = useStableHandler(
 		(e: React.MouseEvent, node: TagTreeNode, el: HTMLElement, horizontal = false) => {
 			const src = dragNodeRef.current;
-			if (!src || node.isAlias) return; // don't drop onto an alias
 			const block = dragBlockRef.current;
-			if (block?.has(node.fullPath)) return; // block members travel with the drag
-			// In-level, same-kind (pills among pills, rows among rows): live reorder.
-			if (
-				reorderEnabled &&
-				src.parentPath === node.parentPath &&
-				isLeafTag(src) === isLeafTag(node)
-			) {
-				const rect = el.getBoundingClientRect();
-				const position = horizontal
-					? e.clientX - rect.left < rect.width / 2
-						? "before"
-						: "after"
-					: e.clientY - rect.top < rect.height / 2
-						? "before"
-						: "after";
-				if (
-					dropTargetRef.current?.path !== node.fullPath ||
-					dropTargetRef.current.position !== position
-				) {
-					applyDropTarget({ path: node.fullPath, position });
-				}
-				return;
-			}
-			// Anything else over a folder row is an "into" move target (drag into folder).
-			if (isLeafTag(node) || !block) return;
-			if (!canDropInto(treeRef.current, [...block], node.fullPath)) {
-				// An invalid folder (the origin parent, own subtree) disarms a pending
-				// into-move, so drifting back home and releasing is a clean no-op.
-				if (dropTargetRef.current?.position === "into") applyDropTarget(null);
-				return;
-			}
-			if (
-				dropTargetRef.current?.path !== node.fullPath ||
-				dropTargetRef.current.position !== "into"
-			) {
-				applyDropTarget({ path: node.fullPath, position: "into" });
-			}
+			if (!src || !block) return;
+			const rect = el.getBoundingClientRect();
+			const at = horizontal
+				? (e.clientX - rect.left) / rect.width
+				: (e.clientY - rect.top) / rect.height;
+			const next = hoverDrop(treeRef.current, block, src, node, at, reorderEnabled);
+			const cur = dropTargetRef.current;
+			if (cur?.path !== next?.path || cur?.position !== next?.position) applyDropTarget(next);
 		},
 	);
 
@@ -463,9 +435,8 @@ export function TagTreeView({
 
 	const rootPills = filteredTree.filter(isLeafTag);
 	const rootRows = filteredTree.filter((n) => !isLeafTag(n));
-	const displayRootRows = spliceDisplayOrder(rootRows, dragPaths, dropTarget);
 	const rootRowsRef = useRef<HTMLUListElement>(null);
-	useSwapAnimation(rootRowsRef, displayRootRows, dragPaths);
+	useSwapAnimation(rootRowsRef, rootRows, dragPaths);
 
 	return (
 		<TagTreeCtx.Provider value={treeCallbacks}>
@@ -479,7 +450,7 @@ export function TagTreeView({
 			/>
 			{rootRows.length > 0 && (
 				<ul className="tag-tree" ref={rootRowsRef}>
-					{displayRootRows.map((node) => (
+					{rootRows.map((node) => (
 						<TagTreeNodeRow
 							key={node.fullPath}
 							node={node}
@@ -567,9 +538,8 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 	const isOpen = forceExpanded || expandedPaths.has(node.fullPath);
 	const childPills = hasChildren ? node.children.filter(isLeafTag) : [];
 	const childRows = hasChildren ? node.children.filter((n) => !isLeafTag(n)) : [];
-	const displayChildRows = spliceDisplayOrder(childRows, dragPaths, dropTarget);
 	const childRowsRef = useRef<HTMLUListElement>(null);
-	useSwapAnimation(childRowsRef, displayChildRows, dragPaths);
+	useSwapAnimation(childRowsRef, childRows, dragPaths);
 
 	const effectiveSelected = isEffectivelySelected(node, selectedTagIds);
 	const someChildrenSelected =
@@ -598,7 +568,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 				<ContextMenu.Trigger
 					render={
 						<div
-							className={`tag-tree__row${effectiveSelected ? " is-selected" : ""}${someChildrenSelected ? " is-partial" : ""}${dragPaths?.has(node.fullPath) ? " is-dragging" : ""}${dropTarget?.position === "into" && dropTarget.path === node.fullPath ? " is-drop-into" : ""}`}
+							className={`tag-tree__row${effectiveSelected ? " is-selected" : ""}${someChildrenSelected ? " is-partial" : ""}${dragPaths?.has(node.fullPath) ? " is-dragging" : ""}${dropTarget?.path === node.fullPath ? ` is-drop-${dropTarget.position}` : ""}`}
 							style={{
 								backgroundColor: bg,
 								color: fg,
@@ -608,6 +578,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 							onClick={(e) => onRowClick(node, e.shiftKey, e.altKey)}
 							tabIndex={0}
 							onMouseDown={(e) => drag.onMouseDown(e, node)}
+							data-tree-path={node.fullPath}
 							onMouseMove={(e) => drag.onMouseMove(e, node, e.currentTarget)}
 							onKeyDown={(e) => drag.onKeyDown(e, node)}
 						>
@@ -671,7 +642,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 					/>
 					{childRows.length > 0 && (
 						<ul className="tag-tree__children" ref={childRowsRef}>
-							{displayChildRows.map((child) => (
+							{childRows.map((child) => (
 								<TagTreeNodeRow
 									key={child.fullPath}
 									node={child}
@@ -691,27 +662,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 		</li>
 	);
 });
-
-/** Live drag order: the dragged block is spliced to its prospective slot so the list
- *  visibly reorders while dragging (pills open a gap via the hidden `is-dragging` pills;
- *  folder rows move whole subtrees). Returns `nodes` unchanged when the drag/drop isn't
- *  within this sibling group. */
-function spliceDisplayOrder(
-	nodes: TagTreeNode[],
-	dragPaths: ReadonlySet<string> | null,
-	dropTarget: DropTarget | null,
-): TagTreeNode[] {
-	if (!dragPaths || !dropTarget || dropTarget.position === "into") return nodes;
-	const block: TagTreeNode[] = [];
-	const without: TagTreeNode[] = [];
-	for (const n of nodes) (dragPaths.has(n.fullPath) ? block : without).push(n);
-	if (block.length === 0) return nodes;
-	let insertAt = without.findIndex((n) => n.fullPath === dropTarget.path);
-	if (insertAt === -1) return nodes;
-	if (dropTarget.position === "after") insertAt++;
-	without.splice(insertAt, 0, ...block);
-	return without;
-}
 
 /** FLIP: while a drag reorders a sibling list, nodes glide to their new slot instead of
  *  teleporting. Children are matched to `display` by index (the ul renders exactly that
@@ -771,9 +721,8 @@ const TagLeafGroup = memo(function TagLeafGroup({
 	dragPaths: ReadonlySet<string> | null;
 	dropTarget: DropTarget | null;
 }) {
-	const display = spliceDisplayOrder(nodes, dragPaths, dropTarget);
 	const ulRef = useRef<HTMLUListElement>(null);
-	useSwapAnimation(ulRef, display, dragPaths);
+	useSwapAnimation(ulRef, nodes, dragPaths);
 	if (nodes.length === 0) return null;
 	return (
 		<ul
@@ -781,13 +730,14 @@ const TagLeafGroup = memo(function TagLeafGroup({
 			className="tag-list tag-tree__leaves"
 			style={depth > 0 ? { marginLeft: `${depth * 1.25}rem` } : undefined}
 		>
-			{display.map((node) => (
+			{nodes.map((node) => (
 				<TagTreeLeaf
 					key={node.fullPath}
 					node={node}
 					count={tagCounts[node.tag!.id] ?? 0}
 					isSelected={selectedTagIds.has(node.tag!.id)}
 					isDragging={dragPaths?.has(node.fullPath) ?? false}
+					dropSide={dropTarget?.path === node.fullPath ? dropTarget.position : null}
 				/>
 			))}
 		</ul>
@@ -799,11 +749,13 @@ const TagTreeLeaf = memo(function TagTreeLeaf({
 	count,
 	isSelected,
 	isDragging,
+	dropSide,
 }: {
 	node: TagTreeNode;
 	count: number;
 	isSelected: boolean;
 	isDragging: boolean;
+	dropSide: DropTarget["position"] | null;
 }) {
 	const { onEditTag, onAddAlias, onRemoveAlias, onRowClick, drag } = useContext(TagTreeCtx);
 	const tag = node.tag!;
@@ -821,9 +773,11 @@ const TagTreeLeaf = memo(function TagTreeLeaf({
 							isSelected && "is-selected",
 							node.isAlias && "is-alias",
 							isDragging && "is-dragging",
+							dropSide && `is-drop-${dropSide}`,
 						)}
 						style={{ cursor: "pointer" }}
 						data-tag-id={tag.id}
+						data-tree-path={node.fullPath}
 						onClick={(e: React.MouseEvent) => onRowClick(node, e.shiftKey, e.altKey)}
 						tabIndex={0}
 						onMouseDown={(e: React.MouseEvent) => drag.onMouseDown(e, node)}

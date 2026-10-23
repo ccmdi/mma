@@ -8,6 +8,7 @@ import {
 	collectDragBlock,
 	canDropInto,
 	moveIntoFolder,
+	hoverDrop,
 	buildTagTree,
 	cascadeRename,
 	syncAliasSegments,
@@ -655,6 +656,50 @@ describe("canDropInto / moveIntoFolder", () => {
 
 	it("returns null on an invalid drop", () => {
 		expect(moveIntoFolder(tree(), ["Cars"], "Cars/Old", baseTags, {}, {})).toBeNull();
+	});
+});
+
+describe("hoverDrop", () => {
+	// Root pills Red(1), Blue(2); folders Cars { a(3), Old { c(5) } } and Misc { x(6) }.
+	const tree = buildTagTree(
+		[
+			mkTag(1, "Red"),
+			mkTag(2, "Blue"),
+			mkTag(3, "Cars/a"),
+			mkTag(5, "Cars/Old/c"),
+			mkTag(6, "Misc/x"),
+		],
+		"default",
+		{},
+	);
+	const over = (src: string, node: string, at: number, reorder = true) =>
+		hoverDrop(tree, new Set([src]), findNode(tree, src)!, findNode(tree, node)!, at, reorder);
+
+	it("drops a folder into the middle of a sibling folder row", () => {
+		expect(over("Misc", "Cars", 0.5)).toEqual({ path: "Cars", position: "into" });
+	});
+
+	it("reorders a folder at the edges of a sibling folder row", () => {
+		expect(over("Misc", "Cars", 0.1)).toEqual({ path: "Cars", position: "before" });
+		expect(over("Misc", "Cars", 0.9)).toEqual({ path: "Cars", position: "after" });
+	});
+
+	it("drops into a sibling folder row anywhere when the sort order is derived", () => {
+		expect(over("Misc", "Cars", 0.1, false)).toEqual({ path: "Cars", position: "into" });
+	});
+
+	it("drops a pill into a folder row on its own level anywhere along it", () => {
+		expect(over("Red", "Cars", 0.1)).toEqual({ path: "Cars", position: "into" });
+	});
+
+	it("reorders a pill by which half of a sibling pill it is over", () => {
+		expect(over("Red", "Blue", 0.4)).toEqual({ path: "Blue", position: "before" });
+		expect(over("Red", "Blue", 0.6)).toEqual({ path: "Blue", position: "after" });
+	});
+
+	it("is no target over the block itself or its own subtree", () => {
+		expect(over("Cars", "Cars", 0.5)).toBeNull();
+		expect(over("Cars", "Cars/Old", 0.5)).toBeNull();
 	});
 });
 
