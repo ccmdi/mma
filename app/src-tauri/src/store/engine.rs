@@ -324,7 +324,11 @@ impl Store {
     }
 
     /// Update derived state for what changed, broadcast frames and changes, and return its result.
-    pub(crate) fn finish(&mut self, finished: Finished) -> Mutation {
+    pub(crate) fn finish(
+        &mut self,
+        finished: Finished,
+        projections: &HashMap<String, selections::Projection>,
+    ) -> Mutation {
         let empty = Entry::default();
         let list_only = matches!(&finished, Finished::Entry(entry)
             if entry.locations.is_empty() && !entry.selections.is_empty());
@@ -338,7 +342,7 @@ impl Store {
         self.bump();
         self.update_bounds(changes, before);
 
-        let mut moved = self.reindex(changes);
+        let mut moved = self.reindex(projections);
         for (field, delta) in records {
             moved
                 .entry(field.clone())

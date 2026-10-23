@@ -119,7 +119,7 @@ pub async fn store_commit(
             BTreeMap::new()
         };
 
-        let status = store.finish(engine::Finished::Base);
+        let status = store.finish(engine::Finished::Base, &HashMap::new());
         (pre_bake, current_fallback, location_count, status)
     };
     let t_bake = _t.elapsed();

@@ -576,6 +576,9 @@ impl FieldIndex {
 /// Per-field indexes of live rows, maintained as rows change.
 pub type FieldIndexes = HashMap<String, FieldIndex>;
 
+/// A change projected onto one field: the keys each moved row files under it.
+pub type Projection = Change<(Id<Location>, Option<Vec<String>>)>;
+
 /// Canonical index key for a scalar value. Numbers render through `f64` so a value written
 /// as `1` and one arriving as `1.0` land in the same bucket, matching `same_field_value`.
 pub fn index_key(v: &serde_json::Value) -> Option<String> {

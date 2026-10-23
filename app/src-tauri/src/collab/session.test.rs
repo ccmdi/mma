@@ -16,6 +16,7 @@ use crate::types::{Location, RawExtra};
 use futures::FutureExt;
 use mma_algebra::{Id, Op, Patch};
 use serde_json::json;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -150,7 +151,9 @@ fn a_missed_change_or_a_host_commit_makes_a_peer_take_the_map_again() {
     room.settle();
     assert_eq!(snapshots(&alice.link), 2);
 
-    room.with(&room.host, |host| host.finish(Finished::Base));
+    room.with(&room.host, |host| {
+        host.finish(Finished::Base, &HashMap::new())
+    });
     room.settle();
     assert_eq!(snapshots(&alice.link), 3);
 }

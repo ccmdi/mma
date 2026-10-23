@@ -257,7 +257,7 @@ impl Sim {
             Step::Commit => self.write(Who::Host, |host| {
                 host.bake().unwrap();
                 host.steps[Timeline::Edits].edit().clear();
-                host.finish(Finished::Base);
+                host.finish(Finished::Base, &HashMap::new());
             }),
             Step::Lose { peer, at } => {
                 if let Some((host_end, _)) = &self.peers[*peer].connection {

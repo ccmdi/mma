@@ -143,20 +143,49 @@ impl SelectionState {
 }
 
 impl Store {
-    /// Interned values that hold no row once `rows` apply, among the values `rows` move and
-    /// the ones `touched` names for each field, as field and value.
-    pub(super) fn emptied_values(
+    /// `rows` projected onto every indexed field, missing indexes built first from the rows
+    /// as they stand. The one projection the emptied test and the reindex both consume.
+    pub(super) fn field_projections(
         &mut self,
         rows: &Change<Location>,
+    ) -> HashMap<String, selections::Projection> {
+        let indexes: Vec<_> = self
+            .registry()
+            .iter()
+            .filter(|(_, def)| def.builtin.is_some())
+            .map(|(key, _)| selections::Index::Values(key.to_string()))
+            .chain(
+                self.registry()
+                    .interned()
+                    .map(|f| selections::Index::Presence(f.to_string())),
+            )
+            .collect();
+        self.prepare(indexes);
+        self.field_indexes
+            .iter()
+            .map(|(field, index)| (field.clone(), index.project(field, rows)))
+            .collect()
+    }
+
+    /// Interned values that hold no row once the projected change applies, among the values
+    /// it moves and the ones `touched` names for each field, as field and value.
+    pub(super) fn emptied_values(
+        &mut self,
+        projections: &HashMap<String, selections::Projection>,
         touched: impl Fn(&str) -> Vec<String>,
     ) -> HashSet<(String, String)> {
         let fields: Vec<_> = self.registry().interned().map(str::to_string).collect();
-        self.fields(fields.iter().map(String::as_str))
+        let fields: Vec<_> = fields
+            .iter()
+            .map(String::as_str)
+            .filter(|f| projections.contains_key(*f))
+            .collect();
+        self.fields(fields)
             .into_iter()
             .flat_map(|values| {
                 let field = values.field();
                 values
-                    .absent_after(rows, touched(field))
+                    .absent_after(&projections[field], touched(field))
                     .into_iter()
                     .map(move |key| (field.to_string(), key))
             })
@@ -526,7 +555,10 @@ impl Store {
                 .map(|(_, id)| id.to_string())
                 .collect()
         };
-        let gone = self.emptied_values(&Change::default(), named);
+        let gone = {
+            let projections = self.field_projections(&Change::default());
+            self.emptied_values(&projections, named)
+        };
         table
             .into_iter()
             .filter(|(_, listing)| !names_emptied(&gone, &listing.row))

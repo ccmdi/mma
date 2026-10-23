@@ -190,13 +190,11 @@ impl<'a> FieldValues<'a> {
 
     pub(crate) fn absent_after(
         &self,
-        rows: &Change<Location>,
+        projection: &selections::Projection,
         touched: impl IntoIterator<Item = String>,
     ) -> BTreeSet<String> {
-        let mut counts = self
-            .index
-            .project(self.field, rows)
-            .count_by(|(_, keys)| keys.iter().flatten().cloned().collect::<Vec<_>>());
+        let mut counts =
+            projection.count_by(|(_, keys)| keys.iter().flatten().cloned().collect::<Vec<_>>());
         for key in touched {
             counts.entry(key).or_default();
         }

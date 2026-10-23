@@ -308,19 +308,12 @@ impl Store {
 
     pub(super) fn reindex(
         &mut self,
-        change: &Change<Location>,
+        projections: &HashMap<String, selections::Projection>,
     ) -> HashMap<String, BTreeSet<String>> {
-        let builtins: Vec<_> = self
-            .registry()
-            .iter()
-            .filter(|(_, def)| def.builtin.is_some())
-            .map(|(key, _)| Index::Values(key.to_string()))
-            .collect();
-        self.prepare(builtins);
         self.field_indexes
             .iter_mut()
             .filter_map(|(field, index)| {
-                let moved = index.apply(&index.project(field, change));
+                let moved = index.apply(projections.get(field)?);
                 (!moved.is_empty()).then_some((field.clone(), moved))
             })
             .collect()

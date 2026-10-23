@@ -162,22 +162,7 @@ impl<'a> Targeted<'a> {
         made.map(W::done)
     }
 
-    /// Apply `entry` here, answering what `edited` says the write did. The listed selections
-    /// follow it, unless it replays an undo or redo, which brings the selection changes it made.
-    fn make(&mut self, mut entry: Entry, edited: EditResult) -> EditResult {
-        if !matches!(*self.filing, Recording::Moving { .. }) {
-            let store = &mut *self.store;
-            let gone = store.emptied_values(&entry.locations, |field| {
-                entry
-                    .records
-                    .get(field)
-                    .into_iter()
-                    .flat_map(Change::keys_iter)
-                    .map(|id| id.to_string())
-                    .collect()
-            });
-            entry.selections = store.selections.follow(&entry, &gone, &store.records);
-        }
+    fn make(&mut self, entry: Entry, edited: EditResult) -> EditResult {
         let mutation = self.apply(entry);
         EditResult {
             mutation: Mutation {
@@ -189,8 +174,24 @@ impl<'a> Targeted<'a> {
     }
 
     /// Apply a whole change, file its undo step as this handle says, and finish it. New rows
-    /// take ids above every row it brings.
-    pub(super) fn apply(&mut self, entry: Entry) -> Mutation {
+    /// take ids above every row it brings. The change lands on the interned fields through one
+    /// projection, shared by the emptied test and the reindex. The listed selections follow
+    /// the entry, unless it replays an undo or redo, which brings the selection changes it made.
+    pub(super) fn apply(&mut self, mut entry: Entry) -> Mutation {
+        let projections = self.store.field_projections(&entry.locations);
+        if !matches!(*self.filing, Recording::Moving { .. }) {
+            let store = &mut *self.store;
+            let gone = store.emptied_values(&projections, |field| {
+                entry
+                    .records
+                    .get(field)
+                    .into_iter()
+                    .flat_map(Change::keys_iter)
+                    .map(|id| id.to_string())
+                    .collect()
+            });
+            entry.selections = store.selections.follow(&entry, &gone, &store.records);
+        }
         for row in entry.locations.after() {
             self.store.next_id.saw(&row.id);
         }
@@ -199,7 +200,7 @@ impl<'a> Targeted<'a> {
         let history_cleared = self.store.record(&entry, &mut self.filing);
         Mutation {
             history_cleared,
-            ..self.store.finish(Finished::Entry(entry))
+            ..self.store.finish(Finished::Entry(entry), &projections)
         }
     }
 

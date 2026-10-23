@@ -609,10 +609,11 @@ fn tag_counts_after_remove() {
 fn removing_a_row_the_index_never_had_is_a_no_op() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
-    store.reindex(&Change {
+    let projections = store.field_projections(&Change {
         removed: vec![l],
         ..Default::default()
     });
+    store.reindex(&projections);
     assert_eq!(tag_count(&mut store, 10), 0, "and no member is invented");
 }
 
@@ -2634,7 +2635,7 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
     push_resolved(&mut store, "a", Rgb([255, 0, 0]), &[2]);
 
     let feed = FeedCapture::attach(&mut store);
-    let result = store.finish(Finished::Base);
+    let result = store.finish(Finished::Base, &HashMap::new());
 
     let frame = frames.last();
     assert_eq!(frame.version, result.version);
@@ -10223,14 +10224,14 @@ fn pending_counts_ride_the_change_feed_after_edit_undo_redo_and_commit() {
         shipped::<Counts>(&feed.last(), &["pending"]),
         Some(net(1, 0, 0))
     );
-    store.finish(Finished::Base);
+    store.finish(Finished::Base, &HashMap::new());
     assert_eq!(
         shipped::<Counts>(&feed.last(), &["pending"]),
         None,
         "unchanged counts stay off the feed"
     );
     store.bake_overlay();
-    store.finish(Finished::Base);
+    store.finish(Finished::Base, &HashMap::new());
     assert_eq!(
         shipped::<Counts>(&feed.last(), &["pending"]),
         Some(net(0, 0, 0))
@@ -10258,7 +10259,7 @@ fn a_commits_finish_resolves_selections_once_and_leaves_them_right_after_the_bak
         .now();
     store.bake_overlay();
     RESOLVES.with(|n| n.set(0));
-    store.finish(Finished::Base);
+    store.finish(Finished::Base, &HashMap::new());
     assert_eq!(RESOLVES.with(Cell::get), 1);
     assert_eq!(store.selections.ids.len(), 2);
 }
@@ -10283,7 +10284,7 @@ fn a_held_edit_that_changes_nothing_on_the_map_announces_nothing() {
 fn a_folder_rename_ships_the_maps_details_but_not_its_field_definitions() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.field_defs.edit().insert("a".into(), def_of("a"));
-    store.finish(Finished::Base);
+    store.finish(Finished::Base, &HashMap::new());
     let feed = FeedCapture::attach(&mut store);
     let refiled = Patch::<MapMeta> {
         id: store.meta.id.clone(),
@@ -10900,7 +10901,7 @@ fn a_write_that_changes_nothing_still_reaches_the_feed() {
 fn a_rewritten_base_reaches_the_feed_as_base() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     let mut feed = listen(&mut store);
-    store.finish(Finished::Base);
+    store.finish(Finished::Base, &HashMap::new());
     assert!(matches!(fed(&mut feed).as_slice(), [Finished::Base]));
 }
 
