@@ -1394,8 +1394,10 @@ leaving "location" closes the open location, leaving "plugin" clears the plugin 
 ```ts
 Editor.trail: {
   get: () => [number, number][];
-  reset: (lng: number, lat: number) => void;
+  heading: () => number;
+  reset: (lng: number, lat: number, heading: number) => void;
   push: (lng: number, lat: number) => void;
+  face: (heading: number) => void;
   clear: () => void;
 }
 ```

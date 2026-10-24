@@ -92,6 +92,7 @@ export interface Draft {
 }
 
 let trail: [number, number][] = [];
+let facing = 0;
 
 const lifetime = latest({ owner: () => state.open?.layer });
 const drafts = new WeakMap<Layer, Draft>();
@@ -211,14 +212,22 @@ export const Editor = {
 	/** The positions the viewer has walked through since the location opened, [lng, lat]. @unstable */
 	trail: {
 		get: (): [number, number][] => trail,
-		reset: (lng: number, lat: number) => {
+		/** The heading the viewer settled on at the trail's tip. */
+		heading: (): number => facing,
+		reset: (lng: number, lat: number, heading: number) => {
 			trail = [[lng, lat]];
+			facing = heading;
 			emitEvent("trail:changed");
 		},
 		push: (lng: number, lat: number) => {
 			const last = trail.at(-1);
 			if (last?.[0] === lng && last[1] === lat) return;
 			trail = [...trail, [lng, lat]];
+			emitEvent("trail:changed");
+		},
+		face: (heading: number) => {
+			if (facing === heading) return;
+			facing = heading;
 			emitEvent("trail:changed");
 		},
 		clear: () => {

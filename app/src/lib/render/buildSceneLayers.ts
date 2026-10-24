@@ -34,7 +34,7 @@ import { Import } from "@/store/import";
 import { Measure } from "@/lib/map/measure";
 import { NODE_PX } from "@/lib/map/nodePath";
 import type { RGBA } from "@/lib/util/color";
-import { bearingDeg, unwrapRing } from "@/lib/geo/geo";
+import { unwrapRing } from "@/lib/geo/geo";
 import { Editor } from "@/store/editor";
 
 /** Lines drawn at a fixed on-screen width. */
@@ -70,9 +70,9 @@ function trailSegments(trail: [number, number][]) {
 	}));
 }
 
-// The trail's tip in the marker style's shape. Arrows point along the last step.
+// The trail's tip in the marker style's shape. Arrows point where the viewer settled its view.
 function trailPositionLayers(trail: [number, number][], ctx: SceneContext): Layer[] {
-	const [prev, tip] = trail.slice(-2);
+	const tip = trail[trail.length - 1];
 	if (ctx.markerStyle === "circle") {
 		return [
 			new ScatterplotLayer({
@@ -97,9 +97,7 @@ function trailPositionLayers(trail: [number, number][], ctx: SceneContext): Laye
 			shape: s.shape,
 			radiusPixels: s.radiusPixels * ctx.markerSize,
 			getFillColor: [...ctx.svTrailColor, 255],
-			getAngle: s.angle
-				? -bearingDeg({ lng: prev[0], lat: prev[1] }, { lng: tip[0], lat: tip[1] })
-				: 0,
+			getAngle: s.angle ? -Editor.trail.heading() : 0,
 		}),
 	];
 }

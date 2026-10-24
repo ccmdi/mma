@@ -3852,8 +3852,11 @@ declare const Editor: {
     /** The positions the viewer has walked through since the location opened, [lng, lat]. @unstable */
     trail: {
         get: () => [number, number][];
-        reset: (lng: number, lat: number) => void;
+        /** The heading the viewer settled on at the trail's tip. */
+        heading: () => number;
+        reset: (lng: number, lat: number, heading: number) => void;
         push: (lng: number, lat: number) => void;
+        face: (heading: number) => void;
         clear: () => void;
     };
     /** Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`. */

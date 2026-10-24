@@ -6,9 +6,12 @@ import { usePano } from "@/lib/hooks/usePano";
 import { Editor } from "@/store/editor";
 import { isPinned } from "@/types";
 import { t } from "@/lib/i18n";
+import { debounce } from "@/lib/util/concurrent";
+
+const VIEW_SETTLE_MS = 200;
 
 /** The pano session for the open location: resolve and show its pano, feed viewer walks
- *  into the draft and the trail. */
+ *  into the draft, and walks and settled views into the trail. */
 export function usePanoSession() {
 	const open = Editor.use((s) => s.open);
 	const location = open?.location ?? null;
@@ -20,6 +23,7 @@ export function usePanoSession() {
 	useEffect(() => {
 		if (!location) return;
 		let cancelled = false;
+		const settle = debounce(() => Editor.trail.face(pano.pov().heading), VIEW_SETTLE_MS);
 
 		const offStatus = pano.on("status_changed", () => {
 			if (!pano.isLoaded()) return;
@@ -28,13 +32,16 @@ export function usePanoSession() {
 			if (!panoId || !position) return;
 			void edit({ panoId, ...position });
 			Editor.trail.push(position.lng, position.lat);
+			settle.cancel();
+			Editor.trail.face(pano.pov().heading);
 		});
 		const offLock = pano.on("pano_changed", () => void pano.applyLock());
+		const offPov = pano.on("pov_changed", settle.schedule);
 
 		void loadOpenSV().then(async () => {
 			if (cancelled || !google?.maps) return;
 			sendHideCar(!getSettings().showCar);
-			Editor.trail.reset(location.lng, location.lat);
+			Editor.trail.reset(location.lng, location.lat, location.heading);
 
 			const shown = await pano.show(location);
 			if (cancelled || shown.status === "cancelled") return;
@@ -48,8 +55,10 @@ export function usePanoSession() {
 		return () => {
 			cancelled = true;
 			Editor.trail.clear();
+			settle.cancel();
 			offStatus();
 			offLock();
+			offPov();
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- initialize the pano once per opening, not on draft updates
 	}, [pano, layer, hasLocation]);
