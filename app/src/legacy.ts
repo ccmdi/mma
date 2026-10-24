@@ -410,8 +410,8 @@ export const getMapList: typeof Maps.list = Maps.list;
 /** @deprecated v0.12.0. Use `MMA.Maps.reload`. @api @unstable */
 export const reloadMapList: typeof Maps.reload = Maps.reload;
 
-/** @deprecated v0.12.0. Use `MMA.Maps.invalidate`. @api @unstable */
-export const invalidateMapList: typeof Maps.invalidate = Maps.invalidate;
+/** @deprecated v0.12.0. Use `MMA.Maps.reload`. @api @unstable */
+export const invalidateMapList: typeof Maps.reload = Maps.reload;
 
 /** @deprecated v0.12.0. Use `MMA.Maps.create`. @api */
 export const createMap: typeof Maps.create = Maps.create;

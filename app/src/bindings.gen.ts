@@ -399,6 +399,8 @@ export const events = {
 	bulkImportProgress: makeEvent<ImportProgress>("bulk-import-progress"),
 	collabPresence: makeEvent<CollabPresence>("collab-presence"),
 	collabSessions: makeEvent<CollabSessions>("collab-sessions"),
+	mapDeleted: makeEvent<MapDeleted>("map-deleted"),
+	mapListChanged: makeEvent<MapListChanged>("map-list-changed"),
 	procedureProgress: makeEvent<ProcedureProgress>("procedure-progress"),
 	procedureResult: makeEvent<ProcedureResult>("procedure-result"),
 	sidecarDone: makeEvent<SidecarDone>("sidecar-done"),
@@ -1091,6 +1093,9 @@ export type LocationOp =
  */
 { kind: "listSet"; key: string; add: unknown[]; remove: unknown[] };
 
+/**  A map was deleted, so anything holding it open lets it go. */
+export type MapDeleted = string;
+
 /**
  *  Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
  *  but structured as an object to allow future extensions.
@@ -1113,6 +1118,9 @@ export type MapKeyBinding = {
 	key: string,
 	action: MapKeyAction,
 };
+
+/**  The list of maps changed, so it should be read again. */
+export type MapListChanged = null;
 
 /**  Full metadata for a map. */
 export type MapMeta = {

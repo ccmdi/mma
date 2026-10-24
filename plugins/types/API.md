@@ -2562,9 +2562,9 @@ installedVersion(pluginId: string): Promise<string | null>
 invalidateMapList(): Promise<void>
 ```
 
-**Deprecated in v0.12.0.** Use `MMA.Maps.invalidate`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.reload`.
 
-Refresh the map list and notify other windows of the change.
+Refresh the map list from disk.
 
 ### isReservedMap
 
@@ -3306,16 +3306,6 @@ Maps.init(): Promise<void>
 ```
 
 One-time store startup. The app calls this; plugins never need to.
-
-#### Maps.invalidate
-
-`unstable` · since v0.12.0
-
-```ts
-Maps.invalidate(): Promise<void>
-```
-
-Refresh the map list and notify other windows of the change.
 
 #### Maps.isReserved
 

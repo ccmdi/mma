@@ -70,7 +70,7 @@ impl Origin {
 
 /// Every map in this app copied from another app's, an open one as its store holds it.
 pub(crate) fn copies(state: &StoreState) -> AppResult<Vec<CollabCopy>> {
-    let rows = maps::list_map_rows(&storage::open_db()?)?;
+    let rows = maps::list_map_rows(&*storage::open_db()?)?;
     let mgr = state.lock()?;
     Ok(rows
         .into_iter()

@@ -162,7 +162,7 @@ async fn flush(
     let map = map_id.clone();
     let unsaved = task::spawn_blocking(move || {
         unsaved.write(
-            &storage::open_db()?,
+            &*storage::open_db()?,
             &map,
             &storage::arrow_delta_path(&map)?,
         )?;

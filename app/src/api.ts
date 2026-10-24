@@ -698,7 +698,7 @@ type LegacyApi = {
 	initStore: typeof initStore;
 	/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
 	installedVersion: typeof installedVersion;
-	/** @deprecated v0.12.0. Use `MMA.Maps.invalidate`. @unstable */
+	/** @deprecated v0.12.0. Use `MMA.Maps.reload`. @unstable */
 	invalidateMapList: typeof invalidateMapList;
 	/** @deprecated v0.12.0. Use `MMA.Maps.isReserved`. @unstable */
 	isReservedMap: typeof isReservedMap;

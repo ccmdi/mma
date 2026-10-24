@@ -1,7 +1,7 @@
 //! SQLite: connections, pragmas, the migration registry, row helpers.
 
 use super::*;
-use crate::store::maps::MapMeta;
+use crate::store::maps::{MapListChanged, MapMeta};
 use crate::types::{AppResult, ErrCode};
 use crate::util::now_iso;
 use mma_algebra::{Counts, Id, Patchable};
@@ -11,6 +11,9 @@ use rusqlite::{Connection, Row};
 use serde::de::DeserializeOwned;
 use std::collections::HashSet;
 use std::fs;
+use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::task;
 
@@ -90,10 +93,37 @@ pub(crate) fn update_row<T: Patchable + Stamped + serde::Serialize>(
 pub(crate) async fn with_db<T: Send + 'static>(
     f: impl FnOnce(&mut Connection) -> AppResult<T> + Send + 'static,
 ) -> AppResult<T> {
-    task::spawn_blocking(move || f(&mut open_db()?)).await?
+    task::spawn_blocking(move || f(&mut *open_db()?)).await?
 }
 
-pub(crate) fn open_db() -> AppResult<Connection> {
+/// A database connection that announces a map-list change when it closes, if it wrote a map row.
+pub(crate) struct Db {
+    conn: Connection,
+    wrote_maps: Arc<AtomicBool>,
+}
+
+impl Deref for Db {
+    type Target = Connection;
+    fn deref(&self) -> &Connection {
+        &self.conn
+    }
+}
+
+impl DerefMut for Db {
+    fn deref_mut(&mut self) -> &mut Connection {
+        &mut self.conn
+    }
+}
+
+impl Drop for Db {
+    fn drop(&mut self) {
+        if self.wrote_maps.load(Ordering::Relaxed) {
+            crate::emit_event(MapListChanged);
+        }
+    }
+}
+
+pub(crate) fn open_db() -> AppResult<Db> {
     let path = db_path()?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| {
@@ -107,7 +137,14 @@ pub(crate) fn open_db() -> AppResult<Connection> {
     conn.busy_timeout(Duration::from_secs(5))?;
     // FK enforcement is per-connection and defaults OFF; without it no ON DELETE CASCADE fires.
     conn.pragma_update(None, "foreign_keys", true)?;
-    Ok(conn)
+    let wrote_maps = Arc::new(AtomicBool::new(false));
+    let wrote = Arc::clone(&wrote_maps);
+    conn.update_hook(Some(move |_, _: &str, table: &str, _| {
+        if table == MapMeta::TABLE {
+            wrote.store(true, Ordering::Relaxed);
+        }
+    }));
+    Ok(Db { conn, wrote_maps })
 }
 
 /// Record a map's live location count and its changes since the last commit, together,

@@ -1,4 +1,3 @@
-import { Maps } from "./maps";
 import { Store } from "./store";
 import { Mutation } from "./mutation";
 import { Autosave } from "./autosave";
@@ -18,14 +17,13 @@ export const Commit = {
 		const r = await Autosave.exclusive(() => cmd.storeCommit(Store.get().mapId!, message ?? null));
 		t.step("commit");
 		t.end();
-		void Maps.invalidate();
 		return r.id;
 	},
 	/** Commit `mapId` in the background once pending saves finish. @unstable */
 	background: (mapId: string, message: string) => {
-		void Autosave.exclusive(() => cmd.storeCommit(mapId, message))
-			.then(() => void Maps.invalidate())
-			.catch((e: unknown) => log.error("[commit] background commit failed:", e));
+		void Autosave.exclusive(() => cmd.storeCommit(mapId, message)).catch((e: unknown) =>
+			log.error("[commit] background commit failed:", e),
+		);
 	},
 	/** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
 	checkout: async (commitId: string) => {
@@ -40,6 +38,5 @@ export const Commit = {
 		if (Editor.get().open) Editor.close();
 
 		void Scene.load();
-		await Maps.invalidate();
 	},
 };

@@ -1003,6 +1003,24 @@ declare const events: {
         once: (cb: __TAURI_EVENT.EventCallback<CollabSessions>) => Promise<__TAURI_EVENT.UnlistenFn>;
         emit: (payload: CollabSessions) => Promise<void>;
     };
+    mapDeleted: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
+        listen: (cb: __TAURI_EVENT.EventCallback<string>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<string>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: (payload: string) => Promise<void>;
+    }) & {
+        listen: (cb: __TAURI_EVENT.EventCallback<string>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<string>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: (payload: string) => Promise<void>;
+    };
+    mapListChanged: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
+        listen: (cb: __TAURI_EVENT.EventCallback<null>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<null>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: () => Promise<void>;
+    }) & {
+        listen: (cb: __TAURI_EVENT.EventCallback<null>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<null>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: () => Promise<void>;
+    };
     procedureProgress: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
         listen: (cb: __TAURI_EVENT.EventCallback<ProcedureProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
         once: (cb: __TAURI_EVENT.EventCallback<ProcedureProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
@@ -1992,6 +2010,8 @@ type LocationOp =
     add: unknown[];
     remove: unknown[];
 };
+/**  A map was deleted, so anything holding it open lets it go. @unstable */
+type MapDeleted = string;
 /**
  *  Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
  *  but structured as an object to allow future extensions.
@@ -2020,6 +2040,8 @@ type MapKeyBinding = {
     key: string;
     action: MapKeyAction;
 };
+/**  The list of maps changed, so it should be read again. @unstable */
+type MapListChanged = null;
 /**  Full metadata for a map. */
 type MapMeta = {
     id: string;
@@ -4307,8 +4329,6 @@ declare const Maps: {
     list: () => MapMeta[];
     /** Refresh the map list from disk. @unstable */
     reload: () => Promise<void>;
-    /** Refresh the map list and notify other windows of the change. @unstable */
-    invalidate: () => Promise<void>;
     /** Create a new empty map and return its metadata. */
     create: (name: string, folder?: string | null) => Promise<MapMeta>;
     /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
@@ -5854,8 +5874,8 @@ declare const useMapList: typeof Maps.useList;
 declare const getMapList: typeof Maps.list;
 /** @deprecated v0.12.0. Use `MMA.Maps.reload`. @api @unstable */
 declare const reloadMapList: typeof Maps.reload;
-/** @deprecated v0.12.0. Use `MMA.Maps.invalidate`. @api @unstable */
-declare const invalidateMapList: typeof Maps.invalidate;
+/** @deprecated v0.12.0. Use `MMA.Maps.reload`. @api @unstable */
+declare const invalidateMapList: typeof Maps.reload;
 /** @deprecated v0.12.0. Use `MMA.Maps.create`. @api */
 declare const createMap: typeof Maps.create;
 /** @deprecated v0.12.0. Use `MMA.Maps.duplicate`. @api */
@@ -7580,7 +7600,7 @@ export type LegacyApi = {
     initStore: typeof initStore;
     /** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
     installedVersion: typeof installedVersion;
-    /** @deprecated v0.12.0. Use `MMA.Maps.invalidate`. @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.reload`. @unstable */
     invalidateMapList: typeof invalidateMapList;
     /** @deprecated v0.12.0. Use `MMA.Maps.isReserved`. @unstable */
     isReservedMap: typeof isReservedMap;
@@ -8063,4 +8083,4 @@ declare global {
 }
 
 export type { MMA, MMA as MMAApi, commands, events };
-export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CollabCopy, CollabPresence, CollabSession, CollabSessions, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, Edited, EditorImportPreview, EditorImportResult, Edits, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JoinOutcome, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, Member, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Origin, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSetting, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReplyTo, ReportRef, ResultEntry, RetrySpec, ReviewSession, Rows, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SessionLink, SetOp, Share, Shared, Shares, Shown, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueNames, ValueRecord, Via, VirtualTag, Work, WorkResult };
+export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CollabCopy, CollabPresence, CollabSession, CollabSessions, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, Edited, EditorImportPreview, EditorImportResult, Edits, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JoinOutcome, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapDeleted, MapExtra, MapKeyAction, MapKeyBinding, MapListChanged, MapMeta, MapPreferences, MapSettings, Member, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Origin, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSetting, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReplyTo, ReportRef, ResultEntry, RetrySpec, ReviewSession, Rows, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SessionLink, SetOp, Share, Shared, Shares, Shown, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueNames, ValueRecord, Via, VirtualTag, Work, WorkResult };

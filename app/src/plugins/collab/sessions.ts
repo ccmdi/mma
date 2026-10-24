@@ -121,7 +121,7 @@ async function joining(via: Via, replace: boolean): Promise<void> {
 		return;
 	}
 	publish(known.noting(outcome.map, null));
-	await Maps.invalidate();
+	await Maps.reload();
 	const name = Maps.list().find((m) => m.id === outcome.map)?.name || t("(unnamed)");
 	await openWindow({ type: "editor", mapId: outcome.map }, name);
 }

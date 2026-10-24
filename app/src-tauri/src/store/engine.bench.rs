@@ -300,7 +300,7 @@ impl BenchApp {
             let map_id = store.meta.id.clone();
             store
                 .step(stack, Timeline::Edits, |seq| {
-                    load_edit(&storage::open_db()?, &map_id, seq)
+                    load_edit(&*storage::open_db()?, &map_id, seq)
                 })
                 .settled()
         })

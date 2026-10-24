@@ -655,6 +655,16 @@ pub struct MapMeta {
     pub last_opened_at: Option<String>,
 }
 
+/// The list of maps changed, so it should be read again.
+#[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "map-list-changed")]
+pub struct MapListChanged;
+
+/// A map was deleted, so anything holding it open lets it go.
+#[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "map-deleted")]
+pub struct MapDeleted(pub Id<MapMeta, String>);
+
 impl MapMetaPatch {
     /// Take out of this patch the details that stay on this device: where the map is filed and
     /// what plugins keep here alone. When it was last opened never enters a patch.
@@ -921,6 +931,9 @@ fn delete_map_data(conn: &Connection, id: &Id<MapMeta, String>) -> AppResult<boo
     if let Ok(dir) = storage::arrow_dir() {
         let _ = fs::remove_dir_all(dir.join("commits").join(id.raw()));
     }
+    if removed > 0 {
+        crate::emit_event(MapDeleted(id.clone()));
+    }
     Ok(removed > 0)
 }
 
@@ -957,10 +970,10 @@ pub fn store_update_map_meta(
     patch: Patch<MapMeta>,
     reply: Reply<Option<engine::Mutation>>,
 ) {
-    reply.when(
-        writes
-            .write(move |state| update_map_meta(&mut *state.lock()?, &storage::open_db()?, patch)),
-    );
+    reply
+        .when(writes.write(move |state| {
+            update_map_meta(&mut *state.lock()?, &*storage::open_db()?, patch)
+        }));
 }
 
 fn update_map_meta(

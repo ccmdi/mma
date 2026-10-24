@@ -201,8 +201,6 @@ pub async fn bulk_import_confirm(
     path: String,
     selected_indices: Vec<u32>,
 ) -> AppResult<Vec<ImportedMapInfo>> {
-    let main_path = storage::db_path()?;
-
     task::spawn_blocking(move || {
         let cached = CACHED_PARSE.lock().unwrap().remove(&path);
         let all_maps = match cached {
@@ -220,7 +218,7 @@ pub async fn bulk_import_confirm(
         let total = parsed_maps.len() as u32;
 
         // Open DB once for all maps
-        let conn = Connection::open(&main_path)?;
+        let conn = storage::open_db()?;
         conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")?;
 
         let mut results = Vec::with_capacity(parsed_maps.len());

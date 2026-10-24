@@ -730,7 +730,6 @@ export function BulkActions() {
 				}
 				base += localIndices.length;
 			}
-			await Maps.invalidate();
 			progress.finish(
 				failed
 					? t("Imported {imported}, {failed} failed", { imported: total - failed, failed })

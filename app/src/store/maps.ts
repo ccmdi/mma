@@ -13,8 +13,7 @@ import { Scene } from "@/lib/render/scene";
 import { Import } from "./import";
 import { CommitDiff } from "./commitDiff";
 import { SCRATCH_MAP_ID } from "@/bindings.consts";
-import { type Counts, type MapMeta } from "@/bindings.gen";
-import { emit as tauriEmit } from "@tauri-apps/api/event";
+import { events, type Counts, type MapMeta } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import {
 	emit as emitEvent,
@@ -49,7 +48,10 @@ export interface BadgeSource {
 }
 
 const badgeSources: BadgeSource[] = [];
-let collected: { hidden: readonly string[]; badges: Map<string, MapBadge[]> } | null = null;
+let collected: {
+	hidden: readonly string[];
+	badges: Map<string, MapBadge[]>;
+} | null = null;
 
 function collectMapBadges(hidden: readonly string[]) {
 	const badges = new Map<string, MapBadge[]>();
@@ -100,7 +102,7 @@ export const Maps = {
 	init: async () => {
 		await Maps.reload();
 		// App-lifetime listeners: never unsubscribed, so the handles are dropped on purpose.
-		void listen("map-list-changed", () => void Maps.reload());
+		void events.mapListChanged.listen(() => void Maps.reload());
 		void listen<StoreWarning>("store-warning", (e) => toast(storeWarningText(e.payload), 8000));
 	},
 	/** Open a map in this window, closing any currently open map first. */
@@ -153,28 +155,13 @@ export const Maps = {
 		cachedMapList = await cmd.storeListMaps();
 		emitEvent("map-list:changed");
 	},
-	/** Refresh the map list and notify other windows of the change. @unstable */
-	invalidate: async () => {
-		await Maps.reload();
-		await tauriEmit("map-list-changed");
-	},
 	/** Create a new empty map and return its metadata. */
-	create: async (name: string, folder: string | null = null) => {
-		const meta = await cmd.storeCreateMap(name, folder);
-		await Maps.invalidate();
-		return meta;
-	},
+	create: (name: string, folder: string | null = null) => cmd.storeCreateMap(name, folder),
 	/** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
-	duplicate: async (id: string, name: string) => {
-		const meta = await cmd.storeDuplicateMap(id, name);
-		await Maps.invalidate();
-		return meta;
-	},
+	duplicate: (id: string, name: string) => cmd.storeDuplicateMap(id, name),
 	/** Permanently delete a map and all its data. Not undoable. */
 	remove: async (id: string) => {
 		await cmd.storeDeleteMap(id);
-		await Maps.invalidate();
-		await tauriEmit("map-deleted", id);
 	},
 	/** Open the scratch map, creating it on first use. */
 	openScratch: async () => {
@@ -193,7 +180,6 @@ export const Maps = {
 		cachedMapList = cachedMapList.map((m) => (m.folder === from ? { ...m, folder: to } : m));
 		emitEvent("map-list:changed");
 		await cmd.storeMoveFolder(from, to);
-		await Maps.invalidate();
 	},
 	/** Move a map into a folder, or to the root when `folder` is null. */
 	moveToFolder: async (mapId: string, folder: string | null) => {
@@ -207,7 +193,6 @@ export const Maps = {
 	/** Delete a folder. Maps in it become unfoldered. */
 	removeFolder: async (name: string) => {
 		await cmd.storeMoveFolder(name, null);
-		await Maps.invalidate();
 	},
 	/** Add a source of map-row badges. @unstable */
 	registerBadges: (source: BadgeSource) => {
@@ -233,8 +218,6 @@ export const Maps = {
 	},
 };
 
-subscribe("map:saved", () => void Maps.invalidate());
-
 subscribe("settings:changed", () => {
 	if (collected && collected.hidden !== getSettings().hiddenMapBadges) invalidateMapBadges();
 });
@@ -247,7 +230,14 @@ Maps.registerBadges({
 		for (const m of cachedMapList) {
 			const { added, removed, updated } = m.pending;
 			if (added + removed + updated === 0) continue;
-			yield [m.id, { key: "pending", diff: m.pending, title: t("Changes since the last commit") }];
+			yield [
+				m.id,
+				{
+					key: "pending",
+					diff: m.pending,
+					title: t("Changes since the last commit"),
+				},
+			];
 		}
 	},
 });

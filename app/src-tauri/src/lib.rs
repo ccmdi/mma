@@ -254,6 +254,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             plugins::sidecar::SidecarDone,
             io::import::ImportProgress,
             io::export::ExportProgress,
+            store::maps::MapListChanged,
+            store::maps::MapDeleted,
             store::engine::StoreWarning,
             plugins::vali::ValiProgress,
             procedure::engine::ProcedureProgress,

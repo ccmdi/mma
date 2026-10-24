@@ -302,6 +302,7 @@ impl Store {
             patch.push(PatchOp::replace(["pending"], self.overlay.counts()));
         }
         if self.meta.ship() {
+            crate::emit_event(maps::MapListChanged);
             patch.push(PatchOp::replace(
                 ["map"],
                 maps::MapDetails((*self.meta).clone()),
@@ -751,7 +752,7 @@ pub(crate) fn with_target<R>(
     let result = f(&mut store)?;
     if let Some(unsaved) = store.unsaved()? {
         unsaved.write(
-            &storage::open_db()?,
+            &*storage::open_db()?,
             &map_id,
             &storage::arrow_delta_path(&map_id)?,
         )?;

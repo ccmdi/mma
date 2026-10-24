@@ -320,7 +320,7 @@ pub fn store_step(
             let _t = Instant::now();
             let map_id = store.meta.id.clone();
             let stepped = store.step(stack, timeline, |seq| {
-                load_edit(&storage::open_db()?, &map_id, seq)
+                load_edit(&*storage::open_db()?, &map_id, seq)
             });
             log::debug!(
                 "[{stack:?} {timeline:?}] stack_depth={} step={}ms",

@@ -126,6 +126,29 @@ describe("Map management", () => {
 		expect(exists).toBe(false);
 	});
 
+	it("the map list follows writes it did not ask for", async () => {
+		const created = await withApi(async (api) => api.cmd.storeCreateMap("Unannounced", null));
+		createdMapIds.push(created.id);
+		const listed = async (name: string) =>
+			withApi(
+				async (api, id, n) => api.Maps.list().some((m) => m.id === id && m.name === n),
+				created.id,
+				name,
+			);
+		await browser.waitUntil(() => listed("Unannounced"), {
+			timeoutMsg: "a map created in the backend never reached the map list",
+		});
+
+		await openMap(created.id);
+		await withApi(
+			async (api, id) => api.cmd.storeUpdateMapMeta({ id, name: "Renamed Open" }),
+			created.id,
+		);
+		await browser.waitUntil(() => listed("Renamed Open"), {
+			timeoutMsg: "renaming an open map never reached the map list",
+		});
+	});
+
 	it("open map with locations shows correct count", async () => {
 		await openMap(createdMapIds[0]);
 

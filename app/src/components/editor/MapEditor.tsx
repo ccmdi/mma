@@ -6,7 +6,7 @@ import { Location } from "@/store/location";
 import { Tag } from "@/store/tag";
 import { Import } from "@/store/import";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { listen } from "@tauri-apps/api/event";
+import { events } from "@/bindings.gen";
 import { goTo, leaveToList } from "@/store/router";
 import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { MapHost } from "@/lib/map/mapHost";
@@ -219,7 +219,7 @@ export function MapEditor() {
 	// This map was deleted (here or in another window): drop it without flushing
 	// and back out to the list, which self-destructs the editor window on Tauri.
 	useEffect(() => {
-		const unlisten = listen<string>("map-deleted", (e) => {
+		const unlisten = events.mapDeleted.listen((e) => {
 			if (e.payload === Store.get().mapId) {
 				Maps.discard();
 				goTo({ type: "list" });

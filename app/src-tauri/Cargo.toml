@@ -39,7 +39,7 @@ tauri-plugin-log = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-shell = "2"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "hooks"] }
 rmp-serde = "1"
 postcard = { version = "1", default-features = false, features = ["use-std"] }
 sha1 = "0.10"

@@ -1,4 +1,3 @@
-import { Maps } from "./maps";
 import { Store } from "@/store/store";
 import { Mutation } from "@/store/mutation";
 import type { Selector } from "@/types";
@@ -29,7 +28,6 @@ export const Edit = {
 		const id = patch.id ?? mapId;
 		if (!id) return;
 		await Mutation.write(() => cmd.storeUpdateMapMeta({ ...patch, id }));
-		await Maps.invalidate();
 	},
 	/** Edit an interned field's value records in one undoable step. */
 	values: (field: string, edits: Of<"values">["edits"]) =>

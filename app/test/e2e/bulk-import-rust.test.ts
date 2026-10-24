@@ -83,7 +83,6 @@ describe("Rust bulk import — confirm and verify", () => {
 		const result = await withApi(async (api, p) => {
 			await api.cmd.bulkImportPreview(p);
 			const imported = await api.cmd.bulkImportConfirm(p, [0, 1, 2, 3, 4, 5]);
-			await api.Maps.invalidate();
 			return imported;
 		}, FIXTURE_ZIP);
 
@@ -206,7 +205,6 @@ describe("Rust bulk import — selective import", () => {
 		const importedCount = await withApi(async (api, p) => {
 			await api.cmd.bulkImportPreview(p);
 			const imported = await api.cmd.bulkImportConfirm(p, [0, 2]);
-			await api.Maps.invalidate();
 			return imported.length;
 		}, FIXTURE_ZIP);
 
