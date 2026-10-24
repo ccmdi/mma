@@ -178,7 +178,7 @@ impl<'a> Targeted<'a> {
     /// projection, shared by the emptied test and the reindex. The listed selections follow
     /// the entry, unless it replays an undo or redo, which brings the selection changes it made.
     pub(super) fn apply(&mut self, mut entry: Entry) -> Mutation {
-        let projections = self.store.field_projections(&entry.locations);
+        let projections = self.store.fields().project(&entry.locations);
         if !matches!(*self.filing, Recording::Moving { .. }) {
             let store = &mut *self.store;
             let gone = store

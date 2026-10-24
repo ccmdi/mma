@@ -143,30 +143,6 @@ impl SelectionState {
 }
 
 impl Store {
-    /// `rows` projected onto every indexed field, missing indexes built first from the rows
-    /// as they stand. The one projection the emptied test and the reindex both consume.
-    pub(super) fn field_projections(
-        &mut self,
-        rows: &Change<Location>,
-    ) -> HashMap<String, selections::Projection> {
-        let indexes: Vec<_> = self
-            .registry()
-            .iter()
-            .filter(|(_, def)| def.builtin.is_some())
-            .map(|(key, _)| selections::Index::Values(key.to_string()))
-            .chain(
-                self.registry()
-                    .interned()
-                    .map(|f| selections::Index::Presence(f.to_string())),
-            )
-            .collect();
-        self.prepare(indexes);
-        self.field_indexes
-            .iter()
-            .map(|(field, index)| (field.clone(), index.project(field, rows)))
-            .collect()
-    }
-
     /// Recompute selection membership and per-node counts. Render bitmasks are built separately.
     pub(crate) fn resolve_selection_membership(&mut self) {
         #[cfg(test)]
@@ -531,7 +507,7 @@ impl Store {
                 .collect()
         };
         let gone = {
-            let projections = self.field_projections(&Change::default());
+            let projections = self.fields().project(&Change::default());
             self.fields().interned().absent_after(&projections, named)
         };
         table

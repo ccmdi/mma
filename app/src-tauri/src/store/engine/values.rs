@@ -126,7 +126,7 @@ pub(crate) fn named(edit: Edit<ValueRecord>) -> AppResult<Edit<ValueRecord>> {
     }
 }
 
-/// Access to a map's field values, narrowed by their declarations.
+/// Access to a map's fields, narrowed by their declarations.
 pub(crate) struct Fields<'a> {
     store: &'a mut Store,
     includes: fn(Option<&maps::FieldDef>) -> bool,
@@ -145,6 +145,36 @@ impl<'a> Fields<'a> {
     pub(crate) fn interned(mut self) -> Self {
         self.includes = |field| field.is_some_and(|field| field.interned);
         self
+    }
+
+    /// Project a row change onto these fields, preparing missing indexes against current rows.
+    pub(crate) fn project(
+        self,
+        rows: &Change<Location>,
+    ) -> HashMap<String, selections::Projection> {
+        let indexes: Vec<_> = self
+            .store
+            .registry()
+            .iter()
+            .filter(|(_, def)| (self.includes)(Some(def)))
+            .flat_map(|(field, def)| {
+                def.builtin
+                    .is_some()
+                    .then(|| selections::Index::Values(field.to_string()))
+                    .into_iter()
+                    .chain(
+                        def.interned
+                            .then(|| selections::Index::Presence(field.to_string())),
+                    )
+            })
+            .collect();
+        self.store.prepare(indexes);
+        self.store
+            .field_indexes
+            .iter()
+            .filter(|(field, _)| (self.includes)(self.store.registry().get(field)))
+            .map(|(field, index)| (field.clone(), index.project(field, rows)))
+            .collect()
     }
 
     pub(crate) fn values(

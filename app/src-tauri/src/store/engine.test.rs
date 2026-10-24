@@ -674,7 +674,7 @@ fn tag_counts_after_remove() {
 fn removing_a_row_the_index_never_had_is_a_no_op() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
-    let projections = store.field_projections(&Change {
+    let projections = store.fields().project(&Change {
         removed: vec![l],
         ..Default::default()
     });
