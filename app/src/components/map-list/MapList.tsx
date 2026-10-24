@@ -36,7 +36,6 @@ import {
 	mdiPlus,
 	mdiTextSearch,
 	mdiFolderRemove,
-	mdiDragVertical,
 	mdiImport,
 	mdiExport,
 } from "@mdi/js";
@@ -288,6 +287,8 @@ const MapEntry = React.memo(function MapEntry({
 	badges: MapBadge[];
 }) {
 	const labelColors = useSetting("labelColors");
+	const draggedRef = useRef(false);
+	if (isDragging) draggedRef.current = true;
 	const metaParts: React.ReactNode[] = [];
 	for (const f of fields) {
 		const node = FIELD_RENDERERS[f](meta);
@@ -296,32 +297,29 @@ const MapEntry = React.memo(function MapEntry({
 
 	return (
 		<li
-			className={isDragging ? "is-dragging" : undefined}
+			className={isDragging ? "map-list__map is-dragging" : "map-list__map"}
 			style={isDragging ? { opacity: 0.4 } : undefined}
 			data-filter-name={meta.name.toLowerCase()}
 			data-filter-labels={meta.labels.join("\n")}
 		>
-			<IconButton
-				className="map-list__drag-handle"
-				icon={mdiDragVertical}
-				label={t("Drag to move")}
-				tooltip={false}
-				reveal
-				draggable={false}
-				onMouseDown={(e) =>
+			<a
+				href="#"
+				className="map-link"
+				onMouseDown={(e) => {
+					draggedRef.current = false;
 					onDragStart(e, {
 						kind: "map",
 						id: meta.id,
 						folder: meta.folder,
 						name: meta.name || "(unnamed)",
-					})
-				}
-			/>
-			<a
-				href="#"
-				className="map-link"
+					});
+				}}
 				onClick={(e) => {
 					e.preventDefault();
+					if (draggedRef.current) {
+						draggedRef.current = false;
+						return;
+					}
 					void openWindow({ type: "editor", mapId: meta.id }, meta.name);
 				}}
 			>

@@ -1796,11 +1796,11 @@ input[type="range"]:disabled {
 .map-list__folder-count {
 	color: #ffffffb3;
 }
-.map-list__drag-handle {
-	cursor: grab;
-}
 .map-list__edit {
 	float: inline-end;
+}
+.map-list__map {
+	padding-inline-start: 2rem;
 }
 .map-folder summary {
 	list-style: none;
