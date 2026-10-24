@@ -272,13 +272,6 @@ impl Store {
             Ensured::<SpatialIndex>::with(self, |_, _| ());
         }
     }
-
-    pub(super) fn optional_fields(&self) -> impl Iterator<Item = String> + '_ {
-        self.registry()
-            .iter()
-            .filter(|(_, def)| def.optional())
-            .map(|(key, _)| key.to_string())
-    }
 }
 
 /// Matched locations: returned inline, or as a file path to read them from.
@@ -450,7 +443,7 @@ impl Targeted<'_> {
         }
         let map_id = self.store.meta.id.clone();
         let fields: Vec<String> = if matches!(ask, Ask::Coverage) {
-            self.store.optional_fields().collect()
+            self.store.fields().optional().keys().collect()
         } else {
             Vec::new()
         };

@@ -128,9 +128,9 @@ pub(crate) fn named(edit: Edit<ValueRecord>) -> AppResult<Edit<ValueRecord>> {
 }
 
 /// Access to a map's fields, narrowed by their declarations.
-pub(crate) struct Fields<'a> {
+pub(crate) struct Fields<'a, F = fn(Option<&FieldDef>) -> bool> {
     store: &'a mut Store,
-    includes: fn(Option<&maps::FieldDef>) -> bool,
+    includes: F,
 }
 
 impl Store {
@@ -142,10 +142,35 @@ impl Store {
     }
 }
 
-impl<'a> Fields<'a> {
-    pub(crate) fn interned(mut self) -> Self {
-        self.includes = |field| field.is_some_and(|field| field.interned);
-        self
+impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
+    /// Narrow these fields by their declarations.
+    pub(crate) fn filter(
+        self,
+        includes: impl Fn(&FieldDef) -> bool,
+    ) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool> {
+        Fields {
+            store: self.store,
+            includes: move |field: Option<&FieldDef>| {
+                (self.includes)(field) && field.is_some_and(&includes)
+            },
+        }
+    }
+
+    pub(crate) fn interned(self) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool> {
+        self.filter(|field| field.interned)
+    }
+
+    pub(crate) fn optional(self) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool> {
+        self.filter(FieldDef::optional)
+    }
+
+    /// The names of the declared fields selected by this handle.
+    pub(crate) fn keys(&self) -> impl Iterator<Item = String> + '_ {
+        self.store
+            .registry()
+            .iter()
+            .filter(|(_, def)| (self.includes)(Some(def)))
+            .map(|(field, _)| field.to_string())
     }
 
     /// Build missing field indexes together in one walk over the current rows.
@@ -279,12 +304,7 @@ impl<'a> Fields<'a> {
     }
 
     pub(crate) fn all(self) -> Vec<FieldValues<'a>> {
-        let fields: Vec<_> = self
-            .store
-            .registry()
-            .iter()
-            .map(|(field, _)| field.to_string())
-            .collect();
+        let fields: Vec<_> = self.keys().collect();
         self.values(fields)
     }
 

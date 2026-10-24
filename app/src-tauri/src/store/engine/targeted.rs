@@ -342,7 +342,7 @@ impl<'s> Scoped<'s, '_> {
             let store = &mut *at.store;
             let mut indexes = selector.indexes();
             if let Some(ask) = ask {
-                indexes.extend(ask.indexes(store.optional_fields()));
+                indexes.extend(ask.indexes(store.fields().optional().keys()));
             }
             store.prepare(indexes);
             return read(
