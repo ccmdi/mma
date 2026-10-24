@@ -15,6 +15,7 @@ import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
 import { polygonFeature } from "@/lib/util/geojson";
 import { stepFilterWindow } from "@/lib/util/date";
+import { dropZone, type DropZone } from "@/lib/util/dom";
 import type { RGB, Selection } from "@/bindings.gen";
 import {
 	FilterForm,
@@ -117,7 +118,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const isTopLevel = depth === 0;
 	const onRemove = () => void Edit.selections({ kind: "removeAt", path });
 	const [view, setView] = useState<"contextmenu" | "color">("contextmenu");
-	const [dropZone, setDropZone] = useState<"before" | "on" | "after" | null>(null);
+	const [zone, setZone] = useState<DropZone | null>(null);
 	const [editingFilter, setEditingFilter] = useState(false);
 	const [savingTag, setSavingTag] = useState(false);
 	const [tagName, setTagName] = useState("");
@@ -204,18 +205,16 @@ export const SelectionRow = memo(function SelectionRow({
 	const handleMouseMove = (e: React.MouseEvent) => {
 		if (!isDropTarget || !rowRef.current) return;
 		const rect = rowRef.current.getBoundingClientRect();
-		const y = (e.clientY - rect.top) / rect.height;
-		const zone = y < 0.25 ? ("before" as const) : y > 0.75 ? ("after" as const) : ("on" as const);
-		setDropZone(zone);
+		setZone(dropZone((e.clientY - rect.top) / rect.height, true));
 	};
 
 	const handleMouseLeave = () => {
-		if (isDropTarget) setDropZone(null);
+		if (isDropTarget) setZone(null);
 	};
 
 	const handleMouseUp = () => {
-		if (!isDropTarget || !drag || !dropZone) return;
-		if (dropZone === "on") {
+		if (!isDropTarget || !drag || !zone) return;
+		if (zone === "on") {
 			void Edit.selections({
 				kind: "compose",
 				drag: drag.path,
@@ -223,9 +222,9 @@ export const SelectionRow = memo(function SelectionRow({
 				group: drag.altKey ? "Union" : "Intersection",
 			});
 		} else {
-			void Edit.selections({ kind: "move", from: drag.path, to: path, place: dropZone });
+			void Edit.selections({ kind: "move", from: drag.path, to: path, place: zone });
 		}
-		setDropZone(null);
+		setZone(null);
 	};
 
 	return (
@@ -233,7 +232,7 @@ export const SelectionRow = memo(function SelectionRow({
 			<div
 				ref={rowRef}
 				className={`selection-row${isDragging ? " is-dragging" : ""}${ghosted ? " is-ghosted" : ""}`}
-				data-drop={isDropTarget ? (dropZone ?? undefined) : undefined}
+				data-drop={isDropTarget ? (zone ?? undefined) : undefined}
 				onMouseDown={handleMouseDown}
 				onMouseMove={handleMouseMove}
 				onMouseLeave={handleMouseLeave}
@@ -250,7 +249,7 @@ export const SelectionRow = memo(function SelectionRow({
 				>
 					<Swatch color={colorBlockCss} /> {selectionDisplayName(currentSelection)}
 				</span>
-				{isDropTarget && dropZone === "on" && (
+				{isDropTarget && zone === "on" && (
 					<span className="selection-row__drop-hint">{drag?.altKey ? t("OR") : t("AND")}</span>
 				)}
 				<span className="selection-row__size mono">{fmt.format(count)}</span>

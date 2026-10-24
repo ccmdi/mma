@@ -11,6 +11,7 @@ import { rgbToHex } from "@/lib/util/color";
 import type { TagFolderColorMode } from "@/store/settings";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { toggleInSet } from "@/lib/util/util";
+import { dropZone } from "@/lib/util/dom";
 import {
 	ensurePathNode,
 	findPathNode,
@@ -499,11 +500,11 @@ export function hoverDrop(
 	if (node.isAlias || block.has(node.fullPath)) return null;
 	const paths = [...block];
 	const into = !isLeafTag(node) && canDropInto(tree, paths, node.fullPath);
-	if (into && at > 0.25 && at < 0.75) return { path: node.fullPath, position: "into" };
+	const position = dropZone(at, into);
+	if (position === "on") return { path: node.fullPath, position: "into" };
 	const sameKind = isLeafTag(src) === isLeafTag(node);
 	if (sameKind || !isLeafTag(node)) {
 		const parent = node.parentPath;
-		const position = at < 0.5 ? "before" : "after";
 		if (parent === src.parentPath) {
 			if (reorder && sameKind) return { path: node.fullPath, position, parent };
 		} else if (canDropInto(tree, paths, parent)) {
