@@ -26,6 +26,8 @@ const EVENT_DEFS = {
 	"map:saved": event<void>(),
 	/** The open map's state, as `Store.get` and `Store.use` read it, moved. @unstable */
 	"snapshot:changed": event<void>(),
+	/** A plugin's store in the open map moved ahead of the map, on a write not yet saved. @unstable */
+	"map-storage:changed": event<void>(),
 	/** @unstable */
 	"editor:changed": event<void>(),
 	"map-list:changed": event<void>(),

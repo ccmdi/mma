@@ -1,4 +1,4 @@
-import { subscribe } from "@/lib/events";
+import { emit, subscribeMany, useEventValue } from "@/lib/events";
 import { Store } from "@/store/store";
 import { Edit } from "@/store/edit";
 import type { Op } from "@/bindings.gen";
@@ -27,7 +27,15 @@ export interface MapPluginStorage {
 }
 
 type Entries = Record<string, unknown>;
+const NO_ENTRIES: Entries = {};
 type KeyChange = Op<unknown, never, null>;
+
+function withChange(data: Entries, key: string, change: KeyChange): Entries {
+	const next = { ...data };
+	if ("set" in change) next[key] = change.set;
+	else delete next[key];
+	return next;
+}
 
 function keyValue<W>(read: () => Entries, write: (key: string, change: KeyChange) => W) {
 	return {
@@ -57,12 +65,7 @@ function writePluginStore(id: string, data: Record<string, unknown>) {
 export function storage(id: string): PluginStorage {
 	return keyValue(
 		() => readPluginStore(id),
-		(key, change) => {
-			const data = { ...readPluginStore(id) };
-			if ("set" in change) data[key] = change.set;
-			else delete data[key];
-			writePluginStore(id, data);
-		},
+		(key, change) => writePluginStore(id, withChange(readPluginStore(id), key, change)),
 	);
 }
 
@@ -72,15 +75,43 @@ function requireOpenMap(): MapDetails {
 	return map;
 }
 
-function readMapPluginStore(id: string): Entries {
-	return requireOpenMap().settings.pluginData?.[id] ?? {};
+type Unsaved = Record<string, KeyChange>;
+
+/** Key writes sent for a map's plugin store that the map does not show yet. */
+const unsaved = new Map<string, Unsaved>();
+const unsavedSlot = (mapId: string, pluginId: string) => `${mapId}/${pluginId}`;
+const MAP_STORAGE_EVENTS = ["snapshot:changed", "map-storage:changed"] as const;
+
+function setUnsaved(slot: string, changes: Unsaved) {
+	if (Object.keys(changes).length) unsaved.set(slot, changes);
+	else unsaved.delete(slot);
+	emit("map-storage:changed");
+}
+
+const withUnsaved = (saved: Entries, changes: Unsaved | undefined): Entries =>
+	Object.entries(changes ?? {}).reduce(
+		(data, [key, change]) => withChange(data, key, change),
+		saved,
+	);
+
+function mapEntries(id: string, map: MapDetails | null = Store.get().map): Entries {
+	if (!map) return NO_ENTRIES;
+	return withUnsaved(
+		map.settings.pluginData?.[id] ?? NO_ENTRIES,
+		unsaved.get(unsavedSlot(map.id, id)),
+	);
 }
 
 function writeMapPluginKey(id: string, key: string, change: KeyChange): Promise<void> {
 	const map = requireOpenMap();
+	const slot = unsavedSlot(map.id, id);
+	setUnsaved(slot, { ...unsaved.get(slot), [key]: change });
 	return Edit.meta({
 		id: map.id,
 		settings: { pluginData: { [id]: { put: { [key]: change } } } },
+	}).finally(() => {
+		const { [key]: sent, ...rest } = unsaved.get(slot) ?? {};
+		if (sent === change) setUnsaved(slot, rest);
 	});
 }
 
@@ -88,7 +119,7 @@ function writeMapPluginKey(id: string, key: string, change: KeyChange): Promise<
  *  Each write changes only one key, patched onto the current map settings. @api */
 export function mapStorage(id: string): MapPluginStorage {
 	return keyValue(
-		() => readMapPluginStore(id),
+		() => mapEntries(id, requireOpenMap()),
 		(key, change) => writeMapPluginKey(id, key, change),
 	);
 }
@@ -113,15 +144,13 @@ export interface PluginSetting<T> {
 
 interface SettingStores {
 	read(): Entries[];
-	use(): Entries[];
+	use<V>(select: (stores: Entries[]) => V): V;
 	write(value: unknown): void;
 	subscribe(listener: () => void): () => void;
 }
 
 const sameKind = (a: unknown, b: unknown) =>
 	typeof a === typeof b && Array.isArray(a) === Array.isArray(b);
-
-const NO_ENTRIES: Entries = {};
 
 /** A typed value under `key` in the plugin's persistent store. A stored value of another
  *  type than `fallback` reads as `fallback`. @api */
@@ -134,19 +163,19 @@ export function pluginSetting<T>(pluginId: string, key: string, fallback: T): Pl
 	};
 	const shared: SettingStores = {
 		read: () => [readPluginStore(pluginId)],
-		use: () => [useLocalStorage<Entries>(pluginStoreKey(pluginId), {})[0]],
+		use: (select) => select([useLocalStorage<Entries>(pluginStoreKey(pluginId), {})[0]]),
 		write: (value) => storage(pluginId).set(key, value),
 		subscribe: (listener) => subscribeLocal(pluginStoreKey(pluginId), listener),
 	};
 	const kept: SettingStores = {
-		read: () => [Store.get().map?.settings.pluginData?.[pluginId] ?? NO_ENTRIES, ...shared.read()],
-		use: () => [
-			Store.use((s) => s.map?.settings.pluginData?.[pluginId]) ?? NO_ENTRIES,
-			...shared.use(),
-		],
+		read: () => [mapEntries(pluginId), ...shared.read()],
+		use: (select) => {
+			const [sharedEntries] = useLocalStorage<Entries>(pluginStoreKey(pluginId), {});
+			return useEventValue(MAP_STORAGE_EVENTS, () => select([mapEntries(pluginId), sharedEntries]));
+		},
 		write: (value) => void mapStorage(pluginId).set(key, value),
 		subscribe: (listener) => {
-			const offs = [subscribe("snapshot:changed", listener), shared.subscribe(listener)];
+			const offs = [subscribeMany(MAP_STORAGE_EVENTS, listener), shared.subscribe(listener)];
 			return () => offs.forEach((off) => off());
 		},
 	};
@@ -156,7 +185,7 @@ export function pluginSetting<T>(pluginId: string, key: string, fallback: T): Pl
 		return {
 			get,
 			set,
-			use: () => [valueIn(stores.use()), set] as const,
+			use: () => [stores.use(valueIn), set] as const,
 			on(listener) {
 				let last = get();
 				return stores.subscribe(() => {

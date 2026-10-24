@@ -6,7 +6,7 @@ import { Feed } from "@/store/feed";
 import type { ChangeEvent, MapMeta } from "@/bindings.gen";
 import type { MapDetails } from "@/store/store";
 import { cmd } from "@/lib/commands";
-import { mapStorage } from "@/plugins/pluginStorage";
+import { mapStorage, pluginSetting } from "@/plugins/pluginStorage";
 import { metadataWritten } from "./fixtures/mocks";
 
 vi.mock("@/store/maps", () => ({
@@ -156,6 +156,40 @@ describe("mapStorage", () => {
 		expect(sentSettings().at(-1)).toEqual({
 			pluginData: { gen: { put: { tag: { remove: null } } } },
 		});
+	});
+
+	it("reads a write back at once, before the map saves it", async () => {
+		const settle = holdWrites();
+		const setting = pluginSetting("gen", "tag", "none").perMap();
+		const seen: string[] = [];
+		const off = setting.on((v) => seen.push(v));
+		const write = mapStorage("gen").set("tag", "Europe");
+		expect(mapStorage("gen").get("tag")).toBe("Europe");
+		expect(seen).toEqual(["Europe"]);
+		await settle();
+		await write;
+		off();
+		expect(setting.get()).toBe("Europe");
+		expect(seen).toEqual(["Europe"]);
+	});
+
+	it("keeps the newest write while an older one lands", async () => {
+		const settle = holdWrites();
+		const writes = [mapStorage("gen").set("count", 1), mapStorage("gen").set("count", 2)];
+		await settle();
+		expect(mapStorage("gen").get("count")).toBe(2);
+		await settle();
+		await Promise.all(writes);
+		expect(mapStorage("gen").get("count")).toBe(2);
+	});
+
+	it("reads the saved value again when a write fails", async () => {
+		openMap("a", { pluginData: { gen: { tag: "Europe" } } });
+		vi.mocked(cmd.storeUpdateMapMeta).mockRejectedValueOnce(new Error("disk full"));
+		const write = mapStorage("gen").set("tag", "Asia");
+		expect(mapStorage("gen").get("tag")).toBe("Asia");
+		await expect(write).rejects.toThrow("disk full");
+		expect(mapStorage("gen").get("tag")).toBe("Europe");
 	});
 
 	it("throws with no map open", () => {
