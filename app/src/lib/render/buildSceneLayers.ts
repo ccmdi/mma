@@ -32,6 +32,7 @@ import { polygonLayerData } from "@/lib/render/polygonMeshes";
 import { CommitDiff } from "@/store/commitDiff";
 import { Import } from "@/store/import";
 import { Measure } from "@/lib/map/measure";
+import { NODE_PX } from "@/lib/map/nodePath";
 import type { RGBA } from "@/lib/util/color";
 import { bearingDeg, unwrapRing } from "@/lib/geo/geo";
 import { Editor } from "@/store/editor";
@@ -361,7 +362,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				id: "polygon-vertices",
 				data: polygonVertices,
 				getPosition: (d) => renderPos(d[0], d[1]),
-				getRadius: (_d, { index }) => (closable && index === 0 ? POLYGON_CLOSE_VERTEX_PX : 4),
+				getRadius: (_d, { index }) => (closable && index === 0 ? POLYGON_CLOSE_VERTEX_PX : NODE_PX),
 				getFillColor: (_d, { index }) =>
 					closable && index === 0 ? [255, 255, 255, 90] : [255, 255, 255, 220],
 				getLineWidth: 1,
@@ -410,7 +411,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				id: "measure-nodes",
 				data: measurePoints,
 				getPosition: (d) => renderPos(d[0], d[1]),
-				getRadius: Measure.nodePx,
+				getRadius: NODE_PX,
 				getFillColor: [255, 255, 255, 255],
 				getLineWidth: 2,
 				getLineColor: [0, 0, 0, 255],

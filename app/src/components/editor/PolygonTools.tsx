@@ -1,8 +1,8 @@
 import { useEffect, useState, useEffectEvent } from "react";
 import { Icon, polygonOutline, rectangleOutline } from "@/components/primitives/Icon";
 import { mdiPencil } from "@mdi/js";
-import { MapHost } from "@/lib/map/mapHost";
-import { latLngToWorld } from "@/lib/geo/mercator";
+import type { MapHost } from "@/lib/map/mapHost";
+import { bindNodePath, claimClicks, nodeDistancePx } from "@/lib/map/nodePath";
 import { densifyRing, unwrapLng } from "@/lib/geo/geo";
 import { POLYGON_CLOSE_VERTEX_PX } from "@/lib/render/buildSceneLayers";
 import { clamp } from "@/types/util";
@@ -47,31 +47,6 @@ function finishRing(ring: number[][]): number[][] {
 	const closed =
 		first[0] === last[0] && first[1] === last[1] ? ring : [...ring, [first[0], first[1]]];
 	return densifyRing(closed);
-}
-
-/** Map clicks belong to the armed tool: `handle` sees them and none reaches the map.
- *  The engine raises its own click after a stroke, from its map object
- *  rather than the DOM, so stopping DOM propagation cannot reach it and the claim instead
- *  outlives the tool by one click. That click carries no mousedown of its own, so a real
- *  gesture releases the claim before its click lands. */
-function claimClicks(handle?: (lat: number, lng: number, shiftKey: boolean) => void): () => void {
-	let lingering = false;
-	let off: (() => void) | null = null;
-	const release = () => {
-		off?.();
-		off = null;
-		window.removeEventListener("mousedown", release, true);
-	};
-	off = MapHost.addClickInterceptor((lat, lng, shiftKey) => {
-		if (lingering) release();
-		else handle?.(lat, lng, shiftKey);
-		return true;
-	});
-	return () => {
-		if (!off) return;
-		lingering = true;
-		window.addEventListener("mousedown", release, true);
-	};
 }
 
 /** Take the primary-button drag away from the engine so it draws instead of panning.
@@ -180,16 +155,22 @@ export function PolygonTools({
 		};
 	}, [host, mode, freehandPathRef]);
 
-	// Click-vertex polygon (click the first vertex or double-click to close, Escape cancels).
+	// Click-vertex polygon (click the first vertex or double-click to close, drag a vertex to
+	// move it, click a vertex or press Backspace/Delete to remove one, Escape cancels).
 	useEffect(() => {
 		if (!host || mode !== "polygon") return;
 
 		const points: number[][] = [];
 		let cursor: number[] | null = null;
 
+		const nextVertex = (lng: number, lat: number): number[] => {
+			const prev = points.at(-1);
+			return [prev ? unwrapLng(lng, prev[0]) : lng, lat];
+		};
+
 		const preview = () => {
-			freehandPathRef.current =
-				points.length > 0 ? (cursor ? [...points, cursor] : [...points]) : null;
+			const tail = cursor ? nextVertex(cursor[0], cursor[1]) : null;
+			freehandPathRef.current = points.length > 0 ? (tail ? [...points, tail] : [...points]) : null;
 			polygonVerticesRef.current = points.length > 0 ? [...points] : null;
 			emitUpdate();
 		};
@@ -204,40 +185,52 @@ export function PolygonTools({
 			if (commit && ring.length >= 3) emitDraw([finishRing(ring)]);
 		};
 
-		const nextVertex = (lng: number, lat: number): number[] => {
-			const prev = points.at(-1);
-			return [prev ? unwrapLng(lng, prev[0]) : lng, lat];
-		};
-
 		// Presses since the last vertex. The browser pairs any two presses into a double-click,
 		// including a press the engine took as a pan and never clicked for, so a double-click only
 		// closes when its second press came after the vertex its first one placed.
 		let presses = 0;
 
-		const releaseClicks = claimClicks((lat, lng) => {
-			const v = nextVertex(lng, lat);
-			if (points.length >= 3) {
-				const start = points[0];
-				const scale = 2 ** host.getZoom();
-				const a = latLngToWorld({ lat, lng: unwrapLng(lng, start[0]) });
-				const b = latLngToWorld({ lat: start[1], lng: start[0] });
-				if (Math.hypot((a.x - b.x) * scale, (a.y - b.y) * scale) <= POLYGON_CLOSE_VERTEX_PX) {
+		const offNodes = bindNodePath(host, {
+			points: () => points,
+			// Once the ring can close, vertex 0 is the close target rather than a grabbable node.
+			grabbable: (index) => !(points.length >= 3 && index === 0),
+			add: ({ lat, lng }) => {
+				if (
+					points.length >= 3 &&
+					nodeDistancePx(host, { lat, lng }, points[0]) <= POLYGON_CLOSE_VERTEX_PX
+				) {
 					finish(true);
 					return;
 				}
-			}
-			const prev = points.at(-1);
-			if (!prev || prev[0] !== v[0] || prev[1] !== v[1]) {
-				points.push(v);
+				const v = nextVertex(lng, lat);
+				const prev = points.at(-1);
+				if (!prev || prev[0] !== v[0] || prev[1] !== v[1]) {
+					points.push(v);
+					presses = 0;
+				}
+				cursor = v;
+				preview();
+			},
+			move: (index, { lat, lng }) => {
+				if (index < 0 || index >= points.length) return;
+				const refLng = index > 0 ? points[index - 1][0] : points[index][0];
+				points[index] = [unwrapLng(lng, refLng), lat];
 				presses = 0;
-			}
-			cursor = v;
-			preview();
+				preview();
+			},
+			remove: (index) => {
+				if (index < 0 || index >= points.length) return;
+				points.splice(index, 1);
+				presses = 0;
+				preview();
+			},
+			cursor: (ll) => {
+				cursor = nextVertex(ll.lng, ll.lat);
+				if (points.length > 0) preview();
+			},
+			cancel: () => finish(false),
 		});
-		const offMove = host.on("mousemove", (ll) => {
-			cursor = nextVertex(ll.lng, ll.lat);
-			if (points.length > 0) preview();
-		});
+
 		const onDown = (e: MouseEvent) => {
 			if (e.button === 0) presses++;
 		};
@@ -245,20 +238,14 @@ export function PolygonTools({
 			e.preventDefault();
 			if (presses > 0 && points.length >= 3) finish(true);
 		};
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === "Escape") finish(false);
-		};
 		host.setDoubleClickZoom(false);
 		host.container.addEventListener("mousedown", onDown, true);
 		host.container.addEventListener("dblclick", onDblClick, true);
-		document.addEventListener("keydown", onKey, true);
 
 		return () => {
-			releaseClicks();
-			offMove();
+			offNodes();
 			host.container.removeEventListener("mousedown", onDown, true);
 			host.container.removeEventListener("dblclick", onDblClick, true);
-			document.removeEventListener("keydown", onKey, true);
 			host.setDoubleClickZoom(true);
 			freehandPathRef.current = null;
 			polygonVerticesRef.current = null;

@@ -1,14 +1,10 @@
 import { useEffect } from "react";
 import type { LatLng } from "@/types";
-import { MapHost } from "@/lib/map/mapHost";
-import { latLngToWorld } from "@/lib/geo/mercator";
+import type { MapHost } from "@/lib/map/mapHost";
+import { bindNodePath } from "@/lib/map/nodePath";
 import { distMeters } from "@/lib/geo/geo";
 import { formatDistance } from "@/lib/util/format";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
-
-/** Screen-pixel hit radius of a node -- also its drawn radius, so what you see is
- *  what you can grab. */
-const NODE_PX = 6;
 
 interface MeasureState {
 	/** Placed nodes, [lng, lat]. The line spans these and nothing else -- no segment
@@ -18,8 +14,6 @@ interface MeasureState {
 }
 
 let mState: MeasureState = { points: [], isMeasuring: false };
-let dragIndex: number | null = null;
-let suppressClick = false;
 let segments: { at: number[]; label: string }[] = [];
 let segmentsFor: number[][] | null = null;
 let anchor: LatLng | null = null;
@@ -29,31 +23,15 @@ function commit(next: Partial<MeasureState>) {
 	emitEvent("measure:changed");
 }
 
-/** Index of the node within grab range of `ll`, latest first so stacked nodes peel off. */
-function hitNode(host: MapHost, ll: LatLng): number | null {
-	const scale = 2 ** host.getZoom();
-	const a = latLngToWorld(ll);
-	const i = mState.points.findLastIndex(([lng, lat]) => {
-		const b = latLngToWorld({ lat, lng });
-		return Math.hypot((a.x - b.x) * scale, (a.y - b.y) * scale) <= NODE_PX;
-	});
-	return i === -1 ? null : i;
-}
-
 /** The map's distance tool: a path of placed nodes and its length, plus the lat/lng
  *  anchor lines. */
 export const Measure = {
-	nodePx: NODE_PX,
-
 	start: (latLng: LatLng) => {
-		dragIndex = null;
-		suppressClick = false;
 		commit({ points: [[latLng.lng, latLng.lat]], isMeasuring: true });
 	},
 
 	end: () => {
 		if (!mState.isMeasuring) return;
-		dragIndex = null;
 		commit({ points: [], isMeasuring: false });
 	},
 
@@ -117,96 +95,19 @@ export const Measure = {
 	useLength: (): number => useEventValue("measure:changed", Measure.length),
 
 	/** Binds the drawing interaction while a measurement is running: click to place a node,
-	 *  drag a node to move it, Escape to finish. */
+	 *  drag a node to move it, click or Backspace/Delete to remove one, Escape to finish. */
 	useInteraction: (host: MapHost | null) => {
 		const isMeasuring = Measure.useActive();
 
 		useEffect(() => {
 			if (!host || !isMeasuring) return;
-
-			const offClick = MapHost.addClickInterceptor((lat, lng) => {
-				if (suppressClick) suppressClick = false;
-				else Measure.add({ lat, lng });
-				return true;
+			return bindNodePath(host, {
+				points: Measure.points,
+				add: Measure.add,
+				move: Measure.move,
+				remove: Measure.remove,
+				cancel: Measure.end,
 			});
-
-			// Raw DOM events, not host events: the engine's gesture handler stops emitting map
-			// mousemove the instant a button goes down, which strands the node after one frame.
-			const div = host.container;
-			const at = (e: PointerEvent): LatLng | null => {
-				const r = div.getBoundingClientRect();
-				return host.containerPxToLatLng(e.clientX - r.left, e.clientY - r.top);
-			};
-
-			// Panning is disabled on hover rather than on press: by mousedown the engine has
-			// already claimed the gesture and won't give it up.
-			let armed = false;
-			const arm = (v: boolean) => {
-				if (armed === v) return;
-				armed = v;
-				host.setDraggable(!v);
-				host.setCursor(v ? "pointer" : null);
-			};
-
-			// A press on a node that never travels past this many pixels is a click, which deletes it.
-			const CLICK_SLOP_PX = 3;
-			let pressedAt: { x: number; y: number } | null = null;
-
-			const onDown = (e: PointerEvent) => {
-				// A drag's click doesn't always fire (the engine drops it after real movement);
-				// a new gesture starting means the stale flag must not eat this one's click.
-				suppressClick = false;
-				if (e.button !== 0) return;
-				const ll = at(e);
-				dragIndex = ll ? hitNode(host, ll) : null;
-				pressedAt = { x: e.clientX, y: e.clientY };
-			};
-
-			const onMove = (e: PointerEvent) => {
-				const ll = at(e);
-				if (!ll) return;
-				if (dragIndex === null) {
-					arm(hitNode(host, ll) !== null);
-					return;
-				}
-				if (pressedAt) {
-					if (Math.hypot(e.clientX - pressedAt.x, e.clientY - pressedAt.y) <= CLICK_SLOP_PX) return;
-					pressedAt = null;
-				}
-				Measure.move(dragIndex, ll);
-			};
-
-			const onUp = () => {
-				if (dragIndex === null) return;
-				if (pressedAt) Measure.remove(dragIndex);
-				dragIndex = null;
-				pressedAt = null;
-				suppressClick = true;
-			};
-
-			// Bubble phase: an Escape aimed at something above us (dialogs preventDefault in
-			// capture, open inputs stopPropagation) must not also discard the measurement.
-			const onKey = (e: KeyboardEvent) => {
-				if (e.key !== "Escape" || e.defaultPrevented) return;
-				e.preventDefault();
-				Measure.end();
-			};
-
-			const ac = new AbortController();
-			const { signal } = ac;
-			div.addEventListener("pointerdown", onDown, { signal });
-			// On window, so a drag that runs past the map edge keeps tracking.
-			window.addEventListener("pointermove", onMove, { signal });
-			window.addEventListener("pointerup", onUp, { signal });
-			document.addEventListener("keydown", onKey, { signal });
-
-			return () => {
-				offClick();
-				ac.abort();
-				dragIndex = null;
-				host.setDraggable(true);
-				host.setCursor(null);
-			};
 		}, [host, isMeasuring]);
 	},
 

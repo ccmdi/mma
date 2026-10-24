@@ -4,7 +4,6 @@ import { createElement, act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { PolygonTools } from "@/components/editor/PolygonTools";
 import { MapHost } from "@/lib/map/mapHost";
-import type { LatLng } from "@/types";
 
 // px <-> latlng mapping: lat = y/1000, lng = x/1000. jsdom rects are all-zero, so
 // clientX/clientY are container coordinates directly.
@@ -16,7 +15,6 @@ document.body.appendChild(div);
 
 let draggableCalls: boolean[] = [];
 let overlayUpdates = 0;
-let mousemoveListener: ((ll: LatLng) => void) | null = null;
 const host = {
 	container: div,
 	getZoom: () => 18,
@@ -24,22 +22,18 @@ const host = {
 	setDraggable: (v: boolean) => draggableCalls.push(v),
 	setCursor: () => {},
 	setDoubleClickZoom: () => {},
-	on: (event: string, fn: (ll: LatLng) => void) => {
-		if (event === "mousemove") mousemoveListener = fn;
-		return () => {
-			if (mousemoveListener === fn) mousemoveListener = null;
-		};
-	},
 } as unknown as MapHost;
 
 let root: Root | null = null;
 let toolsEl: HTMLElement;
 let freehandPathRef = createRef<number[][] | null>();
+let polygonVerticesRef = createRef<number[][] | null>();
 
 function mount(): number[][][][] {
 	const drawn: number[][][][] = [];
 	toolsEl = document.createElement("div");
 	freehandPathRef = createRef<number[][] | null>();
+	polygonVerticesRef = createRef<number[][] | null>();
 	root = createRoot(toolsEl);
 	act(() =>
 		root!.render(
@@ -47,7 +41,7 @@ function mount(): number[][][][] {
 				host,
 				onDraw: (rings: number[][][]) => drawn.push(rings),
 				freehandPathRef,
-				polygonVerticesRef: createRef<number[][] | null>(),
+				polygonVerticesRef,
 				requestOverlayUpdate: () => overlayUpdates++,
 			}),
 		),
@@ -169,7 +163,7 @@ describe("polygon preview", () => {
 		arm("Draw a polygon selection");
 		act(() => {
 			MapHost.tryInterceptClick(0, 0);
-			mousemoveListener!({ lat: 1, lng: 1 });
+			window.dispatchEvent(new MouseEvent("pointermove", { clientX: 1000, clientY: 1000 }));
 			MapHost.tryInterceptClick(2, 2);
 		});
 		expect(freehandPathRef.current).toEqual([
@@ -177,6 +171,124 @@ describe("polygon preview", () => {
 			[2, 2],
 			[2, 2],
 		]);
+	});
+
+	it("keeps following window pointermove when the engine stops emitting map mousemove", () => {
+		mount();
+		arm("Draw a polygon selection");
+		act(() => {
+			MapHost.tryInterceptClick(0, 0);
+		});
+		// Simulate a slight nudge that the engine takes as a pan (no map mousemove or click),
+		// followed by moving the cursor to (250, 500).
+		act(() => {
+			window.dispatchEvent(new MouseEvent("pointermove", { clientX: 250, clientY: 500 }));
+		});
+		expect(freehandPathRef.current).toEqual([
+			[0, 0],
+			[0.25, 0.5],
+		]);
+	});
+});
+
+describe("polygon vertex editing", () => {
+	const pDown = (x: number, y: number) =>
+		act(() => {
+			div.dispatchEvent(new MouseEvent("pointerdown", { button: 0, clientX: x, clientY: y }));
+		});
+	const pMove = (x: number, y: number) =>
+		act(() => {
+			window.dispatchEvent(new MouseEvent("pointermove", { clientX: x, clientY: y }));
+		});
+	const pUp = (x = 0, y = 0) =>
+		act(() => {
+			window.dispatchEvent(new MouseEvent("pointerup", { clientX: x, clientY: y }));
+		});
+	const key = (k: string) =>
+		act(() => {
+			document.dispatchEvent(
+				new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }),
+			);
+		});
+
+	it("removes a vertex on a stationary click and ignores the follow-up map click", () => {
+		mount();
+		arm("Draw a polygon selection");
+		act(() => {
+			MapHost.tryInterceptClick(0, 0);
+			MapHost.tryInterceptClick(0, 0.125);
+			MapHost.tryInterceptClick(0.125, 0.125);
+		});
+		expect(polygonVerticesRef.current).toEqual([
+			[0, 0],
+			[0.125, 0],
+			[0.125, 0.125],
+		]);
+
+		// Click the second vertex at (125, 0) -> (lng 0.125, lat 0).
+		pDown(125, 0);
+		pMove(126, 1);
+		pUp(126, 1);
+		expect(MapHost.tryInterceptClick(0, 0.125)).toBe(true);
+		expect(polygonVerticesRef.current).toEqual([
+			[0, 0],
+			[0.125, 0.125],
+		]);
+	});
+
+	it("drags a vertex past the click slop to reposition it", () => {
+		mount();
+		arm("Draw a polygon selection");
+		act(() => {
+			MapHost.tryInterceptClick(0, 0);
+			MapHost.tryInterceptClick(0, 0.125);
+		});
+
+		pDown(125, 0);
+		pMove(250, 125);
+		pUp(250, 125);
+		expect(polygonVerticesRef.current).toEqual([
+			[0, 0],
+			[0.25, 0.125],
+		]);
+	});
+
+	it("still closes on the first vertex when three or more vertices are placed", () => {
+		const drawn = mount();
+		arm("Draw a polygon selection");
+		act(() => {
+			MapHost.tryInterceptClick(0, 0);
+			MapHost.tryInterceptClick(0, 0.125);
+			MapHost.tryInterceptClick(0.125, 0.125);
+		});
+
+		// Clicking vertex 0 at (0, 0) must close the polygon rather than delete vertex 0.
+		pDown(0, 0);
+		pUp(0, 0);
+		act(() => {
+			MapHost.tryInterceptClick(0, 0);
+		});
+		expect(drawn).toHaveLength(1);
+	});
+
+	it("steps back the last vertex on Backspace or Delete", () => {
+		mount();
+		arm("Draw a polygon selection");
+		act(() => {
+			MapHost.tryInterceptClick(0, 0);
+			MapHost.tryInterceptClick(0, 0.125);
+			MapHost.tryInterceptClick(0.125, 0.125);
+		});
+		key("Backspace");
+		expect(polygonVerticesRef.current).toEqual([
+			[0, 0],
+			[0.125, 0],
+		]);
+		key("Delete");
+		expect(polygonVerticesRef.current).toEqual([[0, 0]]);
+		key("Backspace");
+		expect(polygonVerticesRef.current).toBeNull();
+		expect(freehandPathRef.current).toBeNull();
 	});
 });
 

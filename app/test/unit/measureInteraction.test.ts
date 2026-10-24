@@ -6,6 +6,7 @@ import { mount as mountRoot } from "./fixtures/harness";
 vi.mock("@/lib/events", () => ({
 	emit: () => {},
 	useEventValue: (_: string, get: () => unknown) => get(),
+	subscribe: () => () => {},
 	subscribeMany: () => () => {},
 	bridgeAcrossWindows: () => {},
 }));
@@ -132,5 +133,43 @@ describe("measure Escape layering", () => {
 		mountMeasuring({ lat: 0.01, lng: 0.01 });
 		escape();
 		expect(Measure.points()).toEqual([]);
+	});
+});
+
+describe("measure Backspace and Delete", () => {
+	const press = (key: string, target: EventTarget = div) =>
+		target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+
+	it("removes the last node on Backspace or Delete", () => {
+		mountMeasuring({ lat: 0.01, lng: 0.01 });
+		MapHost.tryInterceptClick(0.01, 0.1);
+		MapHost.tryInterceptClick(0.01, 0.2);
+		press("Backspace");
+		expect(Measure.points()).toEqual([
+			[0.01, 0.01],
+			[0.1, 0.01],
+		]);
+		press("Delete");
+		expect(Measure.points()).toEqual([[0.01, 0.01]]);
+	});
+
+	it("leaves the path alone while typing in an input", () => {
+		mountMeasuring({ lat: 0.01, lng: 0.01 });
+		const input = document.createElement("input");
+		document.body.appendChild(input);
+		press("Backspace", input);
+		input.remove();
+		expect(Measure.points()).toEqual([[0.01, 0.01]]);
+	});
+
+	it("yields every key while a plugin overlay is open", () => {
+		mountMeasuring({ lat: 0.01, lng: 0.01 });
+		const overlay = document.createElement("div");
+		overlay.setAttribute("data-plugin-overlay", "");
+		document.body.appendChild(overlay);
+		press("Backspace");
+		press("Escape");
+		overlay.remove();
+		expect(Measure.points()).toEqual([[0.01, 0.01]]);
 	});
 });
