@@ -12,7 +12,6 @@ import {
 	cascadeRename,
 	syncAliasSegments,
 	isLeafTag,
-	resolveExpandedPaths,
 	type TagTreeNode,
 	type TagTreeCounts,
 	type FolderColorOpts,
@@ -21,6 +20,7 @@ import {
 } from "@/components/editor/tags/tagTreeModel";
 import type { VirtualTag } from "@/bindings.gen";
 import { findNode, mkTag, segs } from "./fixtures/tagFixtures";
+import { PathTree } from "@/lib/util/paths";
 
 const NO_COUNTS: TagTreeCounts = { tags: {}, folders: new Map() };
 
@@ -38,7 +38,7 @@ const movedOrder = (tags: Tag[], paths: string[], drop: DropTarget) =>
 	moveBlock(buildTagTree(tags, "default", NO_COUNTS), paths, drop, tags, {}, {})?.orderedIds ??
 	null;
 
-describe("resolveExpandedPaths", () => {
+describe("PathTree.expand", () => {
 	const tree = buildTagTree(
 		[
 			mkTag(1, "A/leaf"),
@@ -52,23 +52,23 @@ describe("resolveExpandedPaths", () => {
 	);
 
 	it("toggles one folder without changing other expanded paths", () => {
-		expect(resolveExpandedPaths(tree, new Set(["D"]), { kind: "toggle", path: "A" })).toEqual(
+		expect(PathTree.expand(tree, new Set(["D"]), { kind: "toggle", path: "A" })).toEqual(
 			new Set(["D", "A"]),
 		);
-		expect(
-			resolveExpandedPaths(tree, new Set(["A", "A/B"]), { kind: "toggle", path: "A" }),
-		).toEqual(new Set(["A/B"]));
+		expect(PathTree.expand(tree, new Set(["A", "A/B"]), { kind: "toggle", path: "A" })).toEqual(
+			new Set(["A/B"]),
+		);
 	});
 
 	it("expands every folder in a collapsed subtree", () => {
-		expect(
-			resolveExpandedPaths(tree, new Set(["D"]), { kind: "toggle-subtree", path: "A" }),
-		).toEqual(new Set(["D", "A", "A/B", "A/B/C", "A/X"]));
+		expect(PathTree.expand(tree, new Set(["D"]), { kind: "toggle-subtree", path: "A" })).toEqual(
+			new Set(["D", "A", "A/B", "A/B/C", "A/X"]),
+		);
 	});
 
 	it("collapses every expanded path in an open subtree", () => {
 		expect(
-			resolveExpandedPaths(tree, new Set(["A", "A/B", "A/B/C", "A/gone", "AB", "D"]), {
+			PathTree.expand(tree, new Set(["A", "A/B", "A/B/C", "A/gone", "AB", "D"]), {
 				kind: "toggle-subtree",
 				path: "A",
 			}),
@@ -77,7 +77,7 @@ describe("resolveExpandedPaths", () => {
 
 	it("opens one folder and closes only its expanded siblings", () => {
 		expect(
-			resolveExpandedPaths(tree, new Set(["A", "A/X", "A/X/deep", "D"]), {
+			PathTree.expand(tree, new Set(["A", "A/X", "A/X/deep", "D"]), {
 				kind: "isolate",
 				path: "A/B",
 				parentPath: "A",

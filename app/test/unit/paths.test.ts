@@ -1,14 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
-	ensurePathNode,
-	findPathNode,
 	isAtOrUnder,
 	leafSegment,
 	normalizePath,
 	rebasePath,
 	shortestUniqueSuffixes,
 	type PathTreeNode,
-} from "@/lib/data/tagPaths";
+	PathTree,
+} from "@/lib/util/paths";
 
 describe("tag paths", () => {
 	it("normalizes slashes and whitespace", () => {
@@ -43,11 +42,11 @@ describe("tag paths", () => {
 			parentPath,
 			children: [],
 		});
-		const leaf = ensurePathNode(root, ["Europe", "DACH", "Bavaria"], make);
+		const leaf = PathTree.ensure(root, ["Europe", "DACH", "Bavaria"], make);
 		expect(leaf.fullPath).toBe("Europe/DACH/Bavaria");
 		expect(leaf.parentPath).toBe("Europe/DACH");
-		expect(findPathNode(root, "Europe/DACH")?.segment).toBe("DACH");
-		expect(findPathNode(root, "Europe/France")).toBeNull();
+		expect(PathTree.at(root, "Europe/DACH")?.segment).toBe("DACH");
+		expect(PathTree.at(root, "Europe/France")).toBeNull();
 	});
 });
 

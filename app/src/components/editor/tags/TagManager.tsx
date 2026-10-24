@@ -43,7 +43,7 @@ import {
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { useDialog } from "@/store/dialogBus";
-import { isAtOrUnder, leafSegment, normalizePath } from "@/lib/data/tagPaths";
+import { isAtOrUnder, leafSegment, normalizePath } from "@/lib/util/paths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
 const NO_VIRTUAL_TAGS = {};

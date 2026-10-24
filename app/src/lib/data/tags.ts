@@ -3,7 +3,7 @@ import { Edit } from "@/store/edit";
 import type { TagSortMode } from "@/types";
 import { colorForName } from "@/lib/util/color";
 import { getSettings } from "@/store/settings";
-import { shortestUniqueSuffixes } from "@/lib/data/tagPaths";
+import { shortestUniqueSuffixes } from "@/lib/util/paths";
 
 /** Sort tags by the chosen mode: name, location count, or manual order. @api */
 export function sortTagsByMode(

@@ -3,7 +3,8 @@
  *  case-insensitive); plain terms match name or labels by substring. */
 import type { MapMeta } from "@/bindings.gen";
 import type { SortMode } from "@/types";
-import { ensurePathNode, normalizePath, type PathTreeNode } from "@/lib/data/tagPaths";
+import { PathTree, normalizePath, type PathTreeNode } from "@/lib/util/paths";
+import { Tree } from "@/lib/util/tree";
 
 export interface MapFolderNode extends PathTreeNode<MapFolderNode> {
 	maps: MapMeta[];
@@ -45,7 +46,7 @@ export function buildMapTree(
 	const ensureFolder = (raw: string): MapFolderNode | null => {
 		const clean = normalizePath(raw);
 		if (!clean) return null;
-		return ensurePathNode(folders, clean.split("/"), (segment, fullPath, parentPath) => ({
+		return PathTree.ensure(folders, clean.split("/"), (segment, fullPath, parentPath) => ({
 			segment,
 			fullPath,
 			parentPath,
@@ -63,22 +64,15 @@ export function buildMapTree(
 		else rootMaps.push(m);
 	}
 
-	const finalize = (nodes: MapFolderNode[]) => {
-		nodes.sort((a, b) => a.segment.localeCompare(b.segment));
-		for (const n of nodes) {
-			finalize(n.children);
-			n.maps = sortMaps(n.maps, sortMode);
-			let mapCount = n.maps.length;
-			let locationCount = n.maps.reduce((a, m) => a + m.locationCount, 0);
-			for (const c of n.children) {
-				mapCount += c.mapCount;
-				locationCount += c.locationCount;
-			}
-			n.mapCount = mapCount;
-			n.locationCount = locationCount;
-		}
-	};
-	finalize(folders);
+	Tree.sortLevels(folders, (a, b) => a.segment.localeCompare(b.segment));
+	Tree.fold(folders, (n) => {
+		n.maps = sortMaps(n.maps, sortMode);
+		n.mapCount = n.maps.length + n.children.reduce((a, c) => a + c.mapCount, 0);
+		n.locationCount =
+			n.maps.reduce((a, m) => a + m.locationCount, 0) +
+			n.children.reduce((a, c) => a + c.locationCount, 0);
+		return n;
+	});
 
 	return { folders, rootMaps: sortMaps(rootMaps, sortMode) };
 }

@@ -49,7 +49,7 @@ import { labelColor, textColorFor } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { registerJob } from "@/lib/jobs";
 import { applyMapFilter, buildMapTree, toggleLabelInQuery, type MapFolderNode } from "./mapQuery";
-import { isAtOrUnder, leafSegment, normalizePath, rebasePath } from "@/lib/data/tagPaths";
+import { isAtOrUnder, leafSegment, normalizePath, rebasePath } from "@/lib/util/paths";
 import { t, msg } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";

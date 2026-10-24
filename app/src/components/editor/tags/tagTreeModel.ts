@@ -10,15 +10,15 @@ import { useAsyncSticky } from "@/lib/hooks/useAsync";
 import { rgbToHex } from "@/lib/util/color";
 import type { TagFolderColorMode } from "@/store/settings";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
-import { toggleInSet } from "@/lib/util/util";
 import { dropZone } from "@/lib/util/dom";
 import {
-	ensurePathNode,
-	findPathNode,
 	isAtOrUnder,
 	leafSegment,
 	rebasePath,
-} from "@/lib/data/tagPaths";
+	PathTree,
+	type PathTreeNode,
+} from "@/lib/util/paths";
+import { Tree } from "@/lib/util/tree";
 
 const EXPANDED_KEY = "tagTreeExpanded";
 
@@ -32,15 +32,9 @@ export function saveExpanded(set: Set<string>) {
 	setLocal(EXPANDED_KEY, [...set]);
 }
 
-export interface TagTreeNode {
-	segment: string;
-	fullPath: string;
-	/** Structural parent path ("" at root). Never derive this by splitting fullPath on "/" --
-	 *  in no-split mode a tag name containing "/" is a single segment. */
-	parentPath: string;
+export interface TagTreeNode extends PathTreeNode<TagTreeNode> {
 	tag: Tag | null;
 	inheritedColor: string;
-	children: TagTreeNode[];
 	/** This node's own tag and every tag under it, aliases included. */
 	subtreeTagIds: number[];
 	/** Locations holding any of `subtreeTagIds`, each counted once; null while a folder's
@@ -58,51 +52,6 @@ export interface TagTreeNode {
  *  tagless node is a declared empty folder (a virtualTags key no tag passes through) and
  *  renders as a folder row; filtering can also leave transient tagless nodes behind. */
 export const isLeafTag = (n: TagTreeNode) => n.children.length === 0 && n.tag != null;
-
-export type TagTreeExpansionIntent =
-	| { kind: "toggle"; path: string }
-	| { kind: "toggle-subtree"; path: string }
-	| { kind: "isolate"; path: string; parentPath: string };
-
-export function resolveExpandedPaths(
-	tree: TagTreeNode[],
-	expanded: ReadonlySet<string>,
-	intent: TagTreeExpansionIntent,
-): Set<string> {
-	if (intent.kind === "toggle") return toggleInSet(expanded, intent.path);
-
-	const next = new Set(expanded);
-	if (intent.kind === "toggle-subtree") {
-		if (expanded.has(intent.path)) {
-			for (const path of next) {
-				if (isAtOrUnder(path, intent.path)) next.delete(path);
-			}
-		} else {
-			const addSubtree = (nodes: TagTreeNode[]) => {
-				for (const node of nodes) {
-					if (node.children.length > 0 && isAtOrUnder(node.fullPath, intent.path)) {
-						next.add(node.fullPath);
-					}
-					addSubtree(node.children);
-				}
-			};
-			addSubtree(tree);
-		}
-		return next;
-	}
-
-	const closeSiblings = (nodes: TagTreeNode[]) => {
-		for (const node of nodes) {
-			if (node.parentPath === intent.parentPath && node.fullPath !== intent.path) {
-				next.delete(node.fullPath);
-			}
-			closeSiblings(node.children);
-		}
-	};
-	closeSiblings(tree);
-	next.add(intent.path);
-	return next;
-}
 
 /** Every occupied tree path (tags, aliases, declared folders + all their ancestors) --
  *  mirrors buildTagTree's occupancy, so a free slot here is a free slot in the tree. */
@@ -141,7 +90,7 @@ const DEFAULT_FOLDER_COLOR: FolderColorOpts = { mode: "direct", color: "#888888"
 
 /** Walk/create the node chain for `parts`, returning the leaf node. */
 function ensurePath(root: TagTreeNode[], parts: string[]): TagTreeNode {
-	return ensurePathNode(root, parts, (segment, fullPath, parentPath) => ({
+	return PathTree.ensure(root, parts, (segment, fullPath, parentPath) => ({
 		segment,
 		fullPath,
 		parentPath,
@@ -183,7 +132,7 @@ export function buildTagTree(
 		const tagById = new Map(tags.map((t) => [t.id, t]));
 		for (const [aliasPath, tagId] of Object.entries(aliases)) {
 			const tag = tagById.get(tagId);
-			if (!tag || findByPath(root, aliasPath)) continue;
+			if (!tag || PathTree.at(root, aliasPath)) continue;
 			const leaf = ensurePath(root, aliasPath.split("/"));
 			leaf.tag = tag;
 			leaf.isAlias = true;
@@ -196,80 +145,58 @@ export function buildTagTree(
 		}
 	}
 
-	const ownColorOf = (node: TagTreeNode) =>
-		node.tag?.color ?? virtualTags[node.fullPath]?.color ?? null;
-
-	// First own-colored node in the (sorted) subtree, DFS in display order.
-	function firstDescendantColor(node: TagTreeNode): string | null {
-		const own = ownColorOf(node);
-		if (own) return own;
-		for (const child of node.children) {
-			const color = firstDescendantColor(child);
-			if (color) return color;
-		}
-		return null;
-	}
-
-	// Runs after sortNodes so firstChild mode sees children in display order.
-	function propagateColor(nodes: TagTreeNode[], parentColor: string | null) {
-		for (const node of nodes) {
-			// Real tag color wins; otherwise a virtual-tag color for this path; else derive.
-			const ownColor = ownColorOf(node);
-			const derived =
-				ownColor ?? (folderColor.mode === "firstChild" ? firstDescendantColor(node) : null);
-			const effectiveColor = derived ?? parentColor ?? folderColor.color;
-			node.inheritedColor = effectiveColor;
-			propagateColor(node.children, effectiveColor);
-		}
-	}
-
-	function collectMeta(node: TagTreeNode): { ids: number[]; minOrder: number } {
-		const ids: number[] = [];
-		let minOrder = node.tag?.order ?? Number.POSITIVE_INFINITY;
-		if (node.tag) ids.push(node.tag.id);
-		for (const child of node.children) {
-			const c = collectMeta(child);
-			ids.push(...c.ids);
-			if (c.minOrder < minOrder) minOrder = c.minOrder;
-		}
-		node.subtreeTagIds = ids;
+	Tree.fold(root, (node, childOrders: number[]) => {
+		node.subtreeTagIds = [
+			...(node.tag ? [node.tag.id] : []),
+			...node.children.flatMap((child) => child.subtreeTagIds),
+		];
 		node.count =
 			node.children.length > 0
 				? (counts.folders.get(node.fullPath) ?? null)
 				: node.tag
 					? (counts.tags[node.tag.id] ?? 0)
 					: 0;
-		if (ids.length === 0) minOrder = virtualTags[node.fullPath]?.order ?? minOrder;
-		node.sortOrder = minOrder === Number.POSITIVE_INFINITY ? Number.MAX_SAFE_INTEGER : minOrder;
-		return { ids, minOrder: node.sortOrder };
-	}
+		const minOrder = Math.min(node.tag?.order ?? Number.POSITIVE_INFINITY, ...childOrders);
+		const order =
+			node.subtreeTagIds.length === 0 ? (virtualTags[node.fullPath]?.order ?? minOrder) : minOrder;
+		node.sortOrder = order === Number.POSITIVE_INFINITY ? Number.MAX_SAFE_INTEGER : order;
+		return node.sortOrder;
+	});
 
-	// Mirror flat-mode ordering (name / amount / default), recursively per level.
-	// `segment` is the name tiebreaker so output is deterministic in every mode.
-	// Then float leaf tags above sub-branches at each level: leaves render as a flat
-	// pill group and branches as folder rows below them (the userscript's structure).
-	function sortNodes(nodes: TagTreeNode[]) {
-		nodes.sort((a, b) => {
-			if (sortMode === "amount") {
-				const d = (b.count ?? 0) - (a.count ?? 0);
-				if (d !== 0) return d;
-			} else if (sortMode === "default") {
-				const d = a.sortOrder - b.sortOrder;
-				if (d !== 0) return d;
-			}
-			return a.segment.localeCompare(b.segment);
-		});
-		const leaves = nodes.filter(isLeafTag);
-		const branches = nodes.filter((n) => !isLeafTag(n));
-		if (leaves.length > 0 && branches.length > 0) {
-			nodes.splice(0, nodes.length, ...leaves, ...branches);
+	// Each level mirrors flat-mode ordering (name / amount / default), with `segment` as the
+	// tiebreaker, and leaf tags float above sub-branches so they render as one pill group
+	// above the folder rows (the userscript's structure).
+	Tree.sortLevels(root, (a, b) => {
+		const leafFirst = Number(isLeafTag(b)) - Number(isLeafTag(a));
+		if (leafFirst !== 0) return leafFirst;
+		if (sortMode === "amount") {
+			const d = (b.count ?? 0) - (a.count ?? 0);
+			if (d !== 0) return d;
+		} else if (sortMode === "default") {
+			const d = a.sortOrder - b.sortOrder;
+			if (d !== 0) return d;
 		}
-		for (const node of nodes) sortNodes(node.children);
-	}
+		return a.segment.localeCompare(b.segment);
+	});
 
-	for (const node of root) collectMeta(node);
-	sortNodes(root);
-	propagateColor(root, null);
+	// After sorting, so firstChild mode sees descendants in display order. A real tag's color
+	// wins, then a virtual-tag color for the path, then the derived or inherited one.
+	const ownColorOf = (node: TagTreeNode) =>
+		node.tag?.color ?? virtualTags[node.fullPath]?.color ?? null;
+	Tree.inherit(
+		root,
+		(node, parentColor: string | null) => {
+			const derived =
+				folderColor.mode === "firstChild"
+					? (Tree.walk([node])
+							.map(ownColorOf)
+							.find((c) => c) ?? null)
+					: ownColorOf(node);
+			node.inheritedColor = derived ?? parentColor ?? folderColor.color;
+			return node.inheritedColor;
+		},
+		null,
+	);
 
 	return root;
 }
@@ -285,9 +212,6 @@ export interface TagTreeSource {
 }
 
 const NO_FOLDER_COUNTS: ReadonlyMap<string, number> = new Map();
-
-const foldersOf = (nodes: TagTreeNode[]): TagTreeNode[] =>
-	nodes.flatMap((node) => (node.children.length > 0 ? [node, ...foldersOf(node.children)] : []));
 
 /** The tag tree as the sidebar shows it, each node carrying its location count. A folder's
  *  count comes from the store, so a location holding several of its tags counts once. */
@@ -311,7 +235,7 @@ export function useTagTree({
 				aliases,
 				split,
 			);
-			const folders = foldersOf(tree);
+			const folders = Tree.walk(tree).filter((node) => node.children.length > 0);
 			const counts = await Query.read(
 				folders.map((folder) => any(...folder.subtreeTagIds.map(tagSelector))),
 				{ kind: "count" },
@@ -456,20 +380,16 @@ export function cascadeRename(
 	return { tagRenames, virtualTags: nextVirtual, aliases: nextAliases };
 }
 
-/** Resolve a split-mode tree node by full path (paths are `/`-joined segments). */
-const findByPath = (tree: TagTreeNode[], path: string): TagTreeNode | null =>
-	findPathNode(tree, path);
-
 /** Whether the sibling block `dragPaths` may land among the children of `targetPath`: the
  *  target is the top level or a folder (branch or declared empty folder) outside the block
  *  and its subtrees. A name already taken in the target is allowed -- the rename that
  *  follows merges the two tags, as typing the same path in the rename dialog does. */
 function canLandIn(tree: TagTreeNode[], dragPaths: string[], targetPath: string): boolean {
 	if (targetPath !== "") {
-		const target = findByPath(tree, targetPath);
+		const target = PathTree.at(tree, targetPath);
 		if (!target || isLeafTag(target) || target.isAlias) return false;
 	}
-	const nodes = dragPaths.map((p) => findByPath(tree, p));
+	const nodes = dragPaths.map((p) => PathTree.at(tree, p));
 	if (nodes.length === 0 || nodes.some((n) => !n || n.isAlias)) return false;
 	return !dragPaths.some((p) => isAtOrUnder(targetPath, p));
 }
@@ -478,7 +398,7 @@ function canLandIn(tree: TagTreeNode[], dragPaths: string[], targetPath: string)
  *  there, and the target isn't the block's current parent (no-op). */
 export const canDropInto = (tree: TagTreeNode[], dragPaths: string[], targetPath: string) =>
 	canLandIn(tree, dragPaths, targetPath) &&
-	findByPath(tree, dragPaths[0])!.parentPath !== targetPath;
+	PathTree.at(tree, dragPaths[0])!.parentPath !== targetPath;
 
 /** Into a folder, or beside a node under `parent`. */
 export type DropTarget =
@@ -585,10 +505,10 @@ export function moveBlock(
 	const allowed = anchor
 		? canLandIn(tree, dragPaths, targetPath) &&
 			!dragPaths.includes(anchor.path) &&
-			findByPath(tree, anchor.path)?.parentPath === targetPath
+			PathTree.at(tree, anchor.path)?.parentPath === targetPath
 		: canDropInto(tree, dragPaths, targetPath);
 	if (!allowed) return null;
-	const nodes = dragPaths.map((p) => findByPath(tree, p)!);
+	const nodes = dragPaths.map((p) => PathTree.at(tree, p)!);
 
 	// Block members are siblings (disjoint prefixes), so the cascades never overlap.
 	let workingTags = tags;
@@ -654,7 +574,7 @@ export function moveBlock(
 }
 
 function siblingsAt(tree: TagTreeNode[], parent: string): TagTreeNode[] {
-	return parent === "" ? tree : (findByPath(tree, parent)?.children ?? tree);
+	return parent === "" ? tree : (PathTree.at(tree, parent)?.children ?? tree);
 }
 
 /** Whether a row reads as selected: its own tag is, or every tag in its subtree is. A subtree

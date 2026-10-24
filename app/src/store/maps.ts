@@ -1,5 +1,5 @@
 import { Autosave } from "./autosave";
-import { isAtOrUnder, rebasePath } from "@/lib/data/tagPaths";
+import { isAtOrUnder, rebasePath } from "@/lib/util/paths";
 import { Feed } from "./feed";
 import { Store } from "./store";
 import { Editor } from "./editor";

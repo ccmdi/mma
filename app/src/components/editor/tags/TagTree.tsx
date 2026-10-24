@@ -22,7 +22,8 @@ import { tagSelector, toggleSelection } from "@/store/selections";
 import { useStableHandler } from "@/lib/hooks/useStableHandler";
 import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import { TagContextMenu } from "./TagContextMenu";
-import { rebasePath } from "@/lib/data/tagPaths";
+import { PathTree, rebasePath, type Expansion } from "@/lib/util/paths";
+import { Tree } from "@/lib/util/tree";
 import {
 	rangeToggleTagIds,
 	stepDrop,
@@ -35,10 +36,8 @@ import {
 	isLeafTag,
 	loadExpanded,
 	saveExpanded,
-	resolveExpandedPaths,
 	type TagTreeNode,
 	type TagMoveResult,
-	type TagTreeExpansionIntent,
 	type DropTarget,
 } from "./tagTreeModel";
 import { t } from "@/lib/i18n";
@@ -66,7 +65,7 @@ interface TagTreeCallbacks {
 	onNewFolder: (parentPath: string) => void;
 	onDeleteFolder: (path: string) => void;
 	onRowClick: (node: TagTreeNode, shiftKey: boolean, altKey: boolean) => void;
-	onToggleExpanded: (intent: TagTreeExpansionIntent) => void;
+	onToggleExpanded: (intent: Expansion) => void;
 	drag: TreeDragHandlers;
 }
 
@@ -116,9 +115,9 @@ export function TagTreeView({
 	const [expandedPaths, setExpandedPaths] = useState(loadExpanded);
 
 	const toggleExpanded = useCallback(
-		(intent: TagTreeExpansionIntent) => {
+		(intent: Expansion) => {
 			setExpandedPaths((prev) => {
-				const next = resolveExpandedPaths(tree, prev, intent);
+				const next = PathTree.expand(tree, prev, intent);
 				saveExpanded(next);
 				return next;
 			});
@@ -143,40 +142,20 @@ export function TagTreeView({
 
 	const filteredTree = useMemo(() => {
 		if (!filterText) return tree;
-
-		function filterNodes(nodes: TagTreeNode[]): TagTreeNode[] {
-			const result: TagTreeNode[] = [];
-			for (const node of nodes) {
-				const nameMatch = matches(filterText, node.segment);
-				const filteredChildren = filterNodes(node.children);
-				if (nameMatch || filteredChildren.length > 0) {
-					result.push({ ...node, children: filteredChildren });
-				}
-			}
-			return result;
-		}
-
-		return filterNodes(tree);
+		const pruned = Tree.prune(tree, (node) => matches(filterText, node.segment));
+		// A tag whose folder contents the filter dropped renders as a pill, so it joins them.
+		Tree.sortLevels(pruned, (a, b) => Number(isLeafTag(b)) - Number(isLeafTag(a)));
+		return pruned;
 	}, [tree, filterText]);
 
 	const forceExpanded = !!filterText;
 
-	// Flattened render order of currently-visible rows — the basis for shift-click ranges.
-	// Must match the render split exactly: leaf pills first, then branch rows (recursed).
-	const visibleRows = useMemo(() => {
-		const rows: TagTreeNode[] = [];
-		const walk = (nodes: TagTreeNode[]) => {
-			for (const node of nodes) if (isLeafTag(node)) rows.push(node);
-			for (const node of nodes) {
-				if (isLeafTag(node)) continue;
-				rows.push(node);
-				const isOpen = forceExpanded || expandedPaths.has(node.fullPath);
-				if (node.children.length > 0 && isOpen) walk(node.children);
-			}
-		};
-		walk(filteredTree);
-		return rows;
-	}, [filteredTree, expandedPaths, forceExpanded]);
+	// Render order of the visible rows, the basis for shift-click ranges. Each level already
+	// holds its leaf pills before its folder rows, as they render.
+	const visibleRows = useMemo(
+		() => Tree.walk(filteredTree, (node) => forceExpanded || expandedPaths.has(node.fullPath)),
+		[filteredTree, expandedPaths, forceExpanded],
+	);
 
 	const rowIndex = useMemo(
 		() => new Map(visibleRows.map((n, i) => [n.fullPath, i])),
@@ -479,7 +458,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 
 	const handleChevronClick = (e: React.MouseEvent) => {
 		e.stopPropagation();
-		let intent: TagTreeExpansionIntent = { kind: "toggle", path: node.fullPath };
+		let intent: Expansion = { kind: "toggle", path: node.fullPath };
 		if (e.altKey) {
 			intent = { kind: "isolate", path: node.fullPath, parentPath: node.parentPath };
 		} else if (e.ctrlKey || e.metaKey) {
