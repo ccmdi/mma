@@ -9,7 +9,6 @@ import {
 	useContext,
 } from "react";
 import { Edit } from "@/store/edit";
-import type { Tag } from "@/types";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
@@ -17,12 +16,11 @@ import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { Icon } from "@/components/primitives/Icon";
 import { Pill } from "@/components/primitives/Pill";
 import { mdiChevronDown, mdiChevronRight, mdiPencil, mdiFolder } from "@mdi/js";
-import { textColorFor, rgbToHex } from "@/lib/util/color";
+import { textColorFor } from "@/lib/util/color";
 import { fmt } from "@/lib/util/format";
 import { tagSelector, toggleSelection } from "@/store/selections";
 import { useStableHandler } from "@/lib/hooks/useStableHandler";
 import { useItemDrag } from "@/lib/hooks/useItemDrag";
-import { useSetting } from "@/store/settings";
 import { TagContextMenu } from "./TagContextMenu";
 import { rebasePath } from "@/lib/data/tagPaths";
 import {
@@ -33,8 +31,8 @@ import {
 	isEffectivelySelected,
 	moveIntoFolder,
 	hoverDrop,
-	buildTagTree,
-	sumCounts,
+	useTagTree,
+	type TagTreeSource,
 	isLeafTag,
 	loadExpanded,
 	saveExpanded,
@@ -45,8 +43,6 @@ import {
 	type FlatOrder,
 	type DropTarget,
 } from "./tagTreeModel";
-import type { TagSortMode } from "@/types";
-import type { VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";
@@ -83,15 +79,8 @@ export interface TagTreeHandle {
 	remapExpanded: (oldPrefix: string, newPrefix: string) => void;
 }
 
-interface TagTreeViewProps {
-	tags: Tag[];
-	/** false = flat view: every tag name is a single leaf pill, no folders. */
-	split: boolean;
+interface TagTreeViewProps extends TagTreeSource {
 	selectedTagIds: ReadonlySet<number>;
-	tagCounts: Record<number, number>;
-	sortMode: TagSortMode;
-	virtualTags: Record<string, VirtualTag>;
-	aliases: Record<string, number>;
 	onEditTag: (node: TagTreeNode) => void;
 	onEditVirtual: (fullPath: string) => void;
 	onAddAlias: (tag: { id: number; name: string }) => void;
@@ -115,7 +104,6 @@ export function TagTreeView({
 	tags,
 	split,
 	selectedTagIds,
-	tagCounts,
 	sortMode,
 	virtualTags,
 	aliases,
@@ -130,16 +118,7 @@ export function TagTreeView({
 	filterText,
 	ref,
 }: TagTreeViewProps & { ref?: React.Ref<TagTreeHandle> }) {
-	const folderColorMode = useSetting("tagFolderColorMode");
-	const folderColorRgb = useSetting("tagFolderColor");
-	const tree = useMemo(
-		() =>
-			buildTagTree(tags, sortMode, tagCounts, virtualTags, aliases, split, {
-				mode: folderColorMode,
-				color: rgbToHex(folderColorRgb),
-			}),
-		[tags, sortMode, tagCounts, virtualTags, aliases, split, folderColorMode, folderColorRgb],
-	);
+	const tree = useTagTree({ tags, split, sortMode, virtualTags, aliases });
 	const [expandedPaths, setExpandedPaths] = useState(loadExpanded);
 
 	const toggleExpanded = useCallback(
@@ -277,7 +256,7 @@ export function TagTreeView({
 					setDragLeaf({
 						color: node.tag!.color,
 						label: node.segment,
-						count: tagCounts[node.tag!.id] ?? 0,
+						count: node.count ?? 0,
 						extra: 0,
 					});
 				}
@@ -445,7 +424,6 @@ export function TagTreeView({
 				nodes={rootPills}
 				depth={0}
 				selectedTagIds={selectedTagIds}
-				tagCounts={tagCounts}
 				dragPaths={dragPaths}
 				dropTarget={dropTarget}
 			/>
@@ -457,7 +435,6 @@ export function TagTreeView({
 							node={node}
 							depth={0}
 							selectedTagIds={selectedTagIds}
-							tagCounts={tagCounts}
 							forceExpanded={forceExpanded}
 							expandedPaths={expandedPaths}
 							dragPaths={dragPaths}
@@ -497,7 +474,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 	node,
 	depth,
 	selectedTagIds,
-	tagCounts,
 	forceExpanded,
 	expandedPaths,
 	dragPaths,
@@ -506,7 +482,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 	node: TagTreeNode;
 	depth: number;
 	selectedTagIds: ReadonlySet<number>;
-	tagCounts: Record<number, number>;
 	forceExpanded: boolean;
 	expandedPaths: Set<string>;
 	dragPaths: ReadonlySet<string> | null;
@@ -535,7 +510,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 
 	const bg = node.inheritedColor;
 	const fg = textColorFor(bg);
-	const count = sumCounts(node, tagCounts);
 
 	const handleChevronClick = (e: React.MouseEvent) => {
 		e.stopPropagation();
@@ -588,7 +562,9 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 									style={{ color: fg, opacity: 0.5, flexShrink: 0 }}
 								/>
 							)}
-							<small className="tag-tree__count mono">{fmt.format(count)}</small>
+							{node.count !== null && (
+								<small className="tag-tree__count mono">{fmt.format(node.count)}</small>
+							)}
 							<IconButton
 								className="icon-button--inline"
 								icon={mdiPencil}
@@ -622,7 +598,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 						nodes={childPills}
 						depth={depth + 1}
 						selectedTagIds={selectedTagIds}
-						tagCounts={tagCounts}
 						dragPaths={dragPaths}
 						dropTarget={dropTarget}
 					/>
@@ -634,7 +609,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 									node={child}
 									depth={depth + 1}
 									selectedTagIds={selectedTagIds}
-									tagCounts={tagCounts}
 									forceExpanded={forceExpanded}
 									expandedPaths={expandedPaths}
 									dragPaths={dragPaths}
@@ -655,14 +629,12 @@ const TagLeafGroup = memo(function TagLeafGroup({
 	nodes,
 	depth,
 	selectedTagIds,
-	tagCounts,
 	dragPaths,
 	dropTarget,
 }: {
 	nodes: TagTreeNode[];
 	depth: number;
 	selectedTagIds: ReadonlySet<number>;
-	tagCounts: Record<number, number>;
 	dragPaths: ReadonlySet<string> | null;
 	dropTarget: DropTarget | null;
 }) {
@@ -676,7 +648,7 @@ const TagLeafGroup = memo(function TagLeafGroup({
 				<TagTreeLeaf
 					key={node.fullPath}
 					node={node}
-					count={tagCounts[node.tag!.id] ?? 0}
+					count={node.count ?? 0}
 					isSelected={selectedTagIds.has(node.tag!.id)}
 					isDragging={dragPaths?.has(node.fullPath) ?? false}
 					dropSide={dropTarget?.path === node.fullPath ? dropTarget.position : null}

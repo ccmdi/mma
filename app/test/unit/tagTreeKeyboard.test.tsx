@@ -36,7 +36,6 @@ function render(onReorder: (order: FlatOrder) => void, sortMode: TagSortMode = "
 				tags={tags}
 				split={true}
 				selectedTagIds={new Set()}
-				tagCounts={{ 1: 1, 2: 1, 3: 1 }}
 				sortMode={sortMode}
 				virtualTags={{}}
 				aliases={{}}

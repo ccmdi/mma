@@ -21,10 +21,10 @@ import {
 	type DoclinkMatch,
 } from "@/lib/doclink";
 import { useAsync } from "@/lib/hooks/useAsync";
-import { textColorFor, rgbToHex } from "@/lib/util/color";
+import { textColorFor } from "@/lib/util/color";
 import { toggleInSet } from "@/lib/util/util";
 import {
-	buildTagTree,
+	useTagTree,
 	isLeafTag,
 	loadExpanded,
 	type TagTreeNode,
@@ -189,19 +189,9 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 	// and view mode, so the dialog matches the user's mental model of their tags.
 	const tagViewMode = useSetting("tagViewMode");
 	const sortMode = useSetting("tagSortMode");
-	const folderColorMode = useSetting("tagFolderColorMode");
-	const folderColorRgb = useSetting("tagFolderColor");
-	const tagCounts = Store.use(() => Tag.counts());
 	const [virtualTags] = useMapSetting("virtualTags", NO_VIRTUAL_TAGS);
 	const [aliases] = useMapSetting("aliases", NO_ALIASES);
-	const tree = useMemo(
-		() =>
-			buildTagTree(tags, sortMode, tagCounts, virtualTags, aliases, tagViewMode === "tree", {
-				mode: folderColorMode,
-				color: rgbToHex(folderColorRgb),
-			}),
-		[tags, sortMode, tagCounts, virtualTags, aliases, tagViewMode, folderColorMode, folderColorRgb],
-	);
+	const tree = useTagTree({ tags, split: tagViewMode === "tree", sortMode, virtualTags, aliases });
 	// Folder expansion starts where the sidebar left it; toggles stay dialog-local.
 	const [expanded, setExpanded] = useState(loadExpanded);
 	useEffect(() => {

@@ -1,6 +1,13 @@
 import type { VirtualTag } from "@/bindings.gen";
-import type { Tag } from "@/types";
+import { useMemo } from "react";
 import type { TagSortMode } from "@/types";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
+import { Query } from "@/store/query";
+import { any, tagSelector } from "@/store/selections";
+import { useSetting } from "@/store/settings";
+import { useAsyncSticky } from "@/lib/hooks/useAsync";
+import { rgbToHex } from "@/lib/util/color";
 import type { TagFolderColorMode } from "@/store/settings";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { toggleInSet } from "@/lib/util/util";
@@ -29,6 +36,9 @@ export interface TagTreeNode {
 	children: TagTreeNode[];
 	/** This node's own tag and every tag under it, aliases included. */
 	subtreeTagIds: number[];
+	/** Locations holding any of `subtreeTagIds`, each counted once; null while a folder's
+	 *  count is unknown. */
+	count: number | null;
 	/** Min `order` across descendant tags — used for "default" sort parity with flat mode.
 	 *  A subtree with no tags (declared empty folders) sorts by its own stored order, else last. */
 	sortOrder: number;
@@ -108,10 +118,10 @@ export function collectOccupiedPaths(
 	return set;
 }
 
-export function sumCounts(node: TagTreeNode, tagCounts: Record<number, number>): number {
-	let total = node.tag ? (tagCounts[node.tag.id] ?? 0) : 0;
-	for (const child of node.children) total += sumCounts(child, tagCounts);
-	return total;
+/** Location counts a tree is built with: each tag's own, and each folder's by path. */
+export interface TagTreeCounts {
+	tags: Record<number, number>;
+	folders: ReadonlyMap<string, number>;
 }
 
 /** How a colorless folder row gets its color: `direct` uses `color` as-is; `firstChild`
@@ -140,6 +150,7 @@ function ensurePath(root: TagTreeNode[], parts: string[]): TagTreeNode {
 				inheritedColor: "",
 				children: [],
 				subtreeTagIds: [],
+				count: null,
 				sortOrder: 0,
 				isAlias: false,
 			};
@@ -159,7 +170,7 @@ function ensurePath(root: TagTreeNode[], parts: string[]): TagTreeNode {
 export function buildTagTree(
 	tags: Tag[],
 	sortMode: TagSortMode,
-	tagCounts: Record<number, number>,
+	counts: TagTreeCounts,
 	virtualTags: Record<string, VirtualTag> = {},
 	aliases: Record<string, number> = {},
 	split = true,
@@ -229,6 +240,12 @@ export function buildTagTree(
 			if (c.minOrder < minOrder) minOrder = c.minOrder;
 		}
 		node.subtreeTagIds = ids;
+		node.count =
+			node.children.length > 0
+				? (counts.folders.get(node.fullPath) ?? null)
+				: node.tag
+					? (counts.tags[node.tag.id] ?? 0)
+					: 0;
 		if (ids.length === 0) minOrder = virtualTags[node.fullPath]?.order ?? minOrder;
 		node.sortOrder = minOrder === Number.POSITIVE_INFINITY ? Number.MAX_SAFE_INTEGER : minOrder;
 		return { ids, minOrder: node.sortOrder };
@@ -241,7 +258,7 @@ export function buildTagTree(
 	function sortNodes(nodes: TagTreeNode[]) {
 		nodes.sort((a, b) => {
 			if (sortMode === "amount") {
-				const d = sumCounts(b, tagCounts) - sumCounts(a, tagCounts);
+				const d = (b.count ?? 0) - (a.count ?? 0);
 				if (d !== 0) return d;
 			} else if (sortMode === "default") {
 				const d = a.sortOrder - b.sortOrder;
@@ -262,6 +279,79 @@ export function buildTagTree(
 	propagateColor(root, null);
 
 	return root;
+}
+
+/** What a tag tree is built from. */
+export interface TagTreeSource {
+	tags: Tag[];
+	/** false = flat view: every tag name is a single leaf pill, no folders. */
+	split: boolean;
+	sortMode: TagSortMode;
+	virtualTags: Record<string, VirtualTag>;
+	aliases: Record<string, number>;
+}
+
+const NO_FOLDER_COUNTS: ReadonlyMap<string, number> = new Map();
+
+const foldersOf = (nodes: TagTreeNode[]): TagTreeNode[] =>
+	nodes.flatMap((node) => (node.children.length > 0 ? [node, ...foldersOf(node.children)] : []));
+
+/** The tag tree as the sidebar shows it, each node carrying its location count. A folder's
+ *  count comes from the store, so a location holding several of its tags counts once. */
+export function useTagTree({
+	tags,
+	split,
+	sortMode,
+	virtualTags,
+	aliases,
+}: TagTreeSource): TagTreeNode[] {
+	const folderColorMode = useSetting("tagFolderColorMode");
+	const folderColorRgb = useSetting("tagFolderColor");
+	const tagCounts = Store.use(() => Tag.counts());
+	const folderCounts =
+		useAsyncSticky(async () => {
+			const tree = buildTagTree(
+				tags,
+				"name",
+				{ tags: tagCounts, folders: NO_FOLDER_COUNTS },
+				virtualTags,
+				aliases,
+				split,
+			);
+			const folders = foldersOf(tree);
+			const counts = await Promise.all(
+				folders.map((folder) =>
+					Query.read(any(...folder.subtreeTagIds.map(tagSelector)), { kind: "count" }),
+				),
+			);
+			return new Map(folders.map((folder, i) => [folder.fullPath, counts[i]]));
+		}, [tags, virtualTags, aliases, split, tagCounts]).ok() ?? NO_FOLDER_COUNTS;
+	return useMemo(
+		() =>
+			buildTagTree(
+				tags,
+				sortMode,
+				{ tags: tagCounts, folders: folderCounts },
+				virtualTags,
+				aliases,
+				split,
+				{
+					mode: folderColorMode,
+					color: rgbToHex(folderColorRgb),
+				},
+			),
+		[
+			tags,
+			sortMode,
+			tagCounts,
+			folderCounts,
+			virtualTags,
+			aliases,
+			split,
+			folderColorMode,
+			folderColorRgb,
+		],
+	);
 }
 
 /** Tag ids to toggle for a shift-click range over the tree's visible rows. Unions the

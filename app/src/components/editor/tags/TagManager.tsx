@@ -257,7 +257,6 @@ export function TagManager() {
 					split={tagViewMode === "tree"}
 					tags={tags}
 					selectedTagIds={selectedTagIds}
-					tagCounts={tagCounts}
 					sortMode={sortMode}
 					virtualTags={virtualTags}
 					aliases={aliases}

@@ -49,6 +49,8 @@ vi.mock("@/store/selectionList", async (importOriginal) => ({
 
 import { TagContextMenu } from "@/components/editor/tags/TagContextMenu";
 import { buildTagTree, type TagTreeNode } from "@/components/editor/tags/tagTreeModel";
+
+const NO_COUNTS = { tags: {}, folders: new Map<string, number>() };
 import { all, any, tagSelector } from "@/store/selections";
 import { mountAsync } from "./fixtures/harness";
 import { findNode, mkTag } from "./fixtures/tagFixtures";
@@ -75,7 +77,7 @@ const tree = buildTagTree(
 		mkTag(8, "V/y"),
 	],
 	"default",
-	{},
+	NO_COUNTS,
 );
 const node = (path: string) => findNode(tree, path)!;
 
