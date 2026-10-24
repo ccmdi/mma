@@ -217,6 +217,18 @@ export async function metadataWritten(patch: unknown) {
 	return { version: 0, keys: [] };
 }
 
+/** A `storeRead` mock built from one that answers a single selector. */
+export const readEach =
+	<S, A>(read: (target: unknown, selector: S, ask: A) => unknown) =>
+	(target: unknown, selectors: unknown, ask: unknown) =>
+		Promise.all((selectors as S[]).map((selector) => read(target, selector, ask as A)));
+
+/** A `Query.read` mock built from one that answers a single selector. */
+export const queryEach =
+	<S, R extends unknown[]>(read: (selector: S, ...rest: R) => unknown) =>
+	(selectors: S[], ...rest: R) =>
+		Promise.all(selectors.map((selector) => read(selector, ...rest)));
+
 export function cmdProxy(handlers: Handlers) {
 	return {
 		cmd: new Proxy({}, { get: (_t, name: string) => handlers[name] ?? (async () => null) }),

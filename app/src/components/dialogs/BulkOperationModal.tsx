@@ -101,9 +101,8 @@ interface SetupProps {
 }
 
 async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
-	const [total, pinned, counts] = await Promise.all([
-		Query.read(selector, { kind: "count" }),
-		Query.read(all(selector, panoIdSelector(true)), { kind: "count" }),
+	const [[total, pinned], counts] = await Promise.all([
+		Query.read([selector, all(selector, panoIdSelector(true))], { kind: "count" }),
 		Query.read(selector, { kind: "coverage" }),
 	]);
 	const have = new Map(counts);

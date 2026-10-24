@@ -2,10 +2,15 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "v
 import { Query } from "@/store/query";
 import type { Answer, Ask, Location, PartitionBucket, CountBy } from "@/bindings.gen";
 
-const h = vi.hoisted(() => ({ read: vi.fn() }));
+const h = vi.hoisted(() => ({ read: vi.fn(), batches: [] as unknown[] }));
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy } = await import("./fixtures/mocks");
-	return cmdProxy({ storeRead: h.read });
+	const { cmdProxy, readEach } = await import("./fixtures/mocks");
+	return cmdProxy({
+		storeRead: (target: unknown, selectors: unknown, ask: unknown) => {
+			h.batches.push(selectors);
+			return readEach(h.read)(target, selectors, ask);
+		},
+	});
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 import { createLocation } from "@/types";
@@ -82,6 +87,18 @@ describe("read payloads", () => {
 			await expect(Query.read(selector, ask as Ask)).resolves.toEqual(expected);
 		},
 	);
+	it("answers a list of selectors in one read, in order", async () => {
+		h.read.mockImplementation(async (_target: unknown, s?: { type: string }) => ({
+			kind: "count",
+			count: s?.type === "Everything" ? 3 : 1,
+		}));
+		h.batches.length = 0;
+		const counts = Query.read([{ type: "Selected" }, selector], { kind: "count" });
+		expectTypeOf(counts).toEqualTypeOf<Promise<number[]>>();
+		expect(await counts).toEqual([1, 3]);
+		expect(h.batches).toEqual([[{ type: "Selected" }, selector]]);
+	});
+
 	it("infers payloads from literal and union requests", async () => {
 		h.read.mockResolvedValue({ kind: "count", count: 0 } satisfies Answer);
 		const count = Query.read(selector, { kind: "count" });

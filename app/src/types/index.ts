@@ -1,5 +1,5 @@
 import type { Cmd } from "@/lib/commands";
-export type Selector = Parameters<Cmd["storeRead"]>[1];
+export type Selector = Parameters<Cmd["storeRead"]>[1][number];
 import type { FieldDef, Location, ValueRecord } from "@/bindings.gen";
 import type { FieldType } from "@/bindings.consts";
 import { nowUnix } from "@/lib/util/util";

@@ -260,10 +260,10 @@ fn whole_map_reads_are_spawned_off_the_main_thread() {
     fn read(
         state: tauri::State<'_, StoreState>,
         target: Target,
-        selector: Selector<SelectionInput>,
+        selectors: Vec<Selector<SelectionInput>>,
         ask: Ask,
-    ) -> impl Future<Output = AppResult<Answer>> + '_ {
-        store_read(WindowLabel("w".into()), state, target, selector, ask)
+    ) -> impl Future<Output = AppResult<Vec<Answer>>> + '_ {
+        store_read(WindowLabel("w".into()), state, target, selectors, ask)
     }
     let _ = read;
 }

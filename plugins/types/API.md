@@ -2764,17 +2764,21 @@ query(
 `stable` · `deprecated` · since v0.12.0
 
 ```ts
-read<A extends Ask>(
-  selector: Selector,
+read<
+  A extends Ask,
+  I extends Selector | readonly Selector[] = Selector,
+>(
+  selectors: I,
   ask: A,
   target?: Target,
-): Promise<ReadResult<AnswerOf<A["kind"]>>>
+): Promise<Each<I, ReadResult<AnswerOf<A["kind"]>>>>
 ```
 
 **Deprecated in v0.12.0.** Use `MMA.Query.read`.
 
-Ask one question about the locations `selector` matches. A full-location answer loads any
-backing file automatically; ask for ids or columns when full locations are unnecessary.
+Ask one question about the locations a selector matches, or about each of a list of
+selectors in one read, answered in order. A full-location answer loads any backing file
+automatically; ask for ids or columns when full locations are unnecessary.
 
 ### registerEnrichFields
 
@@ -3723,7 +3727,7 @@ back. Resolves once every provider finishes, or on abort.
 
 `stable` · since v0.12.0
 
-Read locations and summaries for a selector.
+Read locations and summaries for selectors.
 
 #### Query.locationsOf
 
@@ -3740,15 +3744,19 @@ The locations an answer carries, fetched from its temp file when it was too larg
 `stable` · since v0.12.0
 
 ```ts
-Query.read<A extends Ask>(
-  selector: Selector,
+Query.read<
+  A extends Ask,
+  I extends Selector | readonly Selector[] = Selector,
+>(
+  selectors: I,
   ask: A,
   target?: Target,
-): Promise<ReadResult<AnswerOf<A["kind"]>>>
+): Promise<Each<I, ReadResult<AnswerOf<A["kind"]>>>>
 ```
 
-Ask one question about the locations `selector` matches. A full-location answer loads any
-backing file automatically; ask for ids or columns when full locations are unnecessary.
+Ask one question about the locations a selector matches, or about each of a list of
+selectors in one read, answered in order. A full-location answer loads any backing file
+automatically; ask for ids or columns when full locations are unnecessary.
 
 ## Registry
 
@@ -6113,7 +6121,7 @@ List every saved selection rule (name, color, date), without their selector tree
 cmd.storeMoveFolder(from: string, to: string | null): Promise<null>
 ```
 
-Move every map in folder `from` to folder `to`, or to the root when `to` is null.
+Move every map in folder `from` (and its subfolders) to `to`, or to the root when `to` is null.
 
 #### cmd.storeOpenMap
 
@@ -6137,12 +6145,12 @@ first open. Must be called before any other store commands.
 ```ts
 cmd.storeRead(
   target: Target,
-  selector: Selector$1<SelectionInput>,
+  selectors: Selector$1<SelectionInput>[],
   ask: Ask,
-): Promise<Answer>
+): Promise<Answer[]>
 ```
 
-Answer one question about the target's locations matched by selector.
+Answer one question about the target's locations matched by each selector, in order.
 
 #### cmd.storeReviewEdit
 

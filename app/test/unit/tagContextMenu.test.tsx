@@ -28,7 +28,7 @@ vi.mock("@/store/tag", async (importOriginal) => ({
 vi.mock("@/store/query", async (importOriginal) => ({
 	Query: {
 		...(await importOriginal<typeof import("@/store/query")>()).Query,
-		read: h.countIn,
+		read: (await import("./fixtures/mocks")).queryEach(h.countIn),
 	},
 }));
 
@@ -207,7 +207,9 @@ describe("tag context menu", () => {
 	it("never counts the targets' own selections as the selection", async () => {
 		h.selectedTagIds = new Set([4, 5, 6]);
 		h.active = [4, 5, 6].map((id) => selectionFixture(tagSelector(id)));
-		h.countIn.mockResolvedValue(5);
+		h.countIn.mockImplementation(async (s) =>
+			JSON.stringify(s) === JSON.stringify(any()) ? 0 : 5,
+		);
 		const items = await openMenu(node("c"));
 		const fromSelection = items.find((i) => i.textContent?.includes("from selection"))!;
 		expect(fromSelection.textContent).toBe("Remove 3 tags from selection (0 locations)");

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import type { Tag } from "@/types";
-import { compareNatural, mmaBufUrl, phaseRate, type PhaseRate } from "@/lib/util/util";
+import { compareNatural, each, mmaBufUrl, phaseRate, type PhaseRate } from "@/lib/util/util";
 import { sortTagsByMode, tagColorFor } from "@/lib/data/tags";
 import { ERROR_CODES } from "@/bindings.consts";
 import { initLocale } from "@/lib/i18n";
@@ -274,5 +274,21 @@ describe("async states", () => {
 		// @ts-expect-error a bare object is not a state
 		const bare: AsyncState<number> = { status: "ok", value: 1 };
 		expect(bare.status).toBe("ok");
+	});
+});
+
+describe("each", () => {
+	const double = async (all: number[]) => all.map((n) => n * 2);
+
+	it("answers one input with one result and a list with a list", async () => {
+		expect(await each(3, double)).toBe(6);
+		expect(await each([1, 2], double)).toEqual([2, 4]);
+		expect(await each([], double)).toEqual([]);
+	});
+
+	it("runs a single input as a list of one", async () => {
+		const seen: number[][] = [];
+		await each(5, async (all: number[]) => (seen.push(all), all));
+		expect(seen).toEqual([[5]]);
 	});
 });

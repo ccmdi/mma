@@ -5,13 +5,14 @@ import type { CellManager } from "@/lib/render/CellManager";
 
 const storeFindNearby = vi.fn();
 const parseMapsUrl = vi.fn();
-vi.mock("@/lib/commands", () => ({
+vi.mock("@/lib/commands", async () => ({
 	cmd: {
-		storeRead: (...a: unknown[]) =>
+		storeRead: (await import("./fixtures/mocks")).readEach((...a: unknown[]) =>
 			(storeFindNearby(...a.slice(1)) as Promise<unknown[]>).then((locations) => ({
 				kind: "locations",
 				locations: { kind: "inline", locations },
 			})),
+		),
 		parseMapsUrl: (...a: unknown[]) => parseMapsUrl(...a),
 	},
 }));

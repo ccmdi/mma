@@ -148,15 +148,15 @@ async function analyze(): Promise<Analysis> {
 		fieldDefs,
 		present.map(([k]) => k),
 	);
-	const groups = await Promise.all(
-		exclusiveGroups(selectors).map(async (selector) => {
-			const [size, counts] = await Promise.all([
-				MMA.Query.read(selector, { kind: "count" }),
-				MMA.Query.read(selector, { kind: "countBy", fields, key: { kind: "value" } }),
-			]);
-			return { size, counts: Object.fromEntries(fields.map((f, i) => [f, counts[i]])) };
-		}),
-	);
+	const exclusive = exclusiveGroups(selectors);
+	const [sizes, countsBy] = await Promise.all([
+		MMA.Query.read(exclusive, { kind: "count" }),
+		MMA.Query.read(exclusive, { kind: "countBy", fields, key: { kind: "value" } }),
+	]);
+	const groups = sizes.map((size, g) => ({
+		size,
+		counts: Object.fromEntries(fields.map((f, i) => [f, countsBy[g][i]])),
+	}));
 
 	const result = computeDivergence(groups, fieldDefs, tagNames);
 	const excludedOverlap = unionSize - result.groupSizes.reduce((a, b) => a + b, 0);

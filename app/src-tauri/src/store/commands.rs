@@ -388,21 +388,24 @@ fn receipt(
     }
 }
 
-/// Answer one question about the target's locations matched by selector.
+/// Answer one question about the target's locations matched by each selector, in order.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_read(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     target: Target,
-    selector: Selector<SelectionInput>,
+    selectors: Vec<Selector<SelectionInput>>,
     ask: Ask,
-) -> AppResult<Answer> {
+) -> AppResult<Vec<Answer>> {
     reach_target(&state, &label, &target, |store| {
-        Ok(Reached::ready(store.at(&target).read(
-            &selector.map_children(SelectionInput::compile),
-            &ask,
-        )))
+        let mut at = store.at(&target);
+        Ok(Reached::ready(
+            selectors
+                .into_iter()
+                .map(|selector| at.read(&selector.map_children(SelectionInput::compile), &ask))
+                .collect(),
+        ))
     })
     .await
 }

@@ -63,7 +63,7 @@ export interface ResolvedAxis {
 export async function crossCounts(
 	rows: ResolvedAxis,
 	cols: ResolvedAxis,
-	countBoth: (a: Selector, b: Selector) => Promise<number>,
+	countBoth: (pairs: (readonly [Selector, Selector])[]) => Promise<number[]>,
 ): Promise<(row: number, col: number) => number> {
 	const within = (t: Tally, key: string, size: number) =>
 		key === NA_KEY ? size - t.withValue : (t.counts.get(key) ?? 0);
@@ -77,12 +77,10 @@ export async function crossCounts(
 		const tallies = await Promise.all(cols.members.map((m) => rowTally(m.selector)));
 		return (ri, ci) => within(tallies[ci], rows.members[ri].key, cols.sizes[ci]);
 	}
-	const grid = await Promise.all(
-		rows.members.map((r) =>
-			Promise.all(cols.members.map((c) => countBoth(r.selector, c.selector))),
-		),
+	const counts = await countBoth(
+		rows.members.flatMap((r) => cols.members.map((c) => [r.selector, c.selector] as const)),
 	);
-	return (ri, ci) => grid[ri][ci];
+	return (ri, ci) => counts[ri * cols.members.length + ci];
 }
 
 /** A field value no location in the other axis carries is dropped; a numeric bin is

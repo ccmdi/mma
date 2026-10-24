@@ -37,7 +37,7 @@ vi.mock("@/store/autosave", async (original) => {
 	const { Autosave } = await original<typeof import("@/store/autosave")>();
 	return { Autosave: { ...Autosave, waitForInflight: () => h.autosaving } };
 });
-vi.mock("@/lib/commands", () => ({
+vi.mock("@/lib/commands", async () => ({
 	cmd: {
 		storeLandLayer: async () => {
 			h.lands++;
@@ -51,25 +51,27 @@ vi.mock("@/lib/commands", () => ({
 		storeCloseLayer: async (name: string) => {
 			h.dropped.push(name);
 		},
-		storeRead: async (target: unknown, selector: { type: string; locations?: number[] }) => {
-			h.readTargets.push(target);
-			if (selector.type === "Nearby") {
-				return { kind: "locations", locations: { kind: "inline", locations: h.nearby } };
-			}
-			const ids = selector.locations ?? [];
-			h.reads.push(...ids);
-			const lat = h.lat;
-			await Promise.all(ids.map((id) => h.held.get(id)));
-			return {
-				kind: "locations",
-				rows: {
-					kind: "inline",
-					locations: ids
-						.filter((id) => !h.missing.has(id))
-						.map((id) => ({ id, lat, lng: 0, tags: [], panoId: h.panoId })),
-				},
-			};
-		},
+		storeRead: (await import("./fixtures/mocks")).readEach(
+			async (target: unknown, selector: { type: string; locations?: number[] }) => {
+				h.readTargets.push(target);
+				if (selector.type === "Nearby") {
+					return { kind: "locations", locations: { kind: "inline", locations: h.nearby } };
+				}
+				const ids = selector.locations ?? [];
+				h.reads.push(...ids);
+				const lat = h.lat;
+				await Promise.all(ids.map((id) => h.held.get(id)));
+				return {
+					kind: "locations",
+					rows: {
+						kind: "inline",
+						locations: ids
+							.filter((id) => !h.missing.has(id))
+							.map((id) => ({ id, lat, lng: 0, tags: [], panoId: h.panoId })),
+					},
+				};
+			},
+		),
 	},
 }));
 vi.mock("@/lib/sv/providers", async (actual) => ({

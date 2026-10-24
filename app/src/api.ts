@@ -863,7 +863,7 @@ type ProvidersApi = {
 	validateLocations: typeof validateLocations;
 };
 type QueryApi = {
-	/** Read locations and summaries for a selector. */
+	/** Read locations and summaries for selectors. */
 	Query: typeof Query;
 };
 type RegistryApi = {

@@ -111,8 +111,8 @@ function selectionAxis(sets: Record<string, number[]>): ResolvedAxis {
 }
 
 const idsOf = (s: Selector) => (s.type === "Manual" ? s.locations : []);
-const countBoth = async (a: Selector, b: Selector) =>
-	idsOf(a).filter((id) => idsOf(b).includes(id)).length;
+const countBoth = async (pairs: (readonly [Selector, Selector])[]) =>
+	pairs.map(([a, b]) => idsOf(a).filter((id) => idsOf(b).includes(id)).length);
 
 async function cells(r: ResolvedAxis, c: ResolvedAxis) {
 	const cell = await crossCounts(r, c, countBoth);

@@ -311,10 +311,9 @@ export function useTagTree({
 				split,
 			);
 			const folders = foldersOf(tree);
-			const counts = await Promise.all(
-				folders.map((folder) =>
-					Query.read(any(...folder.subtreeTagIds.map(tagSelector)), { kind: "count" }),
-				),
+			const counts = await Query.read(
+				folders.map((folder) => any(...folder.subtreeTagIds.map(tagSelector))),
+				{ kind: "count" },
 			);
 			return new Map(folders.map((folder, i) => [folder.fullPath, counts[i]]));
 		}, [tags, virtualTags, aliases, split, tagCounts]).ok() ?? NO_FOLDER_COUNTS;

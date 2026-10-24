@@ -16,7 +16,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 	},
 }));
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy, openMapResult, selectionsHeld } = await import("./fixtures/mocks");
+	const { cmdProxy, openMapResult, readEach, selectionsHeld } = await import("./fixtures/mocks");
 	// Tag 1 and tag 2 overlap on ids 4 and 5; tag 3 is disjoint from both.
 	const byTag: Record<number, number[]> = {
 		1: [1, 2, 3, 4, 5],
@@ -48,31 +48,33 @@ vi.mock("@/lib/commands", async () => {
 	const handlers: Record<string, (...args: never[]) => unknown> = {
 		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 5, 2: 5 } }),
 		storeEdit: async (edits: { selections: unknown }) => selectionsHeld(edits.selections),
-		storeRead: async (
-			_target: unknown,
-			node: TestSelector & {
-				selection?: { selector: TestSelector };
-				n?: number;
-				thin?: { by: string; n?: number };
+		storeRead: readEach(
+			async (
+				_target: unknown,
+				node: TestSelector & {
+					selection?: { selector: TestSelector };
+					n?: number;
+					thin?: { by: string; n?: number };
+				},
+			) => {
+				const selector = node.selection?.selector ?? node;
+				const pool = await resolvePool(selector);
+				const take = node.thin?.by === "count" ? node.thin.n : pool.length;
+				if (node.type === "Sample") {
+					h.sampledSelectors.push(selector);
+					return { kind: "ids", ids: pool.slice(0, node.n) };
+				}
+				if (node.type === "Spaced") {
+					h.spacedSelectors.push(selector);
+					return { kind: "spacing", ids: pool.slice(0, take), spacingM: 100 };
+				}
+				if (node.type === "EvenlySpaced") {
+					h.evenSelectors.push(selector);
+					return { kind: "spacing", ids: pool.slice(0, take), spacingM: 250 };
+				}
+				return { kind: "ids", ids: pool };
 			},
-		) => {
-			const selector = node.selection?.selector ?? node;
-			const pool = await resolvePool(selector);
-			const take = node.thin?.by === "count" ? node.thin.n : pool.length;
-			if (node.type === "Sample") {
-				h.sampledSelectors.push(selector);
-				return { kind: "ids", ids: pool.slice(0, node.n) };
-			}
-			if (node.type === "Spaced") {
-				h.spacedSelectors.push(selector);
-				return { kind: "spacing", ids: pool.slice(0, take), spacingM: 100 };
-			}
-			if (node.type === "EvenlySpaced") {
-				h.evenSelectors.push(selector);
-				return { kind: "spacing", ids: pool.slice(0, take), spacingM: 250 };
-			}
-			return { kind: "ids", ids: pool };
-		},
+		),
 	};
 	return cmdProxy(handlers as Record<string, (...args: unknown[]) => unknown>);
 });

@@ -16,15 +16,15 @@ vi.mock("@tauri-apps/api/core", () => ({
 	},
 }));
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy, openMapResult } = await import("./fixtures/mocks");
+	const { cmdProxy, openMapResult, readEach } = await import("./fixtures/mocks");
 	return cmdProxy({
 		storeOpenMap: async () => openMapResult(),
-		storeRead: async (...args: unknown[]) => {
+		storeRead: readEach(async (...args: unknown[]) => {
 			calls.reads.push(args);
 			if ((args[2] as { kind: string }).kind === "locations")
 				return { kind: "locations", rows: { kind: "inline", locations: [source] } };
 			return { kind: "held", held: [calls.held] };
-		},
+		}),
 		storeEdit: async (...args: unknown[]) => {
 			calls.edits.push(args);
 			return { mutation: { version: 0, keys: [1] } };

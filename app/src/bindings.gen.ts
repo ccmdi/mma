@@ -161,8 +161,8 @@ export const commands = {
 	storeLandLayer: (name: string) => __TAURI_REPLY<Mutation>("store_land_layer", "reply", { name }),
 	/**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. */
 	storeCloseLayer: (name: string, mapId: string | null) => __TAURI_REPLY<null>("store_close_layer", "reply", { name, mapId }),
-	/**  Answer one question about the target's locations matched by selector. */
-	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
+	/**  Answer one question about the target's locations matched by each selector, in order. */
+	storeRead: (target: Target, selectors: Selector<SelectionInput>[], ask: Ask) => __TAURI_INVOKE<Answer[]>("store_read", { target, selectors: selectors.map(i=>i), ask }).then((v) => (v.map(i=>i) as typeof v)),
 	/**
 	 *  Copy the locations that `selector` matches into another map, skipping ones it already has.
 	 *  Extra fields carry over, and interned values such as tags are matched to the target's by name.

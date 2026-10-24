@@ -32,24 +32,22 @@ function rectOf(polygon: MockPolygon) {
 	};
 }
 
-vi.mock("@/lib/commands", () => ({
+vi.mock("@/lib/commands", async () => ({
 	cmd: {
-		storeRead: (
-			_target: unknown,
-			selector: { type: string },
-			ask: { kind: string; lats?: number[] },
-		) => {
-			if (ask.kind === "nearAny") {
-				return Promise.resolve({ kind: "nearAny", values: (ask.lats ?? []).map(() => false) });
-			}
-			if (selector.type === "Nearby") {
-				return Promise.resolve({
-					kind: "locations",
-					locations: { kind: "inline", locations: h.seeds },
-				});
-			}
-			throw new Error(`unexpected read: ${ask.kind}`);
-		},
+		storeRead: (await import("./fixtures/mocks")).readEach(
+			(_target: unknown, selector: { type: string }, ask: { kind: string; lats?: number[] }) => {
+				if (ask.kind === "nearAny") {
+					return Promise.resolve({ kind: "nearAny", values: (ask.lats ?? []).map(() => false) });
+				}
+				if (selector.type === "Nearby") {
+					return Promise.resolve({
+						kind: "locations",
+						locations: { kind: "inline", locations: h.seeds },
+					});
+				}
+				throw new Error(`unexpected read: ${ask.kind}`);
+			},
+		),
 		honeycombPoints: (_polygon: unknown, spacingM: number) => {
 			h.gridRequests.push(spacingM);
 			return Promise.resolve(h.gridRuns);

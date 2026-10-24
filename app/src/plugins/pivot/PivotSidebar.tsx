@@ -82,7 +82,10 @@ async function selectionAxis(kind: "all" | "active", scope: Selector): Promise<R
 					selector: all(scope, s.selector),
 					pick: null,
 				}));
-	const sizes = await Promise.all(members.map((m) => Query.read(m.selector, { kind: "count" })));
+	const sizes = await Query.read(
+		members.map((m) => m.selector),
+		{ kind: "count" },
+	);
 	return { members, sizes, tally: null, binned: false };
 }
 
@@ -226,8 +229,14 @@ function resolveAxis(axis: Axis, scope: Selector, defOf: (key: string) => FieldD
 		: selectionAxis(axis.kind, scope);
 }
 
-const countBoth = (a: Selector, b: Selector) =>
-	Query.read({ type: "Intersection", selections: [selection(a), selection(b)] }, { kind: "count" });
+const countBoth = (pairs: (readonly [Selector, Selector])[]) =>
+	Query.read(
+		pairs.map(([a, b]): Selector => ({
+			type: "Intersection",
+			selections: [selection(a), selection(b)],
+		})),
+		{ kind: "count" },
+	);
 
 async function computePivot(
 	rows: Axis,

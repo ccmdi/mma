@@ -186,7 +186,7 @@ describe("Web bridge", () => {
 					null,
 				)
 				.then(() => done.push("slow"));
-			await api.cmd.storeRead({ kind: "map" }, { type: "Everything" }, { kind: "count" });
+			await api.cmd.storeRead({ kind: "map" }, [{ type: "Everything" }], { kind: "count" });
 			done.push("fast");
 			await slow;
 			return done;

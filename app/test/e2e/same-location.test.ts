@@ -27,10 +27,10 @@ describe("SameLocation — duplicate picker", () => {
 			return await api.cmd
 				.storeRead(
 					{ kind: "map" },
-					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					[{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 }],
 					{ kind: "locations" },
 				)
-				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations);
+				.then(([a]) => (a as { locations: { locations: Location[] } }).locations.locations);
 		});
 		expect(nearby.length).toBe(3);
 	});
@@ -41,10 +41,10 @@ describe("SameLocation — duplicate picker", () => {
 			return await api.cmd
 				.storeRead(
 					{ kind: "map" },
-					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					[{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 }],
 					{ kind: "locations" },
 				)
-				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations);
+				.then(([a]) => (a as { locations: { locations: Location[] } }).locations.locations);
 		});
 		const toDelete = nearby[0].id;
 
@@ -59,10 +59,10 @@ describe("SameLocation — duplicate picker", () => {
 			return await api.cmd
 				.storeRead(
 					{ kind: "map" },
-					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					[{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 }],
 					{ kind: "locations" },
 				)
-				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations);
+				.then(([a]) => (a as { locations: { locations: Location[] } }).locations.locations);
 		});
 		expect(remaining.length).toBe(2);
 		expect(remaining.every((l) => l.id !== toDelete)).toBe(true);

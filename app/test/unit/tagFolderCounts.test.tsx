@@ -18,15 +18,15 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy } = await import("./fixtures/mocks");
+	const { cmdProxy, readEach } = await import("./fixtures/mocks");
 	return cmdProxy({
-		storeRead: async (_target: unknown, selector: unknown) => {
+		storeRead: readEach(async (_target: unknown, selector: unknown) => {
 			const asked = new Set(
 				[...JSON.stringify(selector).matchAll(/"value":(\d+)/g)].map((m) => Number(m[1])),
 			);
 			const count = locationTags.filter((held) => held.some((id) => asked.has(id))).length;
 			return { kind: "count", count };
-		},
+		}),
 	});
 });
 

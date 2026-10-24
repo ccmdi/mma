@@ -342,8 +342,9 @@ impl BenchApp {
     }
 
     fn read(&self, selector: Selector<SelectionInput>, ask: Ask) -> Answer {
-        async_runtime::block_on(store_read(label(), self.state(), MAP, selector, ask))
+        async_runtime::block_on(store_read(label(), self.state(), MAP, vec![selector], ask))
             .expect("read")
+            .remove(0)
     }
 
     pub fn find_nearby(&self, lat: f64, lng: f64, radius_m: f64) -> Answer {

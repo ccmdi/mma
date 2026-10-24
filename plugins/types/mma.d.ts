@@ -702,8 +702,8 @@ declare const commands: {
     storeLandLayer: (name: string) => Promise<Mutation<Location>>;
     /**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. @unstable */
     storeCloseLayer: (name: string, mapId: string | null) => Promise<null>;
-    /**  Answer one question about the target's locations matched by selector. @unstable */
-    storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
+    /**  Answer one question about the target's locations matched by each selector, in order. @unstable */
+    storeRead: (target: Target, selectors: Selector$1<SelectionInput>[], ask: Ask) => Promise<Answer[]>;
     /**
      *  Copy the locations that `selector` matches into another map, skipping ones it already has.
      *  Extra fields carry over, and interned values such as tags are matched to the target's by name.
@@ -765,7 +765,7 @@ declare const commands: {
     } & {
         localPluginData?: { [key in string]: Op<{ [key_1 in string]: unknown; }, { [key_1 in string]: Op<unknown, unknown, null>; }, null>; };
     }) => Promise<Mutation<Location> | null>;
-    /**  Move every map in folder `from` to folder `to`, or to the root when `to` is null. @unstable */
+    /**  Move every map in folder `from` (and its subfolders) to `to`, or to the root when `to` is null. @unstable */
     storeMoveFolder: (from: string, to: string | null) => Promise<null>;
     /**  Return aggregate database statistics: counts, file size, and configuration. @unstable */
     storeDbStats: () => Promise<DbStats>;
@@ -3512,7 +3512,7 @@ export type Settled<T, E = Error> = Result<T, E> | Cancelled;
 /** Work someone starts: not yet, under way, or how it ended. */
 export type JobState<T, P = never, E = Error> = Idle | Running<P> | Settled<T, E>;
 
-type Selector = Parameters<Cmd["storeRead"]>[1];
+type Selector = Parameters<Cmd["storeRead"]>[1][number];
 
 /** A field definition with every optional attribute spelled absent. @api */
 declare function createFieldDef(type: FieldType, over?: Partial<Omit<FieldDef, "type">>): FieldDef;
@@ -3653,6 +3653,54 @@ declare const Mutation: {
     } = Mutation>(fn: () => Promise<R>, ...fallback: Mutation extends R ? [empty?: R] : [empty: R]) => Promise<R>;
 };
 
+/** URL that serves a local file over the `mma-buf://` protocol. @api @unstable */
+declare function mmaBufUrl(path: string): string;
+/** Copy of `set` with `value` toggled, or forced on/off by `on`. @api @unstable */
+declare function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>;
+/** The item `isBetter` prefers over every other, or null when there are none. @api @unstable */
+declare function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null;
+/** Shuffle `items` in place (Fisher-Yates) and return them. @api @unstable */
+declare function shuffle<T>(items: T[]): T[];
+/** Split `arr` into sub-arrays of at most `n` elements. @api @unstable */
+declare function chunk<T>(arr: readonly T[], n: number): T[][];
+/** One result for one input, a list of results for a list. */
+export type Each<I, R> = I extends readonly unknown[] ? R[] : R;
+/** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
+ *  Build metadata is ignored; a pre-release sorts below the release it precedes. @api @unstable */
+declare function cmpVersion(a: string, b: string): number;
+/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. @api @unstable */
+declare function splitVersion(v: string): [core: string, pre: string];
+/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @api @unstable */
+declare function isPrereleaseVersion(v: string): boolean;
+/** True when the app runs in a browser instead of the desktop app. @api @unstable */
+declare function isWeb(): boolean;
+/** Prompt for files; resolves empty when the picker is dismissed. @api @unstable */
+declare function pickFiles(accept: string, opts?: {
+    multiple?: boolean;
+}): Promise<File[]>;
+/** Trigger a browser download from an in-memory Blob. @api @unstable */
+declare function downloadBlob(blob: Blob, fileName: string): void;
+/** Copy an image Blob to the clipboard. False when the platform refuses it. @api @unstable */
+declare function copyImageToClipboard(blob: Blob): Promise<boolean>;
+/** Compare strings with natural (numeric-aware) ordering. @api @unstable */
+declare function compareNatural(a: string, b: string): number;
+/** Current time as Unix seconds, the form Location timestamps use. @api @unstable */
+declare function nowUnix(): number;
+/** Rolling anchor for a phase-relative locations/second average. @unstable */
+export interface PhaseRate {
+    t0: number;
+    done0: number;
+    done: number;
+    total: number;
+}
+/** Compute a locations/second rate for the current progress phase. Re-anchors when a
+ *  new phase is detected (done went backward or total grew). Null until a quarter second
+ *  of work has elapsed. @api @unstable */
+declare function phaseRate(prev: PhaseRate | null, done: number, total: number, now: number): {
+    state: PhaseRate;
+    rate: number | null;
+};
+
 export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
     kind: K;
 }>;
@@ -3661,11 +3709,12 @@ export type Payload<T> = {
 }[keyof T];
 export type Materialized<T> = T extends LocationList ? Location[] : T;
 export type ReadResult<A extends Answer> = A extends Answer ? Materialized<Payload<Omit<A, "kind">>> : never;
-/** Read locations and summaries for a selector. @api */
+/** Read locations and summaries for selectors. @api */
 declare const Query: {
-    /** Ask one question about the locations `selector` matches. A full-location answer loads any
-     *  backing file automatically; ask for ids or columns when full locations are unnecessary. */
-    read: <A extends Ask>(selector: Selector, ask: A, target?: Target) => Promise<ReadResult<AnswerOf<A["kind"]>>>;
+    /** Ask one question about the locations a selector matches, or about each of a list of
+     *  selectors in one read, answered in order. A full-location answer loads any backing file
+     *  automatically; ask for ids or columns when full locations are unnecessary. */
+    read: <A extends Ask, I extends Selector | readonly Selector[] = Selector>(selectors: I, ask: A, target?: Target) => Promise<Each<I, ReadResult<AnswerOf<A["kind"]>>>>;
     /** The locations an answer carries, fetched from its temp file when it was too large to send inline. */
     locationsOf: (list: LocationList) => Promise<Location[]>;
 };
@@ -7184,52 +7233,6 @@ export type Job<R, P = never> = JobState<R, P> & {
 /** User-triggered async work that reports progress and can be cancelled. Unmounting cancels. @api */
 declare function useJob<R = unknown, P = never>(): Job<R, P>;
 
-/** URL that serves a local file over the `mma-buf://` protocol. @api @unstable */
-declare function mmaBufUrl(path: string): string;
-/** Copy of `set` with `value` toggled, or forced on/off by `on`. @api @unstable */
-declare function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>;
-/** The item `isBetter` prefers over every other, or null when there are none. @api @unstable */
-declare function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null;
-/** Shuffle `items` in place (Fisher-Yates) and return them. @api @unstable */
-declare function shuffle<T>(items: T[]): T[];
-/** Split `arr` into sub-arrays of at most `n` elements. @api @unstable */
-declare function chunk<T>(arr: readonly T[], n: number): T[][];
-/** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
- *  Build metadata is ignored; a pre-release sorts below the release it precedes. @api @unstable */
-declare function cmpVersion(a: string, b: string): number;
-/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. @api @unstable */
-declare function splitVersion(v: string): [core: string, pre: string];
-/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @api @unstable */
-declare function isPrereleaseVersion(v: string): boolean;
-/** True when the app runs in a browser instead of the desktop app. @api @unstable */
-declare function isWeb(): boolean;
-/** Prompt for files; resolves empty when the picker is dismissed. @api @unstable */
-declare function pickFiles(accept: string, opts?: {
-    multiple?: boolean;
-}): Promise<File[]>;
-/** Trigger a browser download from an in-memory Blob. @api @unstable */
-declare function downloadBlob(blob: Blob, fileName: string): void;
-/** Copy an image Blob to the clipboard. False when the platform refuses it. @api @unstable */
-declare function copyImageToClipboard(blob: Blob): Promise<boolean>;
-/** Compare strings with natural (numeric-aware) ordering. @api @unstable */
-declare function compareNatural(a: string, b: string): number;
-/** Current time as Unix seconds, the form Location timestamps use. @api @unstable */
-declare function nowUnix(): number;
-/** Rolling anchor for a phase-relative locations/second average. @unstable */
-export interface PhaseRate {
-    t0: number;
-    done0: number;
-    done: number;
-    total: number;
-}
-/** Compute a locations/second rate for the current progress phase. Re-anchors when a
- *  new phase is detected (done went backward or total grew). Null until a quarter second
- *  of work has elapsed. @api @unstable */
-declare function phaseRate(prev: PhaseRate | null, done: number, total: number, now: number): {
-    state: PhaseRate;
-    rate: number | null;
-};
-
 /** What validation answers for one location: its `ValidationFlag`s, and whether it was
  *  pinned when checked. @unstable */
 export interface ValidationAnswer {
@@ -7765,7 +7768,7 @@ export type ProvidersApi = {
     validateLocations: typeof validateLocations;
 };
 export type QueryApi = {
-    /** Read locations and summaries for a selector. */
+    /** Read locations and summaries for selectors. */
     Query: typeof Query;
 };
 export type RegistryApi = {

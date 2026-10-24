@@ -23,17 +23,19 @@ vi.mock("@/plugins/generator/engine/blueLineSampler", () => ({
 		};
 	},
 }));
-vi.mock("@/lib/commands", () => ({
+vi.mock("@/lib/commands", async () => ({
 	cmd: {
 		polygonBounds: () => Promise.resolve([0, 0, 4, 4]),
 		polygonContainsPoints: (_polygon: PolygonGeometry, lats: number[]) =>
 			Promise.resolve(lats.map(() => true)),
-		storeRead: (_target: unknown, _selector: unknown, ask: { lats?: number[] }) =>
-			new Promise((resolve) => {
-				h.nearResolvers.push(() =>
-					resolve({ kind: "nearAny", values: (ask.lats ?? []).map(() => false) }),
-				);
-			}),
+		storeRead: (await import("./fixtures/mocks")).readEach(
+			(_target: unknown, _selector: unknown, ask: { lats?: number[] }) =>
+				new Promise((resolve) => {
+					h.nearResolvers.push(() =>
+						resolve({ kind: "nearAny", values: (ask.lats ?? []).map(() => false) }),
+					);
+				}),
+		),
 	},
 }));
 vi.mock("@/lib/sv/streetView", async (original) => ({

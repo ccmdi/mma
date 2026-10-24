@@ -60,14 +60,17 @@ function TagContextMenuItems({
 		const carriers = any(...targets.map(tagSelector));
 		const scope = selectionWithout(targets);
 		const nodeScope = selectionWithout(nodeTargets);
-		void Promise.all([
-			Query.read(carriers, { kind: "count" }),
-			tagId == null ? 0 : Query.read(tagSelector(tagId), { kind: "count" }),
-			scope.selections.length > 0 ? Query.read(all(carriers, scope), { kind: "count" }) : 0,
-			multi && nodeTargets.length > 0 && nodeScope.selections.length > 0
-				? Query.read(all(any(...nodeTargets.map(tagSelector)), nodeScope), { kind: "count" })
-				: 0,
-		]).then(([total, own, inSel, nodeInSel]) => setCounts({ total, own, inSel, nodeInSel }));
+		void Query.read(
+			[
+				carriers,
+				tagId == null ? any() : tagSelector(tagId),
+				scope.selections.length > 0 ? all(carriers, scope) : any(),
+				multi && nodeTargets.length > 0 && nodeScope.selections.length > 0
+					? all(any(...nodeTargets.map(tagSelector)), nodeScope)
+					: any(),
+			],
+			{ kind: "count" },
+		).then(([total, own, inSel, nodeInSel]) => setCounts({ total, own, inSel, nodeInSel }));
 	}, [tagId, targets, nodeTargets, multi]);
 
 	return (

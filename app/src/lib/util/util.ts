@@ -47,6 +47,19 @@ export function chunk<T>(arr: readonly T[], n: number): T[][] {
 	return out;
 }
 
+/** One result for one input, a list of results for a list. */
+export type Each<I, R> = I extends readonly unknown[] ? R[] : R;
+
+/** Run `many` over `input` as a list, answering in the plurality `input` came in. */
+export async function each<T, R, I extends T | readonly T[]>(
+	input: I,
+	many: (all: T[]) => Promise<R[]>,
+): Promise<Each<I, R>> {
+	const plural = Array.isArray(input);
+	const results = await many(plural ? [...input] : [input as T]);
+	return (plural ? results : results[0]) as Each<I, R>;
+}
+
 /** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
  *  Build metadata is ignored; a pre-release sorts below the release it precedes. @api @unstable */
 export function cmpVersion(a: string, b: string): number {
