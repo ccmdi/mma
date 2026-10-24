@@ -1725,7 +1725,6 @@ Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`)
 
 `stable` · since v0.12.0
 
-Whether undo and redo are available.
 Navigate undo and redo history.
 
 #### History.available
@@ -3152,11 +3151,6 @@ Wait for the main editor map to be ready.
 
 `stable` · since v0.12.0
 
-A single Street View location on a map.
-
-This is the atomic unit of data in the system. Locations are stored in columns
-on disk and addressed by `id` everywhere. The `id` is unique
-within a map and assigned by the store's monotonic allocator.
 Add, update, remove, and inspect map locations.
 
 #### Location.add
@@ -3449,7 +3443,6 @@ Reactive list of all maps (metadata only).
 
 `stable` · since v0.12.0
 
-The version a write reached and the keys it assigned. Other updates arrive on the change feed.
 Run mutations and wait for their state and display updates.
 
 #### Mutation.none
@@ -3655,8 +3648,6 @@ Run a single procedure over `selector` and return its typed results.
 
 `stable` · since v0.12.0
 
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 Registered field producers: register one, list them, or run them over locations.
 
 #### Provider.forField
@@ -3978,7 +3969,6 @@ memoized values, not a new value per call.
 
 `stable` · since v0.12.0
 
-A tag's display identity: name, color, sidebar order, and document links.
 Manage tag records and their assignment to locations.
 
 #### Tag.all
@@ -6924,7 +6914,6 @@ Wait for the main editor map to be ready.
 
 `unstable` · since v0.12.0
 
-A decoded Street View panorama: flat data with no live objects.
 The app's default pano viewer.
 
 #### Pano.applyLock
@@ -7398,8 +7387,7 @@ exactDateProvider: {
 }
 ```
 
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+Exact capture timestamp, narrowed from the `imageDate` month via binary search.
 
 ### headingRoadProvider
 
@@ -7423,8 +7411,8 @@ headingRoadProvider: {
 }
 ```
 
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+Pan a location's heading along the road. The driving direction is the pano's
+`centerHeading`; "forwards" faces it, "backwards" faces the opposite.
 
 ### panoResolveProvider
 
@@ -7448,8 +7436,9 @@ panoResolveProvider: {
 }
 ```
 
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
+provider that depends on it. Rows that already have a pano id are skipped unless the
+run is forced.
 
 ### subdivisionProvider
 
@@ -7473,8 +7462,8 @@ subdivisionProvider: {
 }
 ```
 
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+Subdivision (adm1) via offline point-in-polygon against the local border dataset.
+No Google dependency; downloads the adm1 archive on first use.
 
 ### svMetaProvider
 
@@ -7498,8 +7487,7 @@ svMetaProvider: {
 }
 ```
 
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+Core panorama metadata via Google's GetMetadata RPC.
 
 ### timezoneProvider
 
@@ -7523,8 +7511,7 @@ timezoneProvider: {
 }
 ```
 
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+Timezone at the location's coordinates. Requires `datetime` to be present.
 
 ### validateLocations
 
@@ -8650,7 +8637,7 @@ APP_SETTINGS: PersistedStore<{
 }>
 ```
 
-A value saved in local storage: its key and its defaults.
+localStorage descriptor for the persisted settings object.
 
 ### BORDER_ARCHIVE_BYTES
 

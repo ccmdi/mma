@@ -7220,499 +7220,646 @@ declare const STANDARD_VALIDATION_CATEGORIES: string[];
 declare function validationCategory(key: string): ValidationCategory | null;
 
 export type AccountApi = {
+    /** The GitHub account the user is signed in with, and signing in or out of it. */
     Account: typeof Account;
 };
 export type AutosaveApi = {
+    /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
     Autosave: typeof Autosave;
 };
 export type BindingsConstsApi = {
     BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
     CameraType: typeof CameraType;
+    /** A capture of a pano's timeline to settle on. */
     CapturePick: typeof CapturePick;
     /** @unstable */
     DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
     DEFAULT_MARKER_COLOR: typeof DEFAULT_MARKER_COLOR;
+    /** A calendar component to group dates by. */
     DatePart: typeof DatePart;
     /** @unstable */
     ERROR_CODES: typeof ERROR_CODES;
+    /**
+     * Type discriminant for `Location.extra` field definitions.
+     * Determines how the field is displayed and filtered in the UI.
+     *
+     */
     FieldType: typeof FieldType;
-    /** @unstable */
+    /**
+     * First-sync seeding when both sides already have pins. Only meaningful on the first sync
+     * (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
+     * @unstable
+     */
     FirstSyncMode: typeof FirstSyncMode;
+    /** How a group of selections joins its members. */
     Group: typeof Group;
     /** @unstable */
     IssueState: typeof IssueState;
     KNOWN_FIELDS: typeof KNOWN_FIELDS;
+    /** Per-location bitfield, sent and stored as a plain `u32`. */
     LocationFlag: typeof LocationFlag;
+    /** How much of a map a destination keeps. Each shape keeps everything the one before it does. */
     MapShape: typeof MapShape;
+    /** When a move target already holds a value, which side survives. */
     MergeWinner: typeof MergeWinner;
     OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
     /** @unstable */
     PROJECTIONS: typeof PROJECTIONS;
+    /** Which imagery collection a pano id belongs to. */
     PanoType: typeof PanoType;
+    /** Where a moved selection lands beside its target. */
     Place: typeof Place;
+    /**
+     * Which pano the search picks; omitted means closest. BEST at a small radius can return a
+     * neighbouring pano from the same capture run, so probe a pano's own coordinate with CLOSEST.
+     *
+     */
     RankingStrategy: typeof RankingStrategy;
+    /**
+     * What one attempt charges the bucket: the call itself, or one per row in its batch
+     * (for APIs that bill multi-row requests per row).
+     *
+     */
     RateCost: typeof RateCost;
-    /** @unstable */
+    /** Which side won a resolved conflict. @unstable */
     ResolutionSide: typeof ResolutionSide;
+    /** Which locations of a review session a selection holds. */
     ReviewMode: typeof ReviewMode;
     /** @unstable */
     SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
-    /** @unstable */
+    /** Every sync provider: which way it carries changes, and what it keeps of a map. @unstable */
     SYNC_PROVIDERS: typeof SYNC_PROVIDERS;
+    /**
+     * Where a provider's results go. `Patch` applies them to the locations they name;
+     * `Collect` delivers them to the caller and writes nothing. The declaration decides
+     * this, never the contents of a result.
+     *
+     */
     Sink: typeof Sink;
+    /** Which edit history stack to step through. */
     Stack: typeof Stack;
-    /** @unstable */
+    /** Which way a link carries changes. @unstable */
     SyncDirection: typeof SyncDirection;
-    /** @unstable */
+    /** What started a sync pass. @unstable */
     SyncTrigger: typeof SyncTrigger;
+    /** Which edit history to step through. Each part of the map that undoes on its own has one. */
     Timeline: typeof Timeline;
-    /** @unstable */
+    /** Country codes Vali has coverage data for. @unstable */
     VALI_COUNTRIES: typeof VALI_COUNTRIES;
+    /**
+     * One finding of a Street View coverage check. `validate` answers each row with the
+     * findings that apply, combined into one number.
+     *
+     */
     ValidationFlag: typeof ValidationFlag;
 };
 export type ColorApi = {
-    /** @unstable */
+    /**
+     * Deterministic tag color from a name.
+     * @unstable
+     */
     colorForName: typeof colorForName;
-    /** @unstable */
+    /** Convert "#rrggbb" to HSL. @unstable */
     hexToHsl: typeof hexToHsl;
-    /** @unstable */
+    /** Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex. @unstable */
     hexToRgb: typeof hexToRgb;
-    /** @unstable */
+    /** Convert HSL to "#rrggbb". @unstable */
     hslToHex: typeof hslToHex;
-    /** @unstable */
+    /** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @unstable */
     hslToRgb: typeof hslToRgb;
-    /** @unstable */
+    /** A label's color: a user override if set, else a deterministic color from its name. @unstable */
     labelColor: typeof labelColor;
-    /** @unstable */
+    /** `color` moved toward white on a dark `background`, or black on a light one, until the two
+     *  reach WCAG AA contrast. @unstable */
     legible: typeof legible;
-    /** @unstable */
+    /** WCAG relative luminance of a color, from 0 for black to 1 for white. @unstable */
     luminance: typeof luminance;
-    /** @unstable */
+    /** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
+     *  ramp name (legacy stored format). @unstable */
     resolveSvColorHex: typeof resolveSvColorHex;
-    /** @unstable */
+    /** Format an RGB tuple as a CSS `rgb(r, g, b)` string. @unstable */
     rgbCss: typeof rgbCss;
-    /** @unstable */
+    /** Convert an RGB byte tuple to "#rrggbb". @unstable */
     rgbToHex: typeof rgbToHex;
-    /** @unstable */
+    /** Return "#000" or "#fff" for readable text on the given hex background. @unstable */
     textColorFor: typeof textColorFor;
 };
 export type CommandsApi = {
-    /** @unstable */
+    /** Every backend command, typed. Any of them can change in a release. @unstable */
     cmd: typeof cmd;
 };
 export type CommitApi = {
+    /** Save and restore map versions. */
     Commit: typeof Commit;
 };
 export type CommitDiffApi = {
-    /** @unstable */
+    /** Uncommitted changes and their preview on the map. @unstable */
     CommitDiff: typeof CommitDiff;
 };
 export type EditApi = {
+    /** Edit map locations, metadata, value records, and selections. */
     Edit: typeof Edit;
 };
 export type EditorApi = {
+    /** Open locations and change the editor pane. */
     Editor: typeof Editor;
 };
 export type FieldApi = {
+    /** Rename or remove metadata fields across the map. */
     Field: typeof Field$1;
 };
 export type FieldDefRegistryApi = {
-    /** @unstable */
+    /** The "Range" partition option (numeric binning). @unstable */
     RANGE_ID: typeof RANGE_ID;
+    /** The value space a field declares, as bare strings. Distinct from the store's
+     *  `fieldValues`, which reports the values actually present in the data. */
     declaredValues: typeof declaredValues;
+    /** Translated display label for a field key, falling back to a sentence-cased version of the key. */
     fieldLabel: typeof fieldLabel;
+    /** Display label for a field value. Enum values use their translated display name. */
     fieldValueLabel: typeof fieldValueLabel;
+    /** Merged view of all field definitions across all layers. */
     getAllFieldDefs: typeof getAllFieldDefs;
-    /** @unstable */
+    /** All built-in field keys (excluding virtual). @unstable */
     getBuiltinKeys: typeof getBuiltinKeys;
+    /** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
     getFieldDef: typeof getFieldDef;
-    /** @unstable */
+    /** Every listable built-in, and every field this map defines. @unstable */
     getFieldKeys: typeof getFieldKeys;
+    /** Keys this map defines a field for. Same reference until the user layer moves. */
     getKnownFieldKeys: typeof getKnownFieldKeys;
+    /** True when `key` is a built-in Location field (stored top-level, not under `extra`). */
     isBuiltinField: typeof isBuiltinField;
-    /** @unstable */
+    /** True when the field can be bulk-cleared. @unstable */
     isClearableField: typeof isClearableField;
-    /** @unstable */
+    /** True when the field should appear in field pickers. @unstable */
     isListableField: typeof isListableField;
-    /** @unstable */
+    /** True when the field can be bulk-edited. @unstable */
     isWritableField: typeof isWritableField;
-    /** @unstable */
+    /** Partition-key dropdown options for a field type. @unstable */
     partitionKeyOptions: typeof partitionKeyOptions;
-    /** @unstable */
+    /** Projections valid for a field type, in display order (first = dialog default). @unstable */
     projectionsForType: typeof projectionsForType;
+    /** Register field definitions from an enrichment provider (called at activation). */
     registerPluginFieldDefs: typeof registerPluginFieldDefs;
+    /** Remove plugin field definitions by key (called when a plugin is deactivated). */
     unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
 };
 export type FieldDefsApi = {
-    /** @unstable */
+    /** The fields enrichment fetches for `enrichFields` (the default set when null): the chosen
+     *  ones and every field they read, so no field runs without its inputs. @unstable */
     enabledEnrichKeys: typeof enabledEnrichKeys;
-    /** @unstable */
+    /** The enrichment fields `key`'s provider reads. @unstable */
     enrichInputs: typeof enrichInputs;
-    /** @unstable */
+    /** All enrichment field keys (core and plugin-registered). @unstable */
     getAllEnrichKeys: typeof getAllEnrichKeys;
-    /** @unstable */
+    /** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
     getDefaultEnrichKeys: typeof getDefaultEnrichKeys;
-    /** @unstable */
+    /** All enrichment field options: the core fields, then every registered provider's own fields. @unstable */
     getEnrichFieldOptions: typeof getEnrichFieldOptions;
-    /** @unstable */
+    /** True when enrichment fetches `key` for the given enrichment set. @unstable */
     isFieldEnabled: typeof isFieldEnabled;
+    /** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). */
     knownFieldDefs: typeof knownFieldDefs;
 };
 export type HistoryApi = {
+    /** Navigate undo and redo history. */
     History: typeof History;
 };
 export type ImportApi = {
-    /** @unstable */
+    /** Stage, preview, and confirm an import into the open map. @unstable */
     Import: typeof Import;
 };
 export type JobsApi = {
-    /** @unstable */
+    /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
+     *  abort and end their jobs; entries without a cancel are removed outright. @unstable */
     cancelJobs: typeof cancelJobs;
-    /** @unstable */
+    /** Live jobs, for the tray. Reference changes on every update. @unstable */
     getJobs: typeof getJobs;
-    /** @unstable */
+    /** Register a long-running operation with the global job tray. The caller owns the
+     *  work; the registry owns only its presentation and the cancel/reveal controls. @unstable */
     registerJob: typeof registerJob;
-    /** @unstable */
+    /** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
+     *  through the handle, ends the job however `fn` settles, and resolves to how it settled.
+     *  A failure also toasts. @unstable */
     runJob: typeof runJob;
 };
 export type LayerApi = {
-    /** @unstable */
+    /** A pending layer. Operations run in order; work still writing to a landed layer outlives close. @unstable */
     Layer: typeof Layer;
 };
 export type LegacyApi = {
+    /** @deprecated v0.12.0. Use `MMA.Location.add`. */
     addLocations: typeof addLocations;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Edit.selections(MMA.addSelection(...selectors))`. @unstable */
     addSelections: typeof addSelections;
-    /** @unstable */
+    /** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. @unstable */
     addTagToLocations: typeof addTagToLocations;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Edit.selections`. @unstable */
     applySelectionUpdate: typeof applySelectionUpdate;
+    /** @deprecated v0.12.0. Use `MMA.Autosave`. */
     autosave: typeof autosave;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Commit.checkout`. @unstable */
     checkoutCommit: typeof checkoutCommit;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Editor.closeDuplicates`. @unstable */
     closeDuplicates: typeof closeDuplicates;
+    /** @deprecated v0.12.0. Use `MMA.Editor.close`. */
     closeLocation: typeof closeLocation;
+    /** @deprecated v0.12.0. Use `MMA.Maps.close`. */
     closeMap: typeof closeMap;
+    /** @deprecated v0.12.0. Use `MMA.Commit.create`. */
     commitMap: typeof commitMap;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.copyName`. @unstable */
     copyName: typeof copyName;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "countBy", fields: [field], key })`. @unstable */
     countBy: typeof countBy;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "count" })`. @unstable */
     countIn: typeof countIn;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "coverage" })`. @unstable */
     coverage: typeof coverage;
+    /** @deprecated v0.12.0. Use `MMA.Maps.create`. */
     createMap: typeof createMap;
-    /** @unstable */
+    /** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
     createPluginStorage: typeof createPluginStorage;
-    /** @unstable */
+    /** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
     currentSelection: typeof currentSelection;
+    /** @deprecated v0.12.0. Use `MMA.Field.remove`. */
     deleteField: typeof deleteField;
+    /** @deprecated v0.12.0. Use `MMA.Maps.removeFolder`. */
     deleteFolder: typeof deleteFolder;
+    /** @deprecated v0.12.0. Use `MMA.Maps.remove`. */
     deleteMap: typeof deleteMap;
+    /** @deprecated v0.12.0. Use `MMA.Tag.remove`. */
     deleteTags: typeof deleteTags;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.discard`. @unstable */
     discardOpenMap: typeof discardOpenMap;
+    /** @deprecated v0.12.0. Use `MMA.Location.duplicate`. */
     duplicateLocation: typeof duplicateLocation;
+    /** @deprecated v0.12.0. Use `MMA.Maps.duplicate`. */
     duplicateMap: typeof duplicateMap;
+    /** @deprecated v0.12.0. Use `MMA.Edit`. */
     edit: typeof edit;
+    /** @deprecated v0.12.0. Use `MMA.Editor.closePlugin`. */
     exitPluginMode: typeof exitPluginMode;
-    /** @unstable */
+    /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Everything" }, { kind: "locations" })`. @unstable */
     fetchAllLocations: typeof fetchAllLocations;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "bounds" })`. @unstable */
     fetchBounds: typeof fetchBounds;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "columns", fields })`. @unstable */
     fetchColumns: typeof fetchColumns;
-    /** @unstable */
+    /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`. @unstable */
     fetchLocation: typeof fetchLocation;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "locations" })`. @unstable */
     fetchLocations: typeof fetchLocations;
-    /** @unstable */
+    /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`. @unstable */
     fetchLocationsByIds: typeof fetchLocationsByIds;
-    /** @unstable */
+    /** @deprecated v0.10.2. Use `MMA.Query.read(selector, { kind: "coverage" })`. @unstable */
     fieldCoverage: typeof fieldCoverage;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "values", field })`. @unstable */
     fieldValues: typeof fieldValues;
-    /** @unstable */
+    /** @deprecated v0.8.2. Read `MMA.Editor.get().open?.location`. @unstable */
     getActiveLocation: typeof getActiveLocation;
+    /** @deprecated v0.12.0. Use `MMA.SelectionList.active`. */
     getActiveSelections: typeof getActiveSelections;
-    /** @unstable */
+    /** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @unstable */
     getAllSelections: typeof getAllSelections;
-    /** @unstable */
+    /** @deprecated v0.8.2. Read `MMA.Store.get().map`. @unstable */
     getCurrentMap: typeof getCurrentMap;
-    /** @unstable */
+    /** @deprecated v0.8.2. Read `MMA.Store.get().mapId`. @unstable */
     getCurrentMapId: typeof getCurrentMapId;
-    /** @unstable */
+    /** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @unstable */
     getGhostedSelections: typeof getGhostedSelections;
-    /** @unstable */
+    /** @deprecated v0.8.1. Use `MMA.MapHost.get()` and narrow via `MMA.MapHost.instance`. @unstable */
     getGoogleMap: typeof getGoogleMap;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.badgeSources`. @unstable */
     getMapBadgeSources: typeof getMapBadgeSources;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.badges`. @unstable */
     getMapBadges: typeof getMapBadges;
+    /** @deprecated v0.12.0. Use `MMA.MapHost.get`. */
     getMapHost: typeof getMapHost;
+    /** @deprecated v0.12.0. Use `MMA.Maps.list`. */
     getMapList: typeof getMapList;
+    /** @deprecated v0.12.0. Use `MMA.Store.get`. */
     getMapState: typeof getMapState;
-    /** @unstable */
+    /** @deprecated v0.13.0. Use `MMA.Scene.positions`. @unstable */
     getScenePositions: typeof getScenePositions;
-    /** @unstable */
+    /** @deprecated v0.8.2. Read `MMA.Scene.selected()`. @unstable */
     getSelectedLocationIds: typeof getSelectedLocationIds;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.SelectionList.tagIds`. @unstable */
     getSelectedTagIds: typeof getSelectedTagIds;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.SelectionList.tagIdsDeep`. @unstable */
     getSelectedTagIdsDeep: typeof getSelectedTagIdsDeep;
-    /** @unstable */
+    /** @deprecated v0.8.2. Use `MMA.SelectionList.active()`. @unstable */
     getSelections: typeof getSelections;
+    /** @deprecated v0.12.0. Use `MMA.Tag.get`. */
     getTag: typeof getTag;
+    /** @deprecated v0.12.0. Use `MMA.Tag.counts`. */
     getTagCounts: typeof getTagCounts;
+    /** @deprecated v0.12.0. Use `MMA.Tag.all`. */
     getTags: typeof getTags;
+    /** @deprecated v0.12.0. Use `MMA.Tag.visible`. */
     getVisibleTags: typeof getVisibleTags;
-    /** @unstable */
+    /** @deprecated v0.8.2. Read `MMA.Editor.get().workArea`. @unstable */
     getWorkArea: typeof getWorkArea;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.History.available`. @unstable */
     historyAvailable: typeof historyAvailable;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.init`. @unstable */
     initStore: typeof initStore;
-    /** @unstable */
+    /** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
     installedVersion: typeof installedVersion;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.invalidate`. @unstable */
     invalidateMapList: typeof invalidateMapList;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.isReserved`. @unstable */
     isReservedMap: typeof isReservedMap;
+    /** @deprecated v0.12.0. Use `MMA.Query.locationsOf`. */
     locationsOf: typeof locationsOf;
+    /** @deprecated v0.12.0. Use `MMA.Maps.moveToFolder`. */
     moveMapToFolder: typeof moveMapToFolder;
+    /** @deprecated v0.12.0. Use `MMA.Mutation.run`. */
     mutate: typeof mutate;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Editor.openDuplicate`. @unstable */
     openDuplicateLocation: typeof openDuplicateLocation;
+    /** @deprecated v0.12.0. Use `MMA.Editor.open`. */
     openLocation: typeof openLocation;
+    /** @deprecated v0.12.0. Use `MMA.Maps.open`. */
     openMap: typeof openMap;
+    /** @deprecated v0.12.0. Use `MMA.Maps.openScratch`. */
     openScratchMap: typeof openScratchMap;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Editor.openImport`. @unstable */
     openStagedLocation: typeof openStagedLocation;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "groupBy", field, key })`. @unstable */
     partition: typeof partition;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Location.duplicateGroups`. @unstable */
     previewDuplicateGroups: typeof previewDuplicateGroups;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Editor.preview`. @unstable */
     previewLocation: typeof previewLocation;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use MMA.Query.read(selector, ask) instead. @unstable */
     query: typeof query;
+    /** @deprecated v0.12.0. Use `MMA.Query.read`. */
     read: typeof read;
-    /** @unstable */
+    /** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
+     *  own; set `defaultOff` on the provider to make them opt-in. @unstable */
     registerEnrichFields: typeof registerEnrichFields;
-    /** @unstable */
+    /** @deprecated v0.10.2. Use `MMA.Provider.register()`. @unstable */
     registerEnrichmentProvider: typeof registerEnrichmentProvider;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.registerBadges`. @unstable */
     registerMapBadges: typeof registerMapBadges;
+    /** @deprecated v0.12.0. Use `MMA.Provider.register`. */
     registerProvider: typeof registerProvider;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.reload`. @unstable */
     reloadMapList: typeof reloadMapList;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Editor.removeDuplicate`. @unstable */
     removeDuplicate: typeof removeDuplicate;
+    /** @deprecated v0.12.0. Use `MMA.Location.remove`. */
     removeLocations: typeof removeLocations;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Edit.selections({ kind: "remove", keys })`. @unstable */
     removeSelections: typeof removeSelections;
-    /** @unstable */
+    /** @deprecated v0.10.5. Use `MMA.Edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
     removeTagFromAllLocations: typeof removeTagFromAllLocations;
-    /** @unstable */
+    /** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
     removeTagFromLocations: typeof removeTagFromLocations;
+    /** @deprecated v0.12.0. Use `MMA.Field.rename`. */
     renameField: typeof renameField;
+    /** @deprecated v0.12.0. Use `MMA.Maps.renameFolder`. */
     renameFolder: typeof renameFolder;
-    /** @unstable */
+    /** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @unstable */
     request: typeof request;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Edit.selections({ kind: "set", selections: [] })`. @unstable */
     resetSelections: typeof resetSelections;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "ids" })`. @unstable */
     resolveIds: typeof resolveIds;
+    /** @deprecated v0.12.0. Use `MMA.Editor.resolve`. */
     resolveLocation: typeof resolveLocation;
-    /** @unstable */
+    /** @deprecated v0.11.3. Use `MMA.Query.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" })`. @unstable */
     sampleFrom: typeof sampleFrom;
+    /** @deprecated v0.12.0. Use `MMA.SelectionList.select`. */
     select: typeof select;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Editor.open(target)`, or `MMA.Editor.close()` in place of null. @unstable */
     setActiveLocation: typeof setActiveLocation;
+    /** @deprecated v0.12.0. Use `MMA.Editor.openPlugin`. */
     setPluginMode: typeof setPluginMode;
-    /** @unstable */
+    /** @deprecated v0.10.5. The user layer is store-owned state (`MMA.Store.get().fieldDefs`);
+     *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
+     *  for plugin-owned defs. @unstable */
     setUserFieldDefs: typeof setUserFieldDefs;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Editor.setArea`. @unstable */
     setWorkArea: typeof setWorkArea;
+    /** @deprecated v0.12.0. Use `MMA.Mutation.settle`. */
     settled: typeof settled;
+    /** @deprecated v0.12.0. Use `MMA.Tag.names`. */
     tagIdsToNames: typeof tagIdsToNames;
+    /** @deprecated v0.12.0. Use `MMA.Location.update`. */
     updateLocations: typeof updateLocations;
-    /** @unstable */
+    /** @deprecated v0.12.0. Use `MMA.Maps.useBadges`. @unstable */
     useMapBadges: typeof useMapBadges;
+    /** @deprecated v0.12.0. Use `MMA.Maps.useList`. */
     useMapList: typeof useMapList;
+    /** @deprecated v0.12.0. Use `MMA.Store.use`. */
     useMapState: typeof useMapState;
-    /** @unstable */
+    /** @deprecated v0.8.1. Use `MMA.MapHost.wait()`. @unstable */
     waitForGoogleMap: typeof waitForGoogleMap;
+    /** @deprecated v0.12.0. Use `MMA.MapHost.wait`. */
     waitForMapHost: typeof waitForMapHost;
 };
 export type LocationApi = {
+    /** Add, update, remove, and inspect map locations. */
     Location: typeof Location;
 };
 export type MapHostApi = {
-    /** @unstable */
+    /** The embedded map host, its preferences, and click interceptors. @unstable */
     MapHost: typeof MapHost;
 };
 export type MapsApi = {
+    /** Create, list, open, close, and organize maps. */
     Maps: typeof Maps;
 };
 export type MutationApi = {
+    /** Run mutations and wait for their state and display updates. */
     Mutation: typeof Mutation;
 };
 export type PanoApi = {
-    /** @unstable */
+    /** The app's default pano viewer. @unstable */
     Pano: typeof Pano;
 };
 export type PluginStorageApi = {
+    /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
+     *  Each write changes only one key, patched onto the current map settings. */
     mapStorage: typeof mapStorage;
+    /** Persistent key-value storage namespaced to a plugin. Survives restarts. */
     storage: typeof storage;
+    /** React state hook backed by the plugin's persistent store. Survives sidebar
+     *  unmount and app restart. Values are global, not per-map. */
     usePluginState: typeof usePluginState;
 };
 export type ProcedureApi = {
+    /** Procedure modules: ask one a question, or run one over locations. */
     Procedure: typeof Procedure;
 };
 export type ProviderApi = {
+    /** Registered field producers: register one, list them, or run them over locations. */
     Provider: typeof Provider;
 };
 export type ProvidersApi = {
-    /** @unstable */
+    /** The providers the app registers at startup. @unstable */
     BUILTIN_PROVIDERS: typeof BUILTIN_PROVIDERS;
-    /** @unstable */
+    /** Enrich the locations in `selector` with every enrichment field the open map has on,
+     *  resolving their panoramas first unless `resolve` is false. @unstable */
     enrich: typeof enrich;
-    /** @unstable */
+    /** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
+     *  read. Fields not offered in the enrichment settings are always included. @unstable */
     enrichRuns: typeof enrichRuns;
-    /** @unstable */
+    /** Exact capture timestamp, narrowed from the `imageDate` month via binary search. @unstable */
     exactDateProvider: typeof exactDateProvider;
-    /** @unstable */
+    /** Pan a location's heading along the road. The driving direction is the pano's
+     *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. @unstable */
     headingRoadProvider: typeof headingRoadProvider;
-    /** @unstable */
+    /** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
+     *  provider that depends on it. Rows that already have a pano id are skipped unless the
+     *  run is forced. @unstable */
     panoResolveProvider: typeof panoResolveProvider;
-    /** @unstable */
+    /** Subdivision (adm1) via offline point-in-polygon against the local border dataset.
+     *  No Google dependency; downloads the adm1 archive on first use. @unstable */
     subdivisionProvider: typeof subdivisionProvider;
-    /** @unstable */
+    /** Core panorama metadata via Google's GetMetadata RPC. @unstable */
     svMetaProvider: typeof svMetaProvider;
-    /** @unstable */
+    /** Timezone at the location's coordinates. Requires `datetime` to be present. @unstable */
     timezoneProvider: typeof timezoneProvider;
-    /** @unstable */
+    /** Check that each location's Street View coverage still exists, grouping the locations
+     *  into `categories` (keys of `VALIDATION_CATEGORIES`; the standard ones when omitted). @unstable */
     validateLocations: typeof validateLocations;
 };
 export type QueryApi = {
+    /** Read locations and summaries for a selector. */
     Query: typeof Query;
 };
 export type RegistryApi = {
-    /** @unstable */
+    /** Activate a single plugin by id. @unstable */
     activatePlugin: typeof activatePlugin;
+    /** Look up a registered plugin by id. */
     getPlugin: typeof getPlugin;
+    /** All registered plugins, sorted by name. */
     getPlugins: typeof getPlugins;
+    /** True when the plugin contributes data only and has no UI surfaces. */
     isBackgroundPlugin: typeof isBackgroundPlugin;
-    /** @unstable */
+    /** True once the MMA surface is installed and plugins are safe to call it. @unstable */
     isReady: typeof isReady;
+    /** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. */
     registerPlugin: typeof registerPlugin;
-    /** @unstable */
+    /** Enable or disable a plugin. @unstable */
     setPluginEnabled: typeof setPluginEnabled;
-    /** @unstable */
+    /** Remove a plugin from the registry. @unstable */
     unregisterPlugin: typeof unregisterPlugin;
 };
 export type ReviewApi = {
-    /** @unstable */
+    /** Review sessions and their history. @unstable */
     Review: typeof Review;
 };
 export type SavedSelectionApi = {
-    /** @unstable */
+    /** Saved selection rules. @unstable */
     SavedSelection: typeof SavedSelection;
 };
 export type SceneApi = {
-    /** @unstable */
+    /** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
     Scene: typeof Scene;
 };
 export type ScopeApi = {
-    /** @unstable */
+    /** Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
+     *  whoever raises it and whoever hears it agree on the payload. @unstable */
     definePluginEvent: typeof definePluginEvent;
-    /** @unstable */
+    /** Raise one of a plugin's own events, with its payload when it carries one. @unstable */
     emitPluginEvent: typeof emitPluginEvent;
+    /** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
+     *  deactivation. */
     on: typeof on;
-    /** @unstable */
+    /** Resolve a relative path against the current plugin's base directory. Absolute
+     *  paths and `res://` URLs pass through unchanged. @unstable */
     resolvePluginPath: typeof resolvePluginPath;
-    /** @unstable */
+    /** Enroll a teardown callback under the current plugin. No-op outside activation. @unstable */
     trackDisposable: typeof trackDisposable;
-    /** @unstable */
+    /** React hook: what `read` returns, read again each time `event` is raised. `read` must return
+     *  the same reference while nothing it reads has changed. @unstable */
     usePluginEvent: typeof usePluginEvent;
 };
 export type SeenApi = {
-    /** @unstable */
+    /** The seen-location history and how panorama visits are recorded into it. @unstable */
     Seen: typeof Seen;
 };
 export type SelectionListApi = {
-    /** @unstable */
+    /** Change the listed selections and inspect their active members. @unstable */
     SelectionList: typeof SelectionList;
 };
 export type SelectionsApi = {
-    /** @unstable */
+    /** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
+     *  operators are marked for translation. @unstable */
     OP_LABELS: typeof OP_LABELS;
-    /** @unstable */
+    /** The display label of each selector variant. @unstable */
     SELECTIONS: typeof SELECTIONS;
     /** @unstable */
     UNARY_TYPES: typeof UNARY_TYPES;
     /** @unstable */
     addSelection: typeof addSelection;
-    /** @unstable */
+    /** Locations matching every one of `selectors`; with none, every location. @unstable */
     all: typeof all;
-    /** @unstable */
+    /** Locations matching any of `selectors`; with none, no location. @unstable */
     any: typeof any;
     /** @unstable */
     buildSelection: typeof buildSelection;
-    /** @unstable */
+    /** Every child selection a selector wraps, whatever shape it wraps them in. @unstable */
     childSelections: typeof childSelections;
-    /** @unstable */
+    /** Whether a predicate reads the location's clock in its own timezone. Only a range can. @unstable */
     filterIsLocalTime: typeof filterIsLocalTime;
-    /** @unstable */
+    /** Locations holding a value for `field`. @unstable */
     has: typeof has;
-    /** @unstable */
+    /** Locations holding no value for `field`. @unstable */
     lacks: typeof lacks;
-    /** @unstable */
+    /** The interned value a selector tests membership of, or null when it tests something else.
+     *  The single place that recognises value membership, so nothing else has to know its shape. @unstable */
     memberOf: typeof memberOf;
-    /** @unstable */
+    /** Locations not matching `selector`. @unstable */
     not: typeof not;
-    /** @unstable */
+    /** Locations pinned to one exact pano (the flag plus a pano id), or the locations not
+     *  pinned. @unstable */
     panoIdSelector: typeof panoIdSelector;
     /** @unstable */
     replaceSelection: typeof replaceSelection;
-    /** @unstable */
+    /** An unaddressed selection input; the store supplies its key and default color. @unstable */
     selection: typeof selection;
     /** @unstable */
     selectionAt: typeof selectionAt;
-    /** @unstable */
+    /** Human-readable label for a selection. Pass `valueNames` to resolve interned values by
+     *  saved name rather than the open map's records. @unstable */
     selectionDisplayName: typeof selectionDisplayName;
-    /** @unstable */
+    /** The tag a selector names, or null when it names something else. @unstable */
     tagIdOf: typeof tagIdOf;
-    /** @unstable */
+    /** Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
+     *  else, so there is no tag selector to build. @unstable */
     tagSelector: typeof tagSelector;
     /** @unstable */
     toggleSelection: typeof toggleSelection;
-    /** @unstable */
+    /** Locations whose heading was never set. @unstable */
     unpannedSelector: typeof unpannedSelector;
-    /** @unstable */
+    /** Locations with no tags: `tags` resolves to nothing on an untagged location. @unstable */
     untaggedSelector: typeof untaggedSelector;
-    /** @unstable */
+    /** `selector` with its children replaced, keeping the shape it wraps them in. @unstable */
     withChildren: typeof withChildren;
 };
 export type SelectorPickApi = {
-    /** @unstable */
+    /** Convert a picker choice into the corresponding `Selector`. @unstable */
     selectorForPick: typeof selectorForPick;
-    /** @unstable */
+    /** React hook: selector state with live counts. Defaults to the current selection when one
+     *  exists, else all locations. @unstable */
     useSelectorPick: typeof useSelectorPick;
 };
 export type SettingsApi = {
-    /** @unstable */
+    /** localStorage descriptor for the persisted settings object. @unstable */
     APP_SETTINGS: typeof APP_SETTINGS;
-    /** @unstable */
+    /** Download size of each border detail level, in bytes. @unstable */
     BORDER_ARCHIVE_BYTES: typeof BORDER_ARCHIVE_BYTES;
     /** @unstable */
     BORDER_DETAILS: typeof BORDER_DETAILS;
     /** @unstable */
     DATE_TIMEZONES: typeof DATE_TIMEZONES;
-    /** @unstable */
+    /** Default values for every app setting. @unstable */
     DEFAULTS: typeof DEFAULTS;
     /** @unstable */
     DISCORD_PRESENCE_MODES: typeof DISCORD_PRESENCE_MODES;
@@ -7722,7 +7869,7 @@ export type SettingsApi = {
     GEOCODE_PROVIDERS: typeof GEOCODE_PROVIDERS;
     /** @unstable */
     GEOCODE_PROVIDER_LABELS: typeof GEOCODE_PROVIDER_LABELS;
-    /** @unstable */
+    /** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. @unstable */
     LANGUAGES: typeof LANGUAGES;
     /** @unstable */
     MAP_LIST_FIELDS: typeof MAP_LIST_FIELDS;
@@ -7742,46 +7889,59 @@ export type SettingsApi = {
     SUBDIVISION_DETAILS: typeof SUBDIVISION_DETAILS;
     /** @unstable */
     TAG_FOLDER_COLOR_MODES: typeof TAG_FOLDER_COLOR_MODES;
-    /** @unstable */
+    /** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). @unstable */
     TAG_SUGGESTION_LIMITS: typeof TAG_SUGGESTION_LIMITS;
     /** @unstable */
     TAG_VIEW_MODES: typeof TAG_VIEW_MODES;
-    /** @unstable */
+    /** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. @unstable */
     UNIT_SYSTEMS: typeof UNIT_SYSTEMS;
-    /** @unstable */
+    /** The current app settings snapshot. @unstable */
     getSettings: typeof getSettings;
-    /** @unstable */
+    /** True while the pano-UI toggle covers the navigation visuals too. @unstable */
     navHiddenWithUI: typeof navHiddenWithUI;
-    /** @unstable */
+    /** Effective StreetViewPanorama display options derived from the current settings. @unstable */
     panoDisplayOptions: typeof panoDisplayOptions;
-    /** @unstable */
+    /** Reset all settings to defaults. @unstable */
     resetSettings: typeof resetSettings;
-    /** @unstable */
+    /** Update one setting and persist. Emits `settings:changed`. @unstable */
     setSetting: typeof setSetting;
-    /** @unstable */
+    /** React hook: one setting value, re-rendering only when that key changes. @unstable */
     useSetting: typeof useSetting;
-    /** @unstable */
+    /** React hook: all settings, re-rendering on any change. @unstable */
     useSettings: typeof useSettings;
 };
 export type SidecarApi = {
+    /** The nested `sidecar` namespace on the plugin surface. */
     sidecar: typeof sidecar;
 };
 export type StoreApi = {
+    /** Read and update the open map state. */
     Store: typeof Store;
 };
 export type StreetViewApi = {
-    /** @unstable */
+    /** Google Street View: coverage lookups and pano metadata, search radii, pinning locations to
+     *  their panos and turning them along the road, links into Google Maps, and panorama
+     *  downloads. @unstable */
     StreetView: typeof StreetView;
 };
 export type TagApi = {
+    /** Manage tag records and their assignment to locations. */
     Tag: typeof Tag;
 };
 export type TagsApi = {
+    /** Stage typed text as the existing tag it names, ignoring case, or as a name to create.
+     *  Returns `pending` unchanged if already staged. */
     addPendingTag: typeof addPendingTag;
+    /** Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
+     *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. */
     displayTagName: typeof displayTagName;
+    /** The tag ids pending tags save as, creating the typed names. A tag deleted meanwhile is left out. */
     pendingTagIds: typeof pendingTagIds;
+    /** Sort tags by the chosen mode: name, location count, or manual order. */
     sortTagsByMode: typeof sortTagsByMode;
+    /** Color for a tag named `name`. An existing tag uses its stored color. */
     tagColorFor: typeof tagColorFor;
+    /** Stage the tag, or unstage it if it is already staged. */
     togglePendingTag: typeof togglePendingTag;
 };
 export type TauriApi = {
@@ -7791,64 +7951,80 @@ export type TauriApi = {
     shell: typeof shell;
 };
 export type TestApiApi = {
-    /** @unstable */
+    /** Deterministic wrappers the e2e suite drives, mounted as `MMA._test`. App code never calls them. @unstable */
     _test: typeof _test;
 };
 export type ToastApi = {
+    /** Show a brief toast notification. Optionally scoped to a `container` element. */
     toast: typeof toast;
 };
 export type TypesApi = {
-    /** @unstable */
+    /** Convert a [west, south, east, north] bbox tuple to Bounds, or null. @unstable */
     bboxTupleToBounds: typeof bboxTupleToBounds;
-    /** @unstable */
+    /** Convert a Bounds object to a [south, west, north, east] tuple. @unstable */
     boundsToScoreTuple: typeof boundsToScoreTuple;
+    /** A field definition with every optional attribute spelled absent. */
     createFieldDef: typeof createFieldDef;
+    /** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
+     *  overrides hold; adding it to the map returns its real id. */
     createLocation: typeof createLocation;
-    /** @unstable */
+    /** A new Location at the viewer's live camera, carrying `source`'s flags, tagged `tagNames`
+     *  through `records`, which the map it lands in matches to its own tags by name. `extra`
+     *  describes the pano it was fetched for, so it only survives a drop that stayed on that
+     *  pano. @unstable */
     dropLocation: typeof dropLocation;
+    /** Pinned: the location always opens this exact pano. */
     isPinned: typeof isPinned;
+    /** True when bounds span the entire world. */
     isWorldBounds: typeof isWorldBounds;
+    /** Extract the id from a MaybeLocation. */
     locId: typeof locId;
-    /** @unstable */
+    /** Convert a [south, west, north, east] tuple to a Bounds object. @unstable */
     scoreTupleToBounds: typeof scoreTupleToBounds;
+    /** The location pinned to the pano it carries, or unpinned to float on default coverage. */
     setPinned: typeof setPinned;
 };
 export type UiApi = {
+    /** Shared UI primitives for plugin sidebars and dialogs. */
     ui: typeof ui;
 };
 export type UseJobApi = {
+    /** User-triggered async work that reports progress and can be cancelled. Unmounting cancels. */
     useJob: typeof useJob;
 };
 export type UtilApi = {
-    /** @unstable */
+    /** The item `isBetter` prefers over every other, or null when there are none. @unstable */
     bestBy: typeof bestBy;
-    /** @unstable */
+    /** Split `arr` into sub-arrays of at most `n` elements. @unstable */
     chunk: typeof chunk;
-    /** @unstable */
+    /** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
+     *  Build metadata is ignored; a pre-release sorts below the release it precedes. @unstable */
     cmpVersion: typeof cmpVersion;
-    /** @unstable */
+    /** Compare strings with natural (numeric-aware) ordering. @unstable */
     compareNatural: typeof compareNatural;
-    /** @unstable */
+    /** Copy an image Blob to the clipboard. False when the platform refuses it. @unstable */
     copyImageToClipboard: typeof copyImageToClipboard;
-    /** @unstable */
+    /** Trigger a browser download from an in-memory Blob. @unstable */
     downloadBlob: typeof downloadBlob;
-    /** @unstable */
+    /** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @unstable */
     isPrereleaseVersion: typeof isPrereleaseVersion;
-    /** @unstable */
+    /** True when the app runs in a browser instead of the desktop app. @unstable */
     isWeb: typeof isWeb;
-    /** @unstable */
+    /** URL that serves a local file over the `mma-buf://` protocol. @unstable */
     mmaBufUrl: typeof mmaBufUrl;
-    /** @unstable */
+    /** Current time as Unix seconds, the form Location timestamps use. @unstable */
     nowUnix: typeof nowUnix;
-    /** @unstable */
+    /** Compute a locations/second rate for the current progress phase. Re-anchors when a
+     *  new phase is detected (done went backward or total grew). Null until a quarter second
+     *  of work has elapsed. @unstable */
     phaseRate: typeof phaseRate;
-    /** @unstable */
+    /** Prompt for files; resolves empty when the picker is dismissed. @unstable */
     pickFiles: typeof pickFiles;
-    /** @unstable */
+    /** Shuffle `items` in place (Fisher-Yates) and return them. @unstable */
     shuffle: typeof shuffle;
-    /** @unstable */
+    /** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. @unstable */
     splitVersion: typeof splitVersion;
-    /** @unstable */
+    /** Copy of `set` with `value` toggled, or forced on/off by `on`. @unstable */
     toggleInSet: typeof toggleInSet;
 };
 export type ValidationCategoriesApi = {
@@ -7856,7 +8032,7 @@ export type ValidationCategoriesApi = {
     STANDARD_VALIDATION_CATEGORIES: typeof STANDARD_VALIDATION_CATEGORIES;
     /** @unstable */
     VALIDATION_CATEGORIES: typeof VALIDATION_CATEGORIES;
-    /** @unstable */
+    /** The category a key names, or null for one this version does not know. @unstable */
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */

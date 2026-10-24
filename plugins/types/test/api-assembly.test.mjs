@@ -25,8 +25,17 @@ test("only tagged exports reach MMA, each under its own name", async () => {
  "lib/util.ts": "/** Chunks. @api @unstable */\nexport function chunk() {}\n",
  });
  assert.match(api, /import \{ Tag \} from "@\/store\/tag";/);
- assert.match(api, /type UtilApi = \{ chunk: typeof chunk \};/);
+ assert.match(api, /type UtilApi = \{\s*(?:\/\*\*.*\*\/\s*)?chunk: typeof chunk;\s*\};/);
  assert.doesNotMatch(api, /rename/);
+});
+
+test("a member restates its declaration's doc, less the @api tag", async () => {
+ const api = await assemble({
+ "lib/util.ts": "/** Split into chunks. @api @unstable */\nexport function chunk() {}\n/** @api */\nexport function bare() {}\n",
+ });
+ assert.match(api, /\/\*\* Split into chunks\. @unstable \*\/\s*chunk: typeof chunk;/);
+ assert.match(api, /\{\s*bare: typeof bare;/);
+ assert.doesNotMatch(api, /@api \*\/|@api @/);
 });
 
 test("a tagged type is exported beside MMA", async () => {
@@ -43,9 +52,9 @@ test("a section is its file's name, an index takes its folder's, and a shared na
  "lib/sv/query.ts": "/** @api */\nexport function panosAt() {}\n",
  "types/index.ts": "/** @api */\nexport function createLocation() {}\n",
  });
- assert.match(api, /type Store_QueryApi = \{ Query: typeof Query \};/);
- assert.match(api, /type Sv_QueryApi = \{ panosAt: typeof panosAt \};/);
- assert.match(api, /type TypesApi = \{ createLocation: typeof createLocation \};/);
+ assert.match(api, /type Store_QueryApi = \{\s*(?:\/\*\*.*\*\/\s*)?Query: typeof Query;?\s*\};/);
+ assert.match(api, /type Sv_QueryApi = \{\s*(?:\/\*\*.*\*\/\s*)?panosAt: typeof panosAt;?\s*\};/);
+ assert.match(api, /type TypesApi = \{\s*(?:\/\*\*.*\*\/\s*)?createLocation: typeof createLocation;?\s*\};/);
 });
 
 test("two modules putting one name on MMA fail the build", async () => {
@@ -56,4 +65,12 @@ test("two modules putting one name on MMA fail the build", async () => {
  }),
  /open is declared by both a and b/,
  );
+});
+
+test("the first declaration in a file restates only its own doc, not the comments above it", async () => {
+ const api = await assemble({
+ "lib/first.ts": "// A file header.\n// Its second line.\n\n/** @api */\nexport const Zed = {};\n/** Alpha. @api */\nexport const Alpha = {};\n",
+ });
+ assert.doesNotMatch(api, /file header|second line/);
+ assert.match(api, /\{\s*\/\*\* Alpha\. \*\/\n\tAlpha: typeof Alpha;\n\tZed: typeof Zed;/);
 });

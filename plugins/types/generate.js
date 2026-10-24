@@ -136,16 +136,23 @@ function apiDeclarations({ ts, withProgram }, srcDir) {
     const source = program.getSourceFile(file);
     const types = [];
     const values = [];
+    const docs = new Map();
     for (const node of source.statements) {
       if (!node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
       if (!jsDocTagNames(ts, node).includes("api")) continue;
-      if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) types.push(node.name.text);
-      else if (ts.isVariableStatement(node)) values.push(...node.declarationList.declarations.map((d) => d.name.text));
-      else if (node.name) values.push(node.name.text);
+      if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
+        types.push(node.name.text);
+        continue;
+      }
+      const names = ts.isVariableStatement(node) ? node.declarationList.declarations.map((d) => d.name.text) : [node.name.text];
+      // The `MMA` member restates the declaration's doc so its hover reads the same.
+      const doc = docText(source, node.jsDoc.at(-1)).replace(/\s*@api\b/, "").replace(/^\/\*\*\s*\*\/$/, "");
+      for (const name of names) docs.set(name, doc);
+      values.push(...names);
     }
     if (values.length === 0 && types.length === 0) return [];
     const module = path.relative(srcDir, file).replace(/\\/g, "/").replace(/\.tsx?$/, "");
-    return [{ module, values: values.sort(), types: types.sort() }];
+    return [{ module, values: values.sort(), types: types.sort(), docs }];
   }));
 }
 
@@ -199,7 +206,7 @@ async function assembleApi(native, srcDir) {
       .map((m) => `export type { ${m.types.join(", ")} } from "@/${m.module}";`),
     ...withValues.map((m) => `import { ${m.values.join(", ")} } from "@/${m.module}";`),
     "",
-    ...withValues.map((m) => `type ${m.section}Api = { ${m.values.map((v) => `${v}: typeof ${v}`).join("; ")} };`),
+    ...withValues.map((m) => `type ${m.section}Api = { ${m.values.map((v) => [m.docs.get(v), `${v}: typeof ${v}`].filter(Boolean).join("\n")).join(";\n")} };`),
     "",
     "/** The global `MMA` object (also `window.MMA`). */",
     `export interface MMA extends ${withValues.map((m) => `${m.section}Api`).join(", ")} {}`,
@@ -269,6 +276,9 @@ const jsDocTagNames = (ts, node) =>
   ((ts.isVariableDeclaration(node) ? node.parent.parent : node).jsDoc || []).flatMap((doc) =>
     (doc.tags || []).map((t) => t.tagName.text),
   );
+
+// A doc comment's own text. The first statement's doc node also spans the comments above it.
+const docText = (source, doc) => source.text.slice(source.text.lastIndexOf("/**", doc.end), doc.end);
 
 // The declarations of `sym` in `source`, as nodes.
 const declarationsIn = (source, sym) =>
@@ -391,8 +401,7 @@ function stampEdits(source, nodes) {
     const docs = node.jsDoc;
     if (docs && docs.length) {
       const last = docs[docs.length - 1];
-      const text = last.getText(source);
-      if (text.includes("@unstable")) continue;
+      if (docText(source, last).includes("@unstable")) continue;
       // Just before the closing `*/`. On a multi-line block that spot is the start of the
       // closing line, which needs its own ` *  ` prefix; on a one-liner it is mid-line.
       const at = last.getEnd() - 2;

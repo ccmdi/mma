@@ -266,7 +266,7 @@ export default defineConfig({
 		},
 		{
 			files: ["src/api.ts"],
-			rules: { "typescript/no-deprecated": "off" },
+			rules: { "typescript/no-deprecated": "off", "local/deprecated-format": "off" },
 		},
 		{
 			// Legacy shims are the sanctioned aliases: they keep shipped plugins' calls working.
