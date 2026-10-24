@@ -5,7 +5,7 @@ use super::*;
 use crate::selections::Selector;
 use futures::future::{self, BoxFuture, FutureExt, TryFutureExt};
 use mma_algebra::{
-    Edit, Encode, Exhausted, IdRange, Layer, Moved, Op, Patch, Patchable, Transition,
+    Constrained, Edit, Encode, Exhausted, IdRange, Layer, Moved, Op, Patch, Patchable, Transition,
 };
 use std::future::Future;
 use std::pin::Pin;
@@ -158,10 +158,31 @@ impl Intent {
                 let mut records = HashMap::new();
                 let mut remaps = HashMap::new();
                 for (field, held) in incoming.into_iter().filter(|(_, held)| !held.is_empty()) {
-                    let floor = store.fields([field.as_str()])[0].floor();
+                    let floor = store.fields().values([field.as_str()])[0].floor();
                     let before = store.records(&field);
                     let mut after = before.clone();
-                    let remap = reconcile_values_by_name(held.values(), &mut after, floor);
+                    let mut named: Vec<_> = held
+                        .values()
+                        .filter(|record| record.unique().is_some())
+                        .collect();
+                    named.sort_by(|a, b| {
+                        a.order
+                            .unwrap_or(u32::MAX)
+                            .cmp(&b.order.unwrap_or(u32::MAX))
+                            .then_with(|| a.name.cmp(&b.name))
+                    });
+                    let adds = named.iter().map(|record| {
+                        Op::Add(ValueRecord {
+                            order: None,
+                            ..(*record).clone()
+                        })
+                    });
+                    let applied = mma_algebra::apply(&mut after, adds, Id::new(floor));
+                    let remap: HashMap<_, _> = named
+                        .iter()
+                        .map(|record| record.id)
+                        .zip(applied.keys)
+                        .collect();
                     records.insert(
                         field.clone(),
                         Change::at(&before, &after, remap.values().copied()),
@@ -192,7 +213,7 @@ impl Intent {
                     .map(named)
                     .collect::<AppResult<Vec<_>>>()?;
                 let (floor, held) = {
-                    let fields = store.fields([field.as_str()]);
+                    let fields = store.fields().values([field.as_str()]);
                     let values = &fields[0];
                     let held: Vec<Id<ValueRecord>> = values
                         .keys()
@@ -227,7 +248,7 @@ impl Intent {
                 if !applied.redirects.is_empty() {
                     let to = store.registry().assign(&field)?;
                     for row in store.all().rows() {
-                        let current = held_ids(&row, &field);
+                        let current = row.held_ids(&field);
                         if !current.iter().any(|id| applied.redirects.contains_key(id)) {
                             continue;
                         }

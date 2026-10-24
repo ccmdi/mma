@@ -258,28 +258,6 @@ impl Store {
         )
     }
 
-    pub(crate) fn fields<'a>(
-        &'a mut self,
-        fields: impl IntoIterator<Item = &'a str>,
-    ) -> Vec<FieldValues<'a>> {
-        let fields: Vec<_> = fields.into_iter().collect();
-        self.prepare(
-            fields
-                .iter()
-                .map(|field| Index::Presence((*field).to_string())),
-        );
-        fields
-            .into_iter()
-            .map(|field| {
-                FieldValues::new(
-                    field,
-                    &self.field_indexes[field],
-                    self.records.get(field).map(|records| &**records),
-                )
-            })
-            .collect()
-    }
-
     pub(super) fn reindex(
         &mut self,
         projections: &HashMap<String, selections::Projection>,

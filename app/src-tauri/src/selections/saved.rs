@@ -369,17 +369,15 @@ impl SelectionEdit {
 
 impl SavedSelection {
     fn resolved(&self, store: &mut Store) -> Selector {
-        let mut interned = Vec::new();
+        let mut requested = Vec::new();
         self.selector.walk(&mut |selector| {
             if let Some((field, _)) = selector.member_test() {
-                if !interned.iter().any(|known| known == field)
-                    && store.registry().get(field).is_some_and(|def| def.interned)
-                {
-                    interned.push(field.to_string());
+                if !requested.iter().any(|known| known == field) {
+                    requested.push(field.to_string());
                 }
             }
         });
-        let fields = store.fields(interned.iter().map(String::as_str));
+        let fields = store.fields().interned().values(requested);
         let edit = |selector: Selector| {
             let Some((field, raw)) = selector.member_test() else {
                 return selector;

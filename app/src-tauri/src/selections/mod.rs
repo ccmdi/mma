@@ -714,6 +714,17 @@ impl<'a, 'v> RowRef<'a, 'v> {
             )
         });
     }
+    /// The ids of the interned values this row holds in `field`.
+    pub(crate) fn held_ids(&self, field: &str) -> Vec<Id<ValueRecord>> {
+        match self.resolve_field(field) {
+            Some(serde_json::Value::Array(ids)) => ids
+                .iter()
+                .filter_map(|id| Some(Id::new(u32::try_from(id.as_u64()?).ok()?)))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
     pub fn resolve_field(&self, field: &str) -> Option<serde_json::Value> {
         let mut value = None;
         self.resolve_fields(&[field], |_, v| value = Some(v));

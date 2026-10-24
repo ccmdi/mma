@@ -268,9 +268,10 @@ pub async fn store_export(
 ) -> AppResult<String> {
     task::block_in_place(|| {
         engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
-            let interned: Vec<String> = store.registry().interned().map(str::to_string).collect();
             let records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> = store
-                .fields(interned.iter().map(String::as_str))
+                .fields()
+                .interned()
+                .all()
                 .iter()
                 .map(|values| (values.field().to_string(), values.carried()))
                 .collect();

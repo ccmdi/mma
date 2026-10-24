@@ -116,7 +116,7 @@ fn loc_with_tags(id: u32, lat: f64, lng: f64, tags: Vec<u32>) -> Location {
 
 /// Rows carrying tag `id`, off the postings.
 fn tag_count(store: &mut Store, id: u32) -> usize {
-    store.fields(["tags"])[0].count(&id.to_string())
+    store.fields().values(["tags"])[0].count(&id.to_string())
 }
 
 /// Write a row change, or its inverse, through the store.
@@ -4060,7 +4060,7 @@ fn assigning_a_tag_with_no_record_leaves_the_location_without_it() {
         store.get_loc_by_id(Id::new(1)).unwrap().tags,
         tag_ids([known.get()])
     );
-    assert!(store.fields(["tags"])[0].get("99").is_none());
+    assert!(store.fields().values(["tags"])[0].get("99").is_none());
 }
 
 #[test]
@@ -4126,7 +4126,7 @@ fn set_tags_strips_a_tag_and_drops_its_count() {
     assert!(store.get_loc_by_id(Id::new(1)).unwrap().tags.is_empty());
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, tag_ids([t]));
     assert_eq!(
-        store.fields(["tags"])[0].count(&(t as f64).to_string()),
+        store.fields().values(["tags"])[0].count(&(t as f64).to_string()),
         1,
         "only the stripped row leaves the tag"
     );
@@ -4146,7 +4146,10 @@ fn set_tags_lets_add_win_over_remove_and_never_churns_the_row_that_had_it() {
         tag_ids([t]),
         "add wins"
     );
-    assert_eq!(store.fields(["tags"])[0].count(&(t as f64).to_string()), 2);
+    assert_eq!(
+        store.fields().values(["tags"])[0].count(&(t as f64).to_string()),
+        2
+    );
 
     assert_eq!(
         newest_undo(&store)
@@ -4173,11 +4176,11 @@ fn set_tags_adds_and_removes_in_one_pass() {
         tag_ids([new])
     );
     assert_eq!(
-        store.fields(["tags"])[0].count(&(old as f64).to_string()),
+        store.fields().values(["tags"])[0].count(&(old as f64).to_string()),
         0
     );
     assert_eq!(
-        store.fields(["tags"])[0].count(&(new as f64).to_string()),
+        store.fields().values(["tags"])[0].count(&(new as f64).to_string()),
         1
     );
 }
@@ -4196,7 +4199,7 @@ fn set_tags_records_no_update_for_a_row_already_in_the_requested_state() {
         "no row moved, so no undo entry"
     );
     assert_eq!(
-        store.fields(["tags"])[0].count(&(t as f64).to_string()),
+        store.fields().values(["tags"])[0].count(&(t as f64).to_string()),
         1,
         "and the count is not double-added"
     );
@@ -4643,7 +4646,7 @@ fn a_boolean_field_answers_from_the_postings_over_stored_and_overlay_rows() {
         store.registry().get("loadAsPanoId").unwrap().index_shape(),
         IndexShape::Scalar
     );
-    assert_eq!(store.fields(["loadAsPanoId"])[0].count("true"), 2);
+    assert_eq!(store.fields().values(["loadAsPanoId"])[0].count("true"), 2);
     assert_eq!(resolved(&mut store, &flag_filter(true)), vec![1, 3]);
     assert_eq!(resolved(&mut store, &flag_filter(false)), vec![2, 4]);
 }
@@ -5970,10 +5973,6 @@ fn overlay_add_duplicate_id_asserts_in_debug() {
     });
 }
 
-// -----------------------------------------------------------------------
-// Value reconciliation core (reconcile_values_by_name) — shared by import + copy
-// -----------------------------------------------------------------------
-
 fn tag(id: u32, name: &str, color: &str) -> ValueRecord {
     ValueRecord {
         id: Id::new(id),
@@ -5996,6 +5995,38 @@ fn table(records: impl IntoIterator<Item = ValueRecord>) -> HashMap<Id<ValueReco
     records.into_iter().map(|r| (r.id, r)).collect()
 }
 
+pub(crate) fn reconcile_records<'a>(
+    source: impl IntoIterator<Item = &'a ValueRecord>,
+    target: &mut HashMap<Id<ValueRecord>, ValueRecord>,
+    floor: u32,
+) -> HashMap<Id<ValueRecord>, Id<ValueRecord>> {
+    let source: Vec<_> = source.into_iter().cloned().collect();
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![floor])]);
+    store
+        .records
+        .insert("tags".into(), Tracked::new(target.clone()));
+    let rows: Vec<_> = source
+        .iter()
+        .map(|record| Op::Add(loc_with_tags(0, 0.0, 0.0, vec![record.id.get()])))
+        .collect();
+    let edited = store
+        .at(&MAP)
+        .write(Intent::Edit {
+            edits: rows,
+            records: HashMap::from([("tags".into(), table(source.iter().cloned()))]),
+        })
+        .now();
+    *target = store.records("tags");
+    source
+        .iter()
+        .zip(edited.mutation.keys.iter())
+        .map(|(record, id)| {
+            let row = store.get_loc_by_id(*id).unwrap();
+            (record.id, *row.tags.iter().next().unwrap())
+        })
+        .collect()
+}
+
 #[test]
 fn reconcile_values_match_by_name_case_insensitive() {
     let mut target = table([ValueRecord {
@@ -6003,7 +6034,7 @@ fn reconcile_values_match_by_name_case_insensitive() {
         ..tag(3, "rural", "#222222")
     }]);
     let before = target.clone();
-    let remap = reconcile_values_by_name(&[tag(7, "Rural", "#111111")], &mut target, 0);
+    let remap = reconcile_records(&[tag(7, "Rural", "#111111")], &mut target, 0);
     assert_eq!(remap.get(&Id::new(7)), Some(&Id::new(3)));
     assert_eq!(target, before, "pure match mutates nothing");
     assert_eq!(target.len(), 1);
@@ -6017,7 +6048,7 @@ fn reconcile_values_match_by_name_case_insensitive() {
 #[test]
 fn reconcile_values_create_missing_with_source_pile() {
     let mut target: HashMap<Id<ValueRecord>, ValueRecord> = Default::default();
-    let remap = reconcile_values_by_name(&[tag(7, "Trekker", "#abcdef")], &mut target, 9);
+    let remap = reconcile_records(&[tag(7, "Trekker", "#abcdef")], &mut target, 9);
     assert_eq!(remap.get(&Id::new(7)), Some(&Id::new(10)));
     let rec = target.get(&Id::new(10)).unwrap();
     assert_eq!(rec.name.as_deref(), Some("Trekker"));
@@ -6032,7 +6063,7 @@ fn reconcile_values_pile_keys_claimed_when_target_lacks_them() {
         "doclinks",
         serde_json::json!(["https://docs.google.com/document/d/x/edit#heading=h.abc"]),
     );
-    reconcile_values_by_name([&rec], &mut target, 0);
+    reconcile_records([&rec], &mut target, 0);
     assert_eq!(
         extra_at(target.get(&Id::new(3)).unwrap(), "doclinks"),
         extra_at(&rec, "doclinks")
@@ -6052,7 +6083,7 @@ fn reconcile_values_pile_keys_never_overwrite_existing() {
         "doclinks",
         serde_json::json!(["https://docs.google.com/document/d/new/edit#heading=h.new"]),
     );
-    reconcile_values_by_name([&rec], &mut target, 0);
+    reconcile_records([&rec], &mut target, 0);
     assert_eq!(
         extra_at(target.get(&Id::new(3)).unwrap(), "doclinks"),
         &kept
@@ -6062,7 +6093,7 @@ fn reconcile_values_pile_keys_never_overwrite_existing() {
 #[test]
 fn reconcile_values_dedupes_same_name_within_batch() {
     let mut target: HashMap<Id<ValueRecord>, ValueRecord> = Default::default();
-    let remap = reconcile_values_by_name(
+    let remap = reconcile_records(
         &[tag(7, "urban", "#111111"), tag(8, "Urban", "#222222")],
         &mut target,
         0,
@@ -6938,7 +6969,7 @@ fn location_aggregates_include_effective_tag_membership() {
     assert_eq!(store.view().len(), 2);
     assert_eq!(
         {
-            let fields = store.fields(["tags"]);
+            let fields = store.fields().values(["tags"]);
             let tags = &fields[0];
             tags.keys()
                 .into_iter()
@@ -9404,8 +9435,8 @@ fn near_any(store: &mut Store, lat: f64, lng: f64, radius_m: f64) -> bool {
 #[test]
 fn field_access_preserves_request_order_and_builds_presence_for_unbounded_fields() {
     let mut store = setup_store_with(&[loc_with_extra(1, r#"{"note":"hello"}"#), loc(2, 1.0, 1.0)]);
-    assert!(store.fields(iter::empty()).is_empty());
-    let fields = store.fields(["note", "tags", "note"]);
+    assert!(store.fields().values(iter::empty::<&str>()).is_empty());
+    let fields = store.fields().values(["note", "tags", "note"]);
     assert_eq!(
         fields.iter().map(FieldValues::field).collect::<Vec<_>>(),
         ["note", "tags", "note"]
@@ -9420,7 +9451,7 @@ fn field_access_preserves_request_order_and_builds_presence_for_unbounded_fields
     assert!(!store.field_indexes["note"].rows.contains(Id::new(2)));
     assert!(store.field_indexes["note"].by_value.is_empty());
     let first = &store.field_indexes["note"] as *const _;
-    let _ = store.fields(["note"]);
+    let _ = store.fields().values(["note"]);
     assert_eq!(
         first, &store.field_indexes["note"] as *const _,
         "a repeat read reuses the index"

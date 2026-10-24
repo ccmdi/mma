@@ -1,7 +1,9 @@
 use super::*;
 use crate::selections::Selector;
 use crate::store::engine::frame::tests::Captured;
-use crate::store::engine::tests::{shipped, shipped_count, shipped_record, FeedCapture};
+use crate::store::engine::tests::{
+    reconcile_records, shipped, shipped_count, shipped_record, FeedCapture,
+};
 use crate::store::engine::{Store, Target, ValueRecord, WindowLabel};
 use crate::store::maps::{MapPreferences, MapSettings, VirtualTag};
 use crate::store::{engine, maps};
@@ -33,16 +35,11 @@ fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
     }
 }
 
-// -----------------------------------------------------------------------
-// Tag reconciliation (shared core: engine::reconcile_values_by_name), run against
-// the map's display metadata the way import does.
-// -----------------------------------------------------------------------
-
 fn reconcile(
     meta: &mut HashMap<Id<ValueRecord>, ValueRecord>,
     tags: &[ValueRecord],
 ) -> HashMap<u32, u32> {
-    engine::reconcile_values_by_name(tags, meta, 0)
+    reconcile_records(tags, meta, 0)
         .into_iter()
         .map(|(from, to)| (from.get(), to.get()))
         .collect()
@@ -92,7 +89,7 @@ fn reconcile_new_ids_land_above_the_data_floor() {
     // Metadata is empty but the map's rows already carry tag ids up to 7 (metadata was
     // deleted out from under them); fresh ids must not collide with those.
     let mut meta = meta_with(&[]);
-    let remap = engine::reconcile_values_by_name(&[tag(1, "New")], &mut meta, 7);
+    let remap = reconcile_records(&[tag(1, "New")], &mut meta, 7);
     assert_eq!(remap[&Id::new(1)], Id::new(8));
 }
 

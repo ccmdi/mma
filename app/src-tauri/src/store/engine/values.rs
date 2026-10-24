@@ -49,45 +49,6 @@ impl ValueRecord {
     }
 }
 
-/// Match source records to `target` by name, case-insensitively, and return the id remap.
-/// New ids are allocated above `floor`; held metadata wins, and source records join the end of
-/// the target's order in their own order.
-pub(crate) fn reconcile_values_by_name<'a>(
-    source: impl IntoIterator<Item = &'a ValueRecord>,
-    target: &mut HashMap<Id<ValueRecord>, ValueRecord>,
-    floor: u32,
-) -> HashMap<Id<ValueRecord>, Id<ValueRecord>> {
-    let mut named: Vec<&ValueRecord> = source
-        .into_iter()
-        .filter(|r| r.unique().is_some())
-        .collect();
-    named.sort_by(|a, b| {
-        a.order
-            .unwrap_or(u32::MAX)
-            .cmp(&b.order.unwrap_or(u32::MAX))
-            .then_with(|| a.name.cmp(&b.name))
-    });
-    let adds = named.iter().map(|r| {
-        Op::Add(ValueRecord {
-            order: None,
-            ..(*r).clone()
-        })
-    });
-    let applied = mma_algebra::apply(target, adds, Id::new(floor));
-    named.iter().map(|r| r.id).zip(applied.keys).collect()
-}
-
-/// The ids of `field`'s interned values that `row` holds.
-pub(crate) fn held_ids(row: &selections::RowRef<'_, '_>, field: &str) -> Vec<Id<ValueRecord>> {
-    match row.resolve_field(field) {
-        Some(serde_json::Value::Array(ids)) => ids
-            .iter()
-            .filter_map(|id| Some(Id::new(u32::try_from(id.as_u64()?).ok()?)))
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
 /// The name `id`'s record gives it, else the id itself.
 pub(crate) fn value_name(
     records: &HashMap<Id<ValueRecord>, ValueRecord>,
@@ -126,7 +87,7 @@ pub(crate) fn referenced_records(
         .map(|(field, held)| {
             let used: HashSet<Id<ValueRecord>> = rows
                 .iter()
-                .flat_map(|row| held_ids(&selections::RowRef::from_loc(row), field))
+                .flat_map(|row| selections::RowRef::from_loc(row).held_ids(field))
                 .collect();
             let referenced = held
                 .iter()
@@ -165,6 +126,86 @@ pub(crate) fn named(edit: Edit<ValueRecord>) -> AppResult<Edit<ValueRecord>> {
     }
 }
 
+/// Access to a map's field values, narrowed by their declarations.
+pub(crate) struct Fields<'a> {
+    store: &'a mut Store,
+    includes: fn(Option<&maps::FieldDef>) -> bool,
+}
+
+impl Store {
+    pub(crate) fn fields(&mut self) -> Fields<'_> {
+        Fields {
+            store: self,
+            includes: |_| true,
+        }
+    }
+}
+
+impl<'a> Fields<'a> {
+    pub(crate) fn interned(mut self) -> Self {
+        self.includes = |field| field.is_some_and(|field| field.interned);
+        self
+    }
+
+    pub(crate) fn values(
+        self,
+        fields: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Vec<FieldValues<'a>> {
+        let fields: Vec<_> = fields
+            .into_iter()
+            .filter(|field| (self.includes)(self.store.registry().get(field.as_ref())))
+            .collect();
+        self.store.prepare(
+            fields
+                .iter()
+                .map(|field| selections::Index::Presence(field.as_ref().to_string())),
+        );
+        let store: &'a Store = self.store;
+        fields
+            .into_iter()
+            .map(|field| {
+                let (field, index) = store
+                    .field_indexes
+                    .get_key_value(field.as_ref())
+                    .expect("prepared field index");
+                FieldValues {
+                    field,
+                    index,
+                    records: store.records.get(field).map(|records| &**records),
+                }
+            })
+            .collect()
+    }
+
+    pub(crate) fn all(self) -> Vec<FieldValues<'a>> {
+        let fields: Vec<_> = self
+            .store
+            .registry()
+            .iter()
+            .map(|(field, _)| field.to_string())
+            .collect();
+        self.values(fields)
+    }
+
+    /// Values absent after the projected change, among those moved or explicitly touched.
+    pub(crate) fn absent_after(
+        self,
+        projections: &HashMap<String, selections::Projection>,
+        touched: impl Fn(&str) -> Vec<String>,
+    ) -> HashSet<(String, String)> {
+        self.values(projections.keys())
+            .into_iter()
+            .flat_map(|values| {
+                let field = values.field();
+                values
+                    .absent_after(&projections[field], touched(field))
+                    .into_iter()
+                    .map(move |key| (field.to_string(), key))
+            })
+            .collect()
+    }
+}
+
 pub(crate) struct FieldValues<'a> {
     field: &'a str,
     index: &'a selections::FieldIndex,
@@ -172,18 +213,6 @@ pub(crate) struct FieldValues<'a> {
 }
 
 impl<'a> FieldValues<'a> {
-    pub(super) fn new(
-        field: &'a str,
-        index: &'a selections::FieldIndex,
-        records: Option<&'a HashMap<Id<ValueRecord>, ValueRecord>>,
-    ) -> Self {
-        Self {
-            field,
-            index,
-            records,
-        }
-    }
-
     pub(crate) fn field(&self) -> &'a str {
         self.field
     }

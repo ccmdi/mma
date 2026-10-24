@@ -181,15 +181,18 @@ impl<'a> Targeted<'a> {
         let projections = self.store.field_projections(&entry.locations);
         if !matches!(*self.filing, Recording::Moving { .. }) {
             let store = &mut *self.store;
-            let gone = store.emptied_values(&projections, |field| {
-                entry
-                    .records
-                    .get(field)
-                    .into_iter()
-                    .flat_map(Change::keys_iter)
-                    .map(|id| id.to_string())
-                    .collect()
-            });
+            let gone = store
+                .fields()
+                .interned()
+                .absent_after(&projections, |field| {
+                    entry
+                        .records
+                        .get(field)
+                        .into_iter()
+                        .flat_map(Change::keys_iter)
+                        .map(|id| id.to_string())
+                        .collect()
+                });
             entry.selections = store.selections.follow(&entry, &gone, &store.records);
         }
         for row in entry.locations.after() {

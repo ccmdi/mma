@@ -339,8 +339,9 @@ impl Store {
             .map(|(key, _)| key.to_string())
             .collect();
         let field_values: HashMap<String, HashMap<String, HeldValue>> = self
-            .fields(fields.iter().map(String::as_str))
-            .into_iter()
+            .fields()
+            .values(fields.iter().map(String::as_str))
+            .iter()
             .map(|values| {
                 let held = values
                     .project(values.keys())
@@ -398,8 +399,9 @@ impl Store {
                 .extend(delta.keys_iter().map(|id| id.to_string()));
         }
         let field_values: HashMap<String, HashMap<String, Option<HeldValue>>> = self
-            .fields(moved.keys().map(String::as_str))
-            .into_iter()
+            .fields()
+            .values(moved.keys().map(String::as_str))
+            .iter()
             .map(|values| {
                 let field = values.field();
                 (

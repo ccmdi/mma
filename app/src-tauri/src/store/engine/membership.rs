@@ -167,31 +167,6 @@ impl Store {
             .collect()
     }
 
-    /// Interned values that hold no row once the projected change applies, among the values
-    /// it moves and the ones `touched` names for each field, as field and value.
-    pub(super) fn emptied_values(
-        &mut self,
-        projections: &HashMap<String, selections::Projection>,
-        touched: impl Fn(&str) -> Vec<String>,
-    ) -> HashSet<(String, String)> {
-        let fields: Vec<_> = self.registry().interned().map(str::to_string).collect();
-        let fields: Vec<_> = fields
-            .iter()
-            .map(String::as_str)
-            .filter(|f| projections.contains_key(*f))
-            .collect();
-        self.fields(fields)
-            .into_iter()
-            .flat_map(|values| {
-                let field = values.field();
-                values
-                    .absent_after(&projections[field], touched(field))
-                    .into_iter()
-                    .map(move |key| (field.to_string(), key))
-            })
-            .collect()
-    }
-
     /// Recompute selection membership and per-node counts. Render bitmasks are built separately.
     pub(crate) fn resolve_selection_membership(&mut self) {
         #[cfg(test)]
@@ -557,7 +532,7 @@ impl Store {
         };
         let gone = {
             let projections = self.field_projections(&Change::default());
-            self.emptied_values(&projections, named)
+            self.fields().interned().absent_after(&projections, named)
         };
         table
             .into_iter()
