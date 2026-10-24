@@ -5,7 +5,7 @@ use super::*;
 use crate::selections::Selector;
 use futures::future::{self, BoxFuture, FutureExt, TryFutureExt};
 use mma_algebra::{
-    by_key, Edit, Encode, Exhausted, IdRange, Layer, Moved, Op, Patch, Patchable, Transition,
+    Edit, Encode, Exhausted, IdRange, Layer, Moved, Op, Patch, Patchable, Transition,
 };
 use std::future::Future;
 use std::pin::Pin;
@@ -251,13 +251,7 @@ impl Intent {
 
             Intent::Entry(entry) => {
                 let mut moved = Vec::new();
-                let rows = by_key(
-                    entry
-                        .locations
-                        .keys_iter()
-                        .filter_map(|id| store.get_loc_by_id(id)),
-                );
-                if let Err(Moved(ids)) = entry.locations.standing_on(&rows) {
+                if let Err(Moved(ids)) = entry.locations.standing_on(&store.view()) {
                     let ids: Vec<String> = ids.iter().map(ToString::to_string).collect();
                     moved.push(format!("locations {}", ids.join(", ")));
                 }

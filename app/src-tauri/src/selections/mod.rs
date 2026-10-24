@@ -647,6 +647,25 @@ enum RowInner<'a, 'v> {
     Loc(&'a Location),
 }
 
+impl PartialEq<Location> for RowRef<'_, '_> {
+    fn eq(&self, expected: &Location) -> bool {
+        match &self.inner {
+            RowInner::Loc(row) => *row == expected,
+            RowInner::Base(_, _) => self.to_location() == *expected,
+        }
+    }
+}
+
+impl mma_algebra::Holds<Location> for LocView<'_> {
+    fn holds(&self, key: &Id<Location>, expected: Option<&Location>) -> bool {
+        match (self.get(*key), expected) {
+            (Some(row), Some(expected)) => row == *expected,
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
 impl<'a> RowRef<'a, '_> {
     pub fn from_loc(loc: &'a Location) -> Self {
         RowRef {

@@ -1284,6 +1284,25 @@ fn a_change_stands_only_on_a_table_holding_every_state_it_starts_from() {
 }
 
 #[test]
+fn comparison_borrows_values_that_cannot_be_cloned() {
+    #[derive(PartialEq)]
+    struct Value(u32);
+
+    let table = HashMap::from([(1u32, Value(7))]);
+    let change = Change {
+        removed: vec![(1, Value(7))],
+        added: vec![(2, Value(8))],
+        ..Change::default()
+    };
+    assert_eq!(change.standing_on(&table), Ok(()));
+    assert!(!table.holds(&2, Some(&(1, Value(7)))));
+    assert!(!table.holds(&1, None));
+    assert!(table.holds(&2, None));
+    let changed = HashMap::from([(1, Value(9)), (2, Value(8))]);
+    assert_eq!(change.standing_on(&changed).unwrap_err().0.len(), 2);
+}
+
+#[test]
 fn a_json_pointer_escapes_tilde_before_slash() {
     assert_eq!(json_pointer(["a/b", "~1", "c"]), "/a~1b/~01/c");
     assert_eq!(json_pointer([] as [&str; 0]), "");

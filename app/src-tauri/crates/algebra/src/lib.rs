@@ -923,6 +923,24 @@ impl<K: Clone + Eq + Hash + Ord, V> Keyed for (K, V) {
     }
 }
 
+/// Compare a keyed value with the state held there, including absence.
+pub trait Holds<T: Keyed> {
+    fn holds(&self, key: &T::Key, expected: Option<&T>) -> bool;
+}
+
+impl<K: Clone + Eq + Hash + Ord, V: PartialEq> Holds<(K, V)> for HashMap<K, V> {
+    fn holds(&self, key: &K, expected: Option<&(K, V)>) -> bool {
+        expected.is_none_or(|(expected, _)| expected == key)
+            && self.get(key) == expected.map(|(_, value)| value)
+    }
+}
+
+impl<T: Keyed + PartialEq> Holds<T> for BTreeMap<T::Key, T> {
+    fn holds(&self, key: &T::Key, expected: Option<&T>) -> bool {
+        self.get(key) == expected
+    }
+}
+
 /// A value kept in step with a collection by applying each change to it.
 pub trait Follows<T> {
     fn apply(&mut self, change: &Change<T>);
@@ -1594,14 +1612,16 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
             table.insert_row(row.clone());
         }
     }
+}
 
+impl<T: Keyed> Change<T> {
     /// Whether `table` still holds every state this change starts from, naming the keys it does not.
-    pub fn standing_on(&self, table: &impl Table<T>) -> Result<(), Moved<T::Key>> {
+    pub fn standing_on(&self, table: &impl Holds<T>) -> Result<(), Moved<T::Key>> {
         let moved: Vec<T::Key> = self
             .transitions()
             .filter_map(|t| {
                 let key = t.before.or(t.after)?.key();
-                (table.row(&key).as_ref() != t.before).then_some(key)
+                (!table.holds(&key, t.before)).then_some(key)
             })
             .collect();
         if moved.is_empty() {

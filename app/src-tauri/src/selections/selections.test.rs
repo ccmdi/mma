@@ -4242,6 +4242,30 @@ fn map_def(field_type: FieldType) -> FieldDef {
 }
 
 #[test]
+fn a_view_compares_current_content_without_requiring_owned_rows() {
+    use mma_algebra::Holds;
+    let row = loc(1, 1.0, 2.0);
+    let stamped = Location {
+        modified_at: Some(99),
+        ..row.clone()
+    };
+    for fixture in [
+        Fx::base(slice::from_ref(&row)),
+        Fx::adds(vec![row.clone()]),
+        Fx::base(&[loc(1, 0.0, 0.0)]).with_patch(1, row.clone()),
+    ] {
+        let view = fixture.view();
+        assert!(view.holds(&row.id, Some(&stamped)));
+        assert!(!view.holds(&row.id, None));
+        assert!(!view.holds(&row.id, Some(&loc(1, 9.0, 9.0))));
+        assert!(view.holds(&Id::new(2), None));
+    }
+    let removed = Fx::base(slice::from_ref(&row)).with_dead([1]);
+    assert!(removed.view().holds(&row.id, None));
+    assert!(!removed.view().holds(&row.id, Some(&row)));
+}
+
+#[test]
 fn reference_remapping_visits_only_written_references_and_keeps_patch_policies() {
     use mma_algebra::{Field, JsonWrite, Op, Patch, Patchable};
     let defs = HashMap::from([(
