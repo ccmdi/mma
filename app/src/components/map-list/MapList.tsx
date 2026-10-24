@@ -49,7 +49,8 @@ import { useSetting, type MapListField } from "@/store/settings";
 import { labelColor, textColorFor } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { registerJob } from "@/lib/jobs";
-import { applyMapFilter, toggleLabelInQuery } from "./mapQuery";
+import { applyMapFilter, buildMapTree, toggleLabelInQuery, type MapFolderNode } from "./mapQuery";
+import { isAtOrUnder, leafSegment, normalizePath, rebasePath } from "@/lib/data/tagPaths";
 import { t, msg } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
@@ -183,13 +184,11 @@ function WhatsNew() {
 
 // --- Drag types ---
 
-interface DragItem {
-	id: string;
-	folder: string | null;
-	name: string;
-}
+type DragItem =
+	| { kind: "map"; id: string; folder: string | null; name: string }
+	| { kind: "folder"; path: string; parent: string | null; name: string };
 
-// false = no target, null = root, string = folder name
+// false = no target, null = root, string = folder path
 type DropTarget = string | null | false;
 
 function hitTestDropTarget(x: number, y: number): DropTarget {
@@ -203,6 +202,13 @@ function hitTestDropTarget(x: number, y: number): DropTarget {
 	return false;
 }
 
+function canDropItem(item: DragItem, target: DropTarget): target is string | null {
+	if (target === false) return false;
+	if (item.kind === "map") return target !== item.folder;
+	if (target === item.parent) return false;
+	return target === null || !isAtOrUnder(target, item.path);
+}
+
 // --- Subcomponents ---
 
 function RenameFolderDialog({
@@ -212,6 +218,7 @@ function RenameFolderDialog({
 	onRename,
 }: DialogProps & { name: string; onRename: (from: string, to: string) => void }) {
 	const [value, setValue] = useState(name);
+	const to = normalizePath(value);
 	return (
 		<PromptDialog
 			open={open}
@@ -219,9 +226,13 @@ function RenameFolderDialog({
 			title={t("Rename folder")}
 			value={value}
 			onChange={(v) => setValue(v.slice(0, 100))}
+			canSubmit={to.length > 0}
 			submitLabel={t("Save")}
 			onSubmit={() => {
-				const to = value.trim();
+				if (!to || to === name) {
+					onOpenChange(false);
+					return;
+				}
 				onRename(name, to);
 				void Maps.renameFolder(name, to).finally(() => onOpenChange(false));
 			}}
@@ -298,7 +309,12 @@ const MapEntry = React.memo(function MapEntry({
 				reveal
 				draggable={false}
 				onMouseDown={(e) =>
-					onDragStart(e, { id: meta.id, folder: meta.folder, name: meta.name || "(unnamed)" })
+					onDragStart(e, {
+						kind: "map",
+						id: meta.id,
+						folder: meta.folder,
+						name: meta.name || "(unnamed)",
+					})
 				}
 			/>
 			<a
@@ -372,9 +388,8 @@ interface FolderAction {
 }
 
 const FolderEntry = React.memo(function FolderEntry({
-	name,
-	maps,
-	dragId,
+	node,
+	dragItem,
 	onDragStart,
 	onMapAction,
 	onFolderAction,
@@ -383,9 +398,8 @@ const FolderEntry = React.memo(function FolderEntry({
 	badges,
 	searching,
 }: {
-	name: string;
-	maps: MapMeta[];
-	dragId: string | null;
+	node: MapFolderNode;
+	dragItem: DragItem | null;
 	onDragStart: (e: React.MouseEvent, item: DragItem) => void;
 	onMapAction: (action: MapAction) => void;
 	onFolderAction: (action: FolderAction) => void;
@@ -394,24 +408,52 @@ const FolderEntry = React.memo(function FolderEntry({
 	badges: Map<string, MapBadge[]>;
 	searching: boolean;
 }) {
-	const triggerId = `folder:${name}-trig`;
+	const { fullPath, segment, parentPath, children, maps, mapCount, locationCount } = node;
+	const triggerId = `folder:${fullPath}-trig`;
+	const draggedRef = useRef(false);
 	const [collapsed, setCollapsed] = useLocalStorage<string[]>("collapsedFolders", []);
 	// A search reaches into closed folders: the entries have to be mounted for the filter to
 	// find them, and a folder with no match is hidden wholesale below.
-	const open = searching || !collapsed.includes(name);
+	const open = searching || !collapsed.includes(fullPath);
 	const setOpen = (v: boolean) => {
 		if (searching) return;
-		setCollapsed((prev) => (v ? prev.filter((f) => f !== name) : [...prev, name]));
+		setCollapsed((prev) => (v ? prev.filter((f) => f !== fullPath) : [...prev, fullPath]));
 	};
-	const count = useMemo(() => maps.reduce((a, m) => a + m.locationCount, 0), [maps]);
+	const isDragging = dragItem?.kind === "folder" && dragItem.path === fullPath;
+	if (isDragging) draggedRef.current = true;
 
 	return (
 		<Collapsible.Root
 			open={open}
 			onOpenChange={setOpen}
-			render={<li className="map-folder" data-drop-folder={name} data-filter-folder />}
+			render={
+				<li
+					className={clsx("map-folder", isDragging && "is-dragging")}
+					style={isDragging ? { opacity: 0.4 } : undefined}
+					data-drop-folder={fullPath}
+					data-filter-folder
+				/>
+			}
 		>
-			<div>
+			<div
+				onMouseDown={(e) => {
+					draggedRef.current = false;
+					if ((e.target as HTMLElement).closest("button")) return;
+					onDragStart(e, {
+						kind: "folder",
+						path: fullPath,
+						parent: parentPath || null,
+						name: segment,
+					});
+				}}
+				onClickCapture={(e) => {
+					if (draggedRef.current) {
+						draggedRef.current = false;
+						e.preventDefault();
+						e.stopPropagation();
+					}
+				}}
+			>
 				<Collapsible.Trigger
 					id={triggerId}
 					render={
@@ -423,13 +465,13 @@ const FolderEntry = React.memo(function FolderEntry({
 					}
 				/>
 				<label htmlFor={triggerId}>
-					<strong>{name}</strong>
+					<strong>{segment}</strong>
 					<span className="map-list__folder-count">
 						{" "}
 						·{" "}
 						{t("{maps} maps · {locations} locations", {
-							maps: fmt.format(maps.length),
-							locations: fmt.format(count),
+							maps: fmt.format(mapCount),
+							locations: fmt.format(locationCount),
 						})}
 					</span>
 				</label>
@@ -438,22 +480,36 @@ const FolderEntry = React.memo(function FolderEntry({
 					icon={mdiPencil}
 					label={t("Rename folder")}
 					reveal
-					onClick={() => onFolderAction({ type: "rename-folder", name, mapCount: maps.length })}
+					onClick={() => onFolderAction({ type: "rename-folder", name: fullPath, mapCount })}
 				/>
 				<IconButton
 					className="map-list__edit"
 					icon={mdiFolderRemove}
 					label={t("Delete folder")}
 					reveal
-					onClick={() => onFolderAction({ type: "delete-folder", name, mapCount: maps.length })}
+					onClick={() => onFolderAction({ type: "delete-folder", name: fullPath, mapCount })}
 				/>
 			</div>
 			<Collapsible.Panel render={<ul className="map-sublist" />}>
+				{children.map((child) => (
+					<FolderEntry
+						key={child.fullPath}
+						node={child}
+						dragItem={dragItem}
+						onDragStart={onDragStart}
+						onMapAction={onMapAction}
+						onFolderAction={onFolderAction}
+						onLabelClick={onLabelClick}
+						fields={fields}
+						badges={badges}
+						searching={searching}
+					/>
+				))}
 				{maps.map((m) => (
 					<MapEntry
 						key={m.id}
 						meta={m}
-						isDragging={dragId === m.id}
+						isDragging={dragItem?.kind === "map" && dragItem.id === m.id}
 						onDragStart={onDragStart}
 						onAction={onMapAction}
 						onLabelClick={onLabelClick}
@@ -787,32 +843,13 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 	{ value: "amount", label: msg("Location count") },
 ];
 
-function sortMaps(maps: MapMeta[], mode: SortMode): MapMeta[] {
-	const sorted = [...maps];
-	switch (mode) {
-		case "name":
-			return sorted.sort((a, b) => a.name.localeCompare(b.name));
-		case "opened":
-			return sorted.sort((a, b) => {
-				const at = a.lastOpenedAt ?? "";
-				const bt = b.lastOpenedAt ?? "";
-				if (!at && bt) return 1;
-				if (at && !bt) return -1;
-				return at > bt ? -1 : at < bt ? 1 : 0;
-			});
-		case "created":
-			return sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-		case "amount":
-			return sorted.sort((a, b) => b.locationCount - a.locationCount);
-	}
-}
-
 // --- Main ---
 
 export function MapList() {
 	const maps = Maps.useList();
 	const [sortMode, setSortMode] = useLocalStorage<SortMode>("mapListSort", "name");
 	const [syntheticFolders, setSyntheticFolders] = useState<string[]>([]);
+	const [, setCollapsed] = useLocalStorage<string[]>("collapsedFolders", []);
 	const [dragItem, setDragItem] = useState<DragItem | null>(null);
 	const previewRef = useRef<HTMLDivElement>(null);
 	const dropRef = useRef<DropTarget>(false);
@@ -833,29 +870,10 @@ export function MapList() {
 		if (filterRef.current) applyMapFilter(listRef.current, filterRef.current);
 	}, [maps]);
 
-	const grouped = useMemo(() => {
-		const folders = new Map<string | null, MapMeta[]>();
-		folders.set(null, []);
-		for (const sf of syntheticFolders) {
-			if (!folders.has(sf)) folders.set(sf, []);
-		}
-		for (const m of maps) {
-			const key = m.folder;
-			if (!folders.has(key)) folders.set(key, []);
-			folders.get(key)!.push(m);
-		}
-		return folders;
-	}, [maps, syntheticFolders]);
-
-	const folderEntries = useMemo(
-		(): [string, MapMeta[]][] =>
-			[...grouped.entries()]
-				.filter((e): e is [string, MapMeta[]] => e[0] !== null)
-				.sort(([a], [b]) => a.localeCompare(b))
-				.map(([k, v]) => [k, sortMaps(v, sortMode)]),
-		[grouped, sortMode],
+	const { folders, rootMaps } = useMemo(
+		() => buildMapTree(maps, syntheticFolders, sortMode),
+		[maps, syntheticFolders, sortMode],
 	);
-	const rootMaps = useMemo(() => sortMaps(grouped.get(null) ?? [], sortMode), [grouped, sortMode]);
 
 	const [activeAction, setActiveAction] = useState<(MapAction | FolderAction) | null>(null);
 
@@ -866,6 +884,13 @@ export function MapList() {
 	const closeAction = useCallback((open: boolean) => !open && setActiveAction(null), []);
 	const handleMapAction = useCallback((action: MapAction) => setActiveAction(action), []);
 	const handleFolderAction = useCallback((action: FolderAction) => setActiveAction(action), []);
+	const rebaseFolders = useCallback(
+		(from: string, to: string) => {
+			setSyntheticFolders((prev) => [...new Set(prev.map((f) => rebasePath(f, from, to) ?? f))]);
+			setCollapsed((prev) => [...new Set(prev.map((f) => rebasePath(f, from, to) ?? f))]);
+		},
+		[setCollapsed],
+	);
 
 	const handleDragStart = useItemDrag((_e, item: DragItem) => {
 		const placePreview = (ev: MouseEvent) => {
@@ -888,7 +913,7 @@ export function MapList() {
 				const target = hitTestDropTarget(ev.clientX, ev.clientY);
 				dropRef.current = target;
 				clearHighlight();
-				if (target !== false && target !== item.folder) {
+				if (canDropItem(item, target)) {
 					const selector =
 						target === null
 							? "[data-drop-folder='']"
@@ -902,7 +927,15 @@ export function MapList() {
 			},
 			onDrop: () => {
 				const target = dropRef.current;
-				if (target !== false && target !== item.folder) void Maps.moveToFolder(item.id, target);
+				if (!canDropItem(item, target)) return;
+				if (item.kind === "map") {
+					void Maps.moveToFolder(item.id, target);
+				} else {
+					const seg = leafSegment(item.path);
+					const to = target === null ? seg : `${target}/${seg}`;
+					rebaseFolders(item.path, to);
+					void Maps.renameFolder(item.path, to);
+				}
 			},
 			onEnd: () => {
 				clearHighlight();
@@ -988,7 +1021,7 @@ export function MapList() {
 						icon={mdiFolder}
 						label={t("New folder")}
 						onClick={() => {
-							const name = filterInputRef.current?.value.trim();
+							const name = normalizePath(filterInputRef.current?.value ?? "");
 							if (!name) {
 								toast(t("Type a name to create a folder"));
 								return;
@@ -1011,12 +1044,11 @@ export function MapList() {
 				</p>
 
 				<ul className="map-list" data-drop-folder="" ref={listRef}>
-					{folderEntries.map(([name, maps]) => (
+					{folders.map((node) => (
 						<FolderEntry
-							key={name}
-							name={name!}
-							maps={maps}
-							dragId={dragItem?.id ?? null}
+							key={node.fullPath}
+							node={node}
+							dragItem={dragItem}
 							onDragStart={handleDragStart}
 							onMapAction={handleMapAction}
 							onFolderAction={handleFolderAction}
@@ -1030,7 +1062,7 @@ export function MapList() {
 						<MapEntry
 							key={m.id}
 							meta={m}
-							isDragging={dragItem?.id === m.id}
+							isDragging={dragItem?.kind === "map" && dragItem.id === m.id}
 							onDragStart={handleDragStart}
 							onAction={handleMapAction}
 							onLabelClick={toggleLabelFilter}
@@ -1093,9 +1125,7 @@ export function MapList() {
 					open
 					onOpenChange={closeAction}
 					name={activeAction.name}
-					onRename={(from, to) =>
-						setSyntheticFolders((prev) => prev.map((f) => (f === from ? to : f)))
-					}
+					onRename={rebaseFolders}
 				/>
 			)}
 			{activeAction?.type === "delete-folder" && (
@@ -1115,7 +1145,8 @@ export function MapList() {
 					onConfirm={() => {
 						const name = activeAction.name;
 						setActiveAction(null);
-						setSyntheticFolders((prev) => prev.filter((f) => f !== name));
+						setSyntheticFolders((prev) => prev.filter((f) => !isAtOrUnder(f, name)));
+						setCollapsed((prev) => prev.filter((f) => !isAtOrUnder(f, name)));
 						void Maps.removeFolder(name);
 					}}
 				/>

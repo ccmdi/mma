@@ -1,6 +1,87 @@
 /** Map-list search grammar: whitespace-separated terms, AND'd together.
  *  `label:x` or `label:"x y"` matches maps carrying that label (prefix,
  *  case-insensitive); plain terms match name or labels by substring. */
+import type { MapMeta } from "@/bindings.gen";
+import type { SortMode } from "@/types";
+import { ensurePathNode, normalizePath, type PathTreeNode } from "@/lib/data/tagPaths";
+
+export interface MapFolderNode extends PathTreeNode<MapFolderNode> {
+	maps: MapMeta[];
+	/** Total maps at this folder and every subfolder under it. */
+	mapCount: number;
+	/** Total locations across every map in this folder's subtree. */
+	locationCount: number;
+}
+
+export function sortMaps(maps: MapMeta[], mode: SortMode): MapMeta[] {
+	const sorted = [...maps];
+	switch (mode) {
+		case "name":
+			return sorted.sort((a, b) => a.name.localeCompare(b.name));
+		case "opened":
+			return sorted.sort((a, b) => {
+				const at = a.lastOpenedAt ?? "";
+				const bt = b.lastOpenedAt ?? "";
+				if (!at && bt) return 1;
+				if (at && !bt) return -1;
+				return at > bt ? -1 : at < bt ? 1 : 0;
+			});
+		case "created":
+			return sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+		case "amount":
+			return sorted.sort((a, b) => b.locationCount - a.locationCount);
+	}
+}
+
+/** Build the nested map-folder tree from `/`-delimited folder paths and synthetic empty folders. */
+export function buildMapTree(
+	maps: MapMeta[],
+	syntheticFolders: readonly string[],
+	sortMode: SortMode,
+): { folders: MapFolderNode[]; rootMaps: MapMeta[] } {
+	const folders: MapFolderNode[] = [];
+	const rootMaps: MapMeta[] = [];
+
+	const ensureFolder = (raw: string): MapFolderNode | null => {
+		const clean = normalizePath(raw);
+		if (!clean) return null;
+		return ensurePathNode(folders, clean.split("/"), (segment, fullPath, parentPath) => ({
+			segment,
+			fullPath,
+			parentPath,
+			children: [],
+			maps: [],
+			mapCount: 0,
+			locationCount: 0,
+		}));
+	};
+
+	for (const sf of syntheticFolders) ensureFolder(sf);
+	for (const m of maps) {
+		const node = m.folder ? ensureFolder(m.folder) : null;
+		if (node) node.maps.push(m);
+		else rootMaps.push(m);
+	}
+
+	const finalize = (nodes: MapFolderNode[]) => {
+		nodes.sort((a, b) => a.segment.localeCompare(b.segment));
+		for (const n of nodes) {
+			finalize(n.children);
+			n.maps = sortMaps(n.maps, sortMode);
+			let mapCount = n.maps.length;
+			let locationCount = n.maps.reduce((a, m) => a + m.locationCount, 0);
+			for (const c of n.children) {
+				mapCount += c.mapCount;
+				locationCount += c.locationCount;
+			}
+			n.mapCount = mapCount;
+			n.locationCount = locationCount;
+		}
+	};
+	finalize(folders);
+
+	return { folders, rootMaps: sortMaps(rootMaps, sortMode) };
+}
 
 export interface MapQuery {
 	text: string[];

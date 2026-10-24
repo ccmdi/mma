@@ -1432,3 +1432,52 @@ fn a_replica_keeps_what_plugins_hold_on_this_device_and_sends_its_host_nothing()
     assert_eq!(host.version, host_version);
     assert!(host.meta.local_plugin_data.is_empty());
 }
+
+#[test]
+fn moving_a_folder_rebases_subfolders_and_spares_prefix_siblings() {
+    let conn = setup_real_db();
+    for (id, folder) in [
+        ("m1", "Europe"),
+        ("m2", "Europe/DACH"),
+        ("m3", "Europe/DACH/Germany"),
+        ("m4", "European"),
+    ] {
+        conn.execute(
+            "INSERT OR REPLACE INTO maps (id, name, folder, settings, created_at, updated_at)
+             VALUES (?1, ?1, ?2, '{}', 'now', 'now')",
+            params![id, folder],
+        )
+        .unwrap();
+    }
+
+    move_folder_in_db(&conn, "Europe", Some("EU")).unwrap();
+    let folders = |conn: &Connection| -> Vec<(String, Option<String>)> {
+        let mut stmt = conn
+            .prepare("SELECT id, folder FROM maps ORDER BY id")
+            .unwrap();
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    };
+    assert_eq!(
+        folders(&conn),
+        vec![
+            ("m1".into(), Some("EU".into())),
+            ("m2".into(), Some("EU/DACH".into())),
+            ("m3".into(), Some("EU/DACH/Germany".into())),
+            ("m4".into(), Some("European".into())),
+        ]
+    );
+
+    move_folder_in_db(&conn, "EU/DACH", None).unwrap();
+    assert_eq!(
+        folders(&conn),
+        vec![
+            ("m1".into(), Some("EU".into())),
+            ("m2".into(), None),
+            ("m3".into(), None),
+            ("m4".into(), Some("European".into())),
+        ]
+    );
+}

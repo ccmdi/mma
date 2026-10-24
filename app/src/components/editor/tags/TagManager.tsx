@@ -44,7 +44,7 @@ import {
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { useDialog } from "@/store/dialogBus";
-import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
+import { isAtOrUnder, leafSegment, normalizePath } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
 const NO_VIRTUAL_TAGS = {};
@@ -650,10 +650,7 @@ function NewFolderDialog({
 		[tags, aliases, virtualTags],
 	);
 
-	const segment = name
-		.trim()
-		.replace(/^\/+|\/+$/g, "")
-		.replace(/\/{2,}/g, "/");
+	const segment = normalizePath(name);
 	const path = segment ? (parentPath ? `${parentPath}/${segment}` : segment) : "";
 	const collision = !!path && occupied.has(path);
 

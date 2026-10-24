@@ -18,6 +18,17 @@ vi.mock("@/lib/commands", async () =>
 			);
 			return { version: 0, keys: [] };
 		},
+		storeMoveFolder: async (...args: unknown[]) => {
+			const [from, to] = args as [string, string | null];
+			disk.maps = disk.maps.map((m) => {
+				const meta = m as MapMeta;
+				if (!meta.folder) return meta;
+				if (meta.folder === from) return { ...meta, folder: to };
+				if (meta.folder.startsWith(`${from}/`))
+					return { ...meta, folder: to ? `${to}${meta.folder.slice(from.length)}` : null };
+				return meta;
+			});
+		},
 	}),
 );
 vi.mock("@tauri-apps/api/event", () => ({ emit: async () => {}, listen: async () => () => {} }));
@@ -77,6 +88,26 @@ describe("moving a map into a folder", () => {
 		await Maps.moveToFolder("a", "Europe");
 		expect(Maps.list().find((m) => m.id === "a")?.folder).toBe("Europe");
 		expect(Maps.list()).toEqual(disk.maps);
+	});
+
+	it("renames and removes nested folders across the whole subtree", async () => {
+		disk.maps = [
+			{ ...meta("a"), folder: "Europe" },
+			{ ...meta("b"), folder: "Europe/DACH" },
+			{ ...meta("c"), folder: "Europe/DACH/Germany" },
+			{ ...meta("d"), folder: "European" },
+		];
+		await Maps.reload();
+		await Maps.renameFolder("Europe", "EU");
+		expect(Maps.list().map((m) => m.folder)).toEqual([
+			"EU",
+			"EU/DACH",
+			"EU/DACH/Germany",
+			"European",
+		]);
+
+		await Maps.removeFolder("EU/DACH");
+		expect(Maps.list().map((m) => m.folder)).toEqual(["EU", null, null, "European"]);
 	});
 });
 

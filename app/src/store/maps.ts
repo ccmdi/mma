@@ -1,4 +1,5 @@
 import { Autosave } from "./autosave";
+import { isAtOrUnder, rebasePath } from "@/lib/data/tagPaths";
 import { Feed } from "./feed";
 import { Store } from "./store";
 import { Editor } from "./editor";
@@ -175,9 +176,13 @@ export const Maps = {
 	copyName: (name: string): string => {
 		return t("{name} (copy)", { name: name || t("(unnamed)") });
 	},
-	/** Rename a folder, moving all its maps to the new name. */
+	/** Rename a folder, moving all its maps (and subfolders) to the new name. */
 	renameFolder: async (from: string, to: string) => {
-		cachedMapList = cachedMapList.map((m) => (m.folder === from ? { ...m, folder: to } : m));
+		cachedMapList = cachedMapList.map((m) => {
+			if (m.folder == null) return m;
+			const next = rebasePath(m.folder, from, to);
+			return next !== null ? { ...m, folder: next } : m;
+		});
 		emitEvent("map-list:changed");
 		await cmd.storeMoveFolder(from, to);
 	},
@@ -190,8 +195,12 @@ export const Maps = {
 		}
 		await Edit.meta({ id: mapId, folder });
 	},
-	/** Delete a folder. Maps in it become unfoldered. */
+	/** Delete a folder. Maps at or under it become unfoldered. */
 	removeFolder: async (name: string) => {
+		cachedMapList = cachedMapList.map((m) =>
+			m.folder != null && isAtOrUnder(m.folder, name) ? { ...m, folder: null } : m,
+		);
+		emitEvent("map-list:changed");
 		await cmd.storeMoveFolder(name, null);
 	},
 	/** Add a source of map-row badges. @unstable */

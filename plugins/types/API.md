@@ -2028,7 +2028,7 @@ deleteFolder(name: string): Promise<void>
 
 **Deprecated in v0.12.0.** Use `MMA.Maps.removeFolder`.
 
-Delete a folder. Maps in it become unfoldered.
+Delete a folder. Maps at or under it become unfoldered.
 
 ### deleteMap
 
@@ -2916,7 +2916,7 @@ renameFolder(from: string, to: string): Promise<void>
 
 **Deprecated in v0.12.0.** Use `MMA.Maps.renameFolder`.
 
-Rename a folder, moving all its maps to the new name.
+Rename a folder, moving all its maps (and subfolders) to the new name.
 
 ### request
 
@@ -3395,7 +3395,7 @@ Permanently delete a map and all its data. Not undoable.
 Maps.removeFolder(name: string): Promise<void>
 ```
 
-Delete a folder. Maps in it become unfoldered.
+Delete a folder. Maps at or under it become unfoldered.
 
 #### Maps.renameFolder
 
@@ -3405,7 +3405,7 @@ Delete a folder. Maps in it become unfoldered.
 Maps.renameFolder(from: string, to: string): Promise<void>
 ```
 
-Rename a folder, moving all its maps to the new name.
+Rename a folder, moving all its maps (and subfolders) to the new name.
 
 #### Maps.useBadges
 

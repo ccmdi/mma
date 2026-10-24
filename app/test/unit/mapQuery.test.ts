@@ -4,7 +4,9 @@ import {
 	mapMatchesQuery,
 	labelToken,
 	toggleLabelInQuery,
+	buildMapTree,
 } from "@/components/map-list/mapQuery";
+import type { MapMeta } from "@/bindings.gen";
 
 describe("parseMapQuery", () => {
 	it("splits plain terms and label: terms", () => {
@@ -72,5 +74,47 @@ describe("labelToken / toggleLabelInQuery", () => {
 		const once = toggleLabelInQuery("", "west europe");
 		expect(once).toBe('label:"west europe"');
 		expect(toggleLabelInQuery(once, "west europe")).toBe("");
+	});
+});
+
+describe("buildMapTree", () => {
+	const map = (name: string, folder: string | null, locationCount = 10): MapMeta =>
+		({
+			id: name,
+			name,
+			folder,
+			locationCount,
+			createdAt: "2026-01-01",
+		}) as MapMeta;
+
+	it("nests `/`-delimited folder paths and rolls up map and location counts", () => {
+		const tree = buildMapTree(
+			[
+				map("Root Map", null, 5),
+				map("Austria", "Europe/DACH", 10),
+				map("Bavaria", "Europe/DACH/Germany", 20),
+				map("France", "Europe", 15),
+			],
+			["Europe/Nordics"],
+			"name",
+		);
+
+		expect(tree.rootMaps.map((m) => m.name)).toEqual(["Root Map"]);
+		expect(tree.folders).toHaveLength(1);
+		const europe = tree.folders[0];
+		expect(europe.segment).toBe("Europe");
+		expect(europe.fullPath).toBe("Europe");
+		expect(europe.mapCount).toBe(3);
+		expect(europe.locationCount).toBe(45);
+		expect(europe.maps.map((m) => m.name)).toEqual(["France"]);
+		expect(europe.children.map((c) => c.fullPath)).toEqual(["Europe/DACH", "Europe/Nordics"]);
+
+		const dach = europe.children[0];
+		expect(dach.segment).toBe("DACH");
+		expect(dach.mapCount).toBe(2);
+		expect(dach.locationCount).toBe(30);
+		expect(dach.children[0].fullPath).toBe("Europe/DACH/Germany");
+		expect(dach.children[0].mapCount).toBe(1);
+		expect(dach.children[0].locationCount).toBe(20);
 	});
 });

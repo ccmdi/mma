@@ -11,7 +11,13 @@ import { rgbToHex } from "@/lib/util/color";
 import type { TagFolderColorMode } from "@/store/settings";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { toggleInSet } from "@/lib/util/util";
-import { isAtOrUnder, leafSegment, rebasePath } from "@/lib/data/tagPaths";
+import {
+	ensurePathNode,
+	findPathNode,
+	isAtOrUnder,
+	leafSegment,
+	rebasePath,
+} from "@/lib/data/tagPaths";
 
 const EXPANDED_KEY = "tagTreeExpanded";
 
@@ -134,32 +140,18 @@ const DEFAULT_FOLDER_COLOR: FolderColorOpts = { mode: "direct", color: "#888888"
 
 /** Walk/create the node chain for `parts`, returning the leaf node. */
 function ensurePath(root: TagTreeNode[], parts: string[]): TagTreeNode {
-	let level = root;
-	let pathSoFar = "";
-	let node!: TagTreeNode;
-	for (const segment of parts) {
-		const parentPath = pathSoFar;
-		pathSoFar = pathSoFar ? `${pathSoFar}/${segment}` : segment;
-		let existing = level.find((n) => n.segment === segment);
-		if (!existing) {
-			existing = {
-				segment,
-				fullPath: pathSoFar,
-				parentPath,
-				tag: null,
-				inheritedColor: "",
-				children: [],
-				subtreeTagIds: [],
-				count: null,
-				sortOrder: 0,
-				isAlias: false,
-			};
-			level.push(existing);
-		}
-		node = existing;
-		level = existing.children;
-	}
-	return node;
+	return ensurePathNode(root, parts, (segment, fullPath, parentPath) => ({
+		segment,
+		fullPath,
+		parentPath,
+		tag: null,
+		inheritedColor: "",
+		children: [],
+		subtreeTagIds: [],
+		count: null,
+		sortOrder: 0,
+		isAlias: false,
+	}));
 }
 
 /** Build the nested tag tree from `/`-delimited tag names. Within each level, leaf tags
@@ -465,13 +457,8 @@ export function cascadeRename(
 }
 
 /** Resolve a split-mode tree node by full path (paths are `/`-joined segments). */
-function findByPath(tree: TagTreeNode[], path: string): TagTreeNode | null {
-	for (const n of tree) {
-		if (isAtOrUnder(path, n.fullPath))
-			return n.fullPath === path ? n : findByPath(n.children, path);
-	}
-	return null;
-}
+const findByPath = (tree: TagTreeNode[], path: string): TagTreeNode | null =>
+	findPathNode(tree, path);
 
 /** Whether the sibling block `dragPaths` may drop INTO folder `targetPath`: the target is
  *  a folder (branch or declared empty folder) outside the block and its subtrees, and

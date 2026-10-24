@@ -1,7 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { isAtOrUnder, leafSegment, rebasePath, shortestUniqueSuffixes } from "@/lib/data/tagPaths";
+import {
+	ensurePathNode,
+	findPathNode,
+	isAtOrUnder,
+	leafSegment,
+	normalizePath,
+	rebasePath,
+	shortestUniqueSuffixes,
+	type PathTreeNode,
+} from "@/lib/data/tagPaths";
 
 describe("tag paths", () => {
+	it("normalizes slashes and whitespace", () => {
+		expect(normalizePath("  /Europe//DACH/ ")).toBe("Europe/DACH");
+		expect(normalizePath("///")).toBe("");
+	});
+
 	it("names the last segment", () => {
 		expect(leafSegment("Europe/France/Paris")).toBe("Paris");
 		expect(leafSegment("Red")).toBe("Red");
@@ -18,6 +32,22 @@ describe("tag paths", () => {
 		expect(rebasePath("A", "A", "Z")).toBe("Z");
 		expect(rebasePath("A/B/C", "A", "Z/Y")).toBe("Z/Y/B/C");
 		expect(rebasePath("AB", "A", "Z")).toBeNull();
+	});
+
+	it("walks and finds nodes in a generic path tree", () => {
+		type Node = PathTreeNode<Node>;
+		const root: Node[] = [];
+		const make = (segment: string, fullPath: string, parentPath: string): Node => ({
+			segment,
+			fullPath,
+			parentPath,
+			children: [],
+		});
+		const leaf = ensurePathNode(root, ["Europe", "DACH", "Bavaria"], make);
+		expect(leaf.fullPath).toBe("Europe/DACH/Bavaria");
+		expect(leaf.parentPath).toBe("Europe/DACH");
+		expect(findPathNode(root, "Europe/DACH")?.segment).toBe("DACH");
+		expect(findPathNode(root, "Europe/France")).toBeNull();
 	});
 });
 

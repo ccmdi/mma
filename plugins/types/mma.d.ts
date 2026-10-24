@@ -4341,11 +4341,11 @@ declare const Maps: {
     isReserved: (id: string | null) => boolean;
     /** The name a copy of the map named `name` starts with. @unstable */
     copyName: (name: string) => string;
-    /** Rename a folder, moving all its maps to the new name. */
+    /** Rename a folder, moving all its maps (and subfolders) to the new name. */
     renameFolder: (from: string, to: string) => Promise<void>;
     /** Move a map into a folder, or to the root when `folder` is null. */
     moveToFolder: (mapId: string, folder: string | null) => Promise<void>;
-    /** Delete a folder. Maps in it become unfoldered. */
+    /** Delete a folder. Maps at or under it become unfoldered. */
     removeFolder: (name: string) => Promise<void>;
     /** Add a source of map-row badges. @unstable */
     registerBadges: (source: BadgeSource) => void;

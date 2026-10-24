@@ -997,7 +997,43 @@ fn update_map_meta(
     Ok(store.at(&Target::Map { id: None }).write(patch).map(Some))
 }
 
-/// Move every map in folder `from` to folder `to`, or to the root when `to` is null.
+/// Rebase a `/`-delimited folder path from `from` (or any subfolder under it) to `to`.
+/// Returns `Some(new_folder)` when `folder` sits at or under `from`, else `None`.
+fn rebase_folder(folder: &str, from: &str, to: Option<&str>) -> Option<Option<String>> {
+    if folder == from {
+        return Some(to.map(str::to_owned));
+    }
+    let rest = folder.strip_prefix(from)?.strip_prefix('/')?;
+    Some(to.map(|base| format!("{base}/{rest}")))
+}
+
+fn move_folder_in_db(conn: &Connection, from: &str, to: Option<&str>) -> AppResult<()> {
+    let sub_start = format!("{from}/");
+    let sub_end = format!("{from}0");
+    match to {
+        Some(to) => {
+            let start = from.len() + 1;
+            conn.execute(
+                "UPDATE maps SET folder = CASE
+                    WHEN folder = ?1 THEN ?2
+                    ELSE ?2 || substr(folder, ?3)
+                 END
+                 WHERE folder = ?1 OR (folder >= ?4 AND folder < ?5)",
+                params![from, to, start, sub_start, sub_end],
+            )?;
+        }
+        None => {
+            conn.execute(
+                "UPDATE maps SET folder = NULL
+                 WHERE folder = ?1 OR (folder >= ?2 AND folder < ?3)",
+                params![from, sub_start, sub_end],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Move every map in folder `from` (and its subfolders) to `to`, or to the root when `to` is null.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_move_folder(
@@ -1006,23 +1042,22 @@ pub async fn store_move_folder(
     to: Option<String>,
 ) -> AppResult<()> {
     for store in state.lock()?.stores.values_mut() {
-        if store.meta.folder.as_deref() == Some(from.as_str()) {
-            let refiled = Patch::<MapMeta> {
-                id: store.meta.id.clone(),
-                folder: to.clone().into(),
-                ..Default::default()
-            };
-            let _ = store.at(&Target::Map { id: None }).write(refiled);
-        }
+        let Some(next) = store
+            .meta
+            .folder
+            .as_deref()
+            .and_then(|f| rebase_folder(f, &from, to.as_deref()))
+        else {
+            continue;
+        };
+        let refiled = Patch::<MapMeta> {
+            id: store.meta.id.clone(),
+            folder: next.into(),
+            ..Default::default()
+        };
+        let _ = store.at(&Target::Map { id: None }).write(refiled);
     }
-    storage::with_db(move |conn| {
-        conn.execute(
-            "UPDATE maps SET folder = ?1 WHERE folder = ?2",
-            params![to, from],
-        )?;
-        Ok(())
-    })
-    .await
+    storage::with_db(move |conn| move_folder_in_db(conn, &from, to.as_deref())).await
 }
 
 // ---------------------------------------------------------------------------
