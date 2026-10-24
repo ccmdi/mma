@@ -4,7 +4,8 @@
 //! Values are visible while rows reference them; empty records remain available for reuse.
 
 use super::*;
-use crate::selections;
+use crate::selections::{self, Index};
+use crate::store::maps::{FieldDef, IndexShape};
 use crate::types::{AppError, AppResult, Location};
 use crate::util::Rgb;
 use mma_algebra::{trimmed_name, unique_name, Constrained, Edit, Field, Id, Op};
@@ -147,9 +148,79 @@ impl<'a> Fields<'a> {
         self
     }
 
+    /// Build missing field indexes together in one walk over the current rows.
+    pub(super) fn prepare(&mut self, indexes: impl IntoIterator<Item = Index>) {
+        let mut missing = HashMap::new();
+        for index in indexes {
+            let (field, presence) = match index {
+                Index::Presence(field) => (field, true),
+                Index::Values(field) => (field, false),
+                Index::Spatial => continue,
+            };
+            let def = self.store.registry().get(&field);
+            let shape = def.map_or(IndexShape::None, FieldDef::index_shape);
+            if (self.includes)(def)
+                && (presence || shape != IndexShape::None)
+                && !self.store.field_indexes.contains_key(&field)
+            {
+                missing.insert(field, shape);
+            }
+        }
+        if missing.is_empty() {
+            return;
+        }
+        let mut built: Vec<_> = missing
+            .into_iter()
+            .map(|(field, shape)| {
+                (
+                    field,
+                    selections::FieldIndex {
+                        shape,
+                        rows: IdSet::new(),
+                        by_value: HashMap::new(),
+                    },
+                )
+            })
+            .collect();
+        let (names, mut indexes): (Vec<_>, Vec<_>) = built
+            .iter_mut()
+            .map(|(field, index)| (field.as_str(), index))
+            .unzip();
+        for row in self.store.all().rows() {
+            row.resolve_fields(&names, |i, value| indexes[i].insert(row.id(), &value));
+        }
+        self.store.field_indexes.extend(built);
+    }
+
+    /// Apply these fields' prepared contributions and return the value keys they moved.
+    pub(crate) fn apply(
+        self,
+        projections: &HashMap<String, selections::Projection>,
+    ) -> HashMap<String, BTreeSet<String>> {
+        let registry = selections::FieldRegistry::new(&self.store.field_defs);
+        self.store
+            .field_indexes
+            .iter_mut()
+            .filter(|(field, _)| (self.includes)(registry.get(field)))
+            .filter_map(|(field, index)| {
+                let moved = index.apply(projections.get(field)?);
+                (!moved.is_empty()).then_some((field.clone(), moved))
+            })
+            .collect()
+    }
+
+    /// Discard indexes whose declarations changed.
+    pub(super) fn invalidate(self, previous: &HashMap<String, FieldDef>) {
+        let fields = &self.store.field_defs;
+        let registry = selections::FieldRegistry::new(fields);
+        self.store.field_indexes.retain(|field, _| {
+            !(self.includes)(registry.get(field)) || previous.get(field) == fields.get(field)
+        });
+    }
+
     /// Project a row change onto these fields, preparing missing indexes against current rows.
     pub(crate) fn project(
-        self,
+        mut self,
         rows: &Change<Location>,
     ) -> HashMap<String, selections::Projection> {
         let indexes: Vec<_> = self
@@ -168,7 +239,7 @@ impl<'a> Fields<'a> {
                     )
             })
             .collect();
-        self.store.prepare(indexes);
+        self.prepare(indexes);
         self.store
             .field_indexes
             .iter()
@@ -178,14 +249,14 @@ impl<'a> Fields<'a> {
     }
 
     pub(crate) fn values(
-        self,
+        mut self,
         fields: impl IntoIterator<Item = impl AsRef<str>>,
     ) -> Vec<FieldValues<'a>> {
         let fields: Vec<_> = fields
             .into_iter()
             .filter(|field| (self.includes)(self.store.registry().get(field.as_ref())))
             .collect();
-        self.store.prepare(
+        self.prepare(
             fields
                 .iter()
                 .map(|field| selections::Index::Presence(field.as_ref().to_string())),

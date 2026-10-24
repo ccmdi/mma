@@ -3,12 +3,12 @@
 use super::*;
 use crate::selections::{self, Index, Selector, Thinning};
 use crate::store::id_set::IdSet;
-use crate::store::maps::{FieldDef, IndexShape, MapMeta};
+use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
 use mma_algebra::Id;
 use mma_geo::{fold_lng, HexGrid, SpatialIndex, EARTH_R_M};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -258,65 +258,18 @@ impl Store {
         )
     }
 
-    pub(super) fn reindex(
-        &mut self,
-        projections: &HashMap<String, selections::Projection>,
-    ) -> HashMap<String, BTreeSet<String>> {
-        self.field_indexes
-            .iter_mut()
-            .filter_map(|(field, index)| {
-                let moved = index.apply(projections.get(field)?);
-                (!moved.is_empty()).then_some((field.clone(), moved))
-            })
-            .collect()
-    }
-
     pub(super) fn prepare(&mut self, indexes: impl IntoIterator<Item = Index>) {
-        let mut fields = HashMap::new();
         let mut spatial = false;
-        for index in indexes {
-            let (field, presence) = match index {
-                Index::Presence(field) => (field, true),
-                Index::Values(field) => (field, false),
-                Index::Spatial => {
-                    spatial = true;
-                    continue;
-                }
-            };
-            // An undeclared key is unindexable: it has no type to ask.
-            let shape = self
-                .registry()
-                .get(&field)
-                .map_or(IndexShape::None, FieldDef::index_shape);
-            if (presence || shape != IndexShape::None) && !self.field_indexes.contains_key(&field) {
-                fields.insert(field, shape);
+        self.fields().prepare(indexes.into_iter().filter(|index| {
+            if matches!(index, Index::Spatial) {
+                spatial = true;
+                false
+            } else {
+                true
             }
-        }
+        }));
         if spatial {
             Ensured::<SpatialIndex>::with(self, |_, _| ());
-        }
-        let missing: Vec<_> = fields.into_iter().collect();
-        if missing.is_empty() {
-            return;
-        }
-        let mut built: Vec<selections::FieldIndex> = missing
-            .iter()
-            .map(|(_, shape)| selections::FieldIndex {
-                shape: *shape,
-                rows: IdSet::new(),
-                by_value: HashMap::new(),
-            })
-            .collect();
-        let names: Vec<&str> = missing.iter().map(|(field, _)| field.as_str()).collect();
-        for row in self.all().rows() {
-            let id = row.id();
-            row.resolve_fields(&names, |i, v| {
-                let index = &mut built[i];
-                index.insert(id, &v);
-            });
-        }
-        for ((field, _), index) in missing.into_iter().zip(built) {
-            self.field_indexes.insert(field, index);
         }
     }
 

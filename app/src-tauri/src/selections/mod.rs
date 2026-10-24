@@ -560,14 +560,13 @@ impl FieldIndex {
         change: &Change<(Id<Location>, Option<Vec<String>>)>,
     ) -> BTreeSet<String> {
         let mut moved = BTreeSet::new();
-        for (rows, present) in [
-            (change.before().collect::<Vec<_>>(), false),
-            (change.after().collect(), true),
-        ] {
-            for (id, keys) in rows {
-                self.mark(*id, keys, present);
-                moved.extend(keys.iter().flatten().cloned());
-            }
+        for ((id, keys), present) in change
+            .before()
+            .map(|row| (row, false))
+            .chain(change.after().map(|row| (row, true)))
+        {
+            self.mark(*id, keys, present);
+            moved.extend(keys.iter().flatten().cloned());
         }
         moved
     }

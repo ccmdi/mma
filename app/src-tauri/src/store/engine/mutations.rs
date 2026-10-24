@@ -388,9 +388,7 @@ impl Store {
             entry.defs.apply_to(self.field_defs.edit());
         }
         if let Some(defs) = defs {
-            let fields = &self.field_defs;
-            self.field_indexes
-                .retain(|key, _| defs.get(key) == fields.get(key));
+            self.fields().invalidate(&defs);
         }
     }
 

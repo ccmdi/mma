@@ -391,7 +391,7 @@ impl Store {
         let (changes, records) = (&entry.locations, &entry.records);
         self.bump();
 
-        let mut moved = self.reindex(projections);
+        let mut moved = self.fields().apply(projections);
         for (field, delta) in records {
             moved
                 .entry(field.clone())

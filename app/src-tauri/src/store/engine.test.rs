@@ -678,7 +678,7 @@ fn removing_a_row_the_index_never_had_is_a_no_op() {
         removed: vec![l],
         ..Default::default()
     });
-    store.reindex(&projections);
+    store.fields().apply(&projections);
     assert_eq!(tag_count(&mut store, 10), 0, "and no member is invented");
 }
 
