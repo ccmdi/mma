@@ -3,11 +3,10 @@ import type { Tag } from "@/types";
 import {
 	rangeToggleTagIds,
 	menuTargetTagIds,
-	reorderSiblingsFlatOrder,
-	stepSiblingFlatOrder,
+	stepDrop,
 	collectDragBlock,
 	canDropInto,
-	moveIntoFolder,
+	moveBlock,
 	hoverDrop,
 	buildTagTree,
 	cascadeRename,
@@ -18,27 +17,26 @@ import {
 	type TagTreeCounts,
 	type FolderColorOpts,
 	type FlatOrder,
+	type DropTarget,
 } from "@/components/editor/tags/tagTreeModel";
 import type { VirtualTag } from "@/bindings.gen";
 import { findNode, mkTag, segs } from "./fixtures/tagFixtures";
 
 const NO_COUNTS: TagTreeCounts = { tags: {}, folders: new Map() };
 
-const tree3 = () =>
-	buildTagTree([mkTag(1, "a"), mkTag(2, "b"), mkTag(3, "c")], "default", NO_COUNTS);
-const tree5 = () =>
-	buildTagTree(
-		[mkTag(1, "a"), mkTag(2, "b"), mkTag(3, "c"), mkTag(4, "d"), mkTag(5, "e")],
-		"default",
-		NO_COUNTS,
-	);
+const abc = [mkTag(1, "a"), mkTag(2, "b"), mkTag(3, "c")];
+const abcde = [...abc, mkTag(4, "d"), mkTag(5, "e")];
 /** Leaves float above folders, so `q` renders (and orders) before folder `p`. */
-const pxyzq = () =>
-	buildTagTree(
-		[mkTag(10, "p/x"), mkTag(11, "p/y"), mkTag(12, "p/z"), mkTag(20, "q")],
-		"default",
-		NO_COUNTS,
-	);
+const pxyzq = [mkTag(10, "p/x"), mkTag(11, "p/y"), mkTag(12, "p/z"), mkTag(20, "q")];
+const beside = (path: string, position: "before" | "after", parent = ""): DropTarget => ({
+	path,
+	position,
+	parent,
+});
+/** The order after moving `paths` to `drop` in the tree built from `tags`. */
+const movedOrder = (tags: Tag[], paths: string[], drop: DropTarget) =>
+	moveBlock(buildTagTree(tags, "default", NO_COUNTS), paths, drop, tags, {}, {})?.orderedIds ??
+	null;
 
 describe("resolveExpandedPaths", () => {
 	const tree = buildTagTree(
@@ -164,88 +162,59 @@ describe("menuTargetTagIds", () => {
 	});
 });
 
-describe("reorderSiblingsFlatOrder", () => {
-	const tree = tree3();
-
+describe("moveBlock on the block's own level", () => {
 	it("moves a root sibling after another", () => {
-		expect(reorderSiblingsFlatOrder(tree, ["a"], "c", "after", "")?.orderedIds).toEqual([2, 3, 1]);
+		expect(movedOrder(abc, ["a"], beside("c", "after"))).toEqual([2, 3, 1]);
 	});
 
 	it("moves a root sibling before another", () => {
-		expect(reorderSiblingsFlatOrder(tree, ["c"], "a", "before", "")?.orderedIds).toEqual([3, 1, 2]);
+		expect(movedOrder(abc, ["c"], beside("a", "before"))).toEqual([3, 1, 2]);
 	});
 
 	it("reorders within a parent and preserves other subtrees + relative order", () => {
-		// move p/z before p/x -> z,x,y under p; q untouched
-		expect(reorderSiblingsFlatOrder(pxyzq(), ["p/z"], "p/x", "before", "p")?.orderedIds).toEqual([
-			20, 12, 10, 11,
-		]);
+		expect(movedOrder(pxyzq, ["p/z"], beside("p/x", "before", "p"))).toEqual([20, 12, 10, 11]);
 	});
 
-	it("returns null when the target isn't a sibling under the given parent", () => {
-		expect(reorderSiblingsFlatOrder(pxyzq(), ["p/x"], "q", "after", "p")).toBeNull();
+	it("renames nothing and remaps no path", () => {
+		const tags = [mkTag(1, "F/u"), mkTag(2, "G/v")];
+		const tree = buildTagTree(tags, "default", NO_COUNTS);
+		const move = moveBlock(tree, ["G"], beside("F", "before"), tags, {}, {})!;
+		expect(move.tagRenames).toEqual([]);
+		expect(move.pathRemaps).toEqual([]);
+		expect(move.orderedIds).toEqual([2, 1]);
 	});
 
-	it("returns null when source equals target", () => {
-		expect(reorderSiblingsFlatOrder(tree, ["a"], "a", "after", "")).toBeNull();
+	it("returns null when the anchor isn't a child of the drop's parent", () => {
+		expect(movedOrder(pxyzq, ["p/x"], beside("q", "after", "p"))).toBeNull();
+	});
+
+	it("returns null when the anchor is in the block", () => {
+		expect(movedOrder(abc, ["a"], beside("a", "after"))).toBeNull();
+		expect(movedOrder(abc, ["a", "c"], beside("c", "after"))).toBeNull();
 	});
 
 	it("does not emit an alias leaf's id (the real leaf owns it)", () => {
-		const withAlias = buildTagTree(
-			[mkTag(1, "a"), mkTag(3, "c")],
-			"default",
-			NO_COUNTS,
-			{},
-			{ b: 1 },
-		);
+		const tags = [mkTag(1, "a"), mkTag(3, "c")];
+		const withAlias = buildTagTree(tags, "default", NO_COUNTS, {}, { b: 1 });
 		expect(findNode(withAlias, "b")!.isAlias).toBe(true);
-		// Reordering real siblings must not duplicate/emit the alias's id 1.
-		expect(reorderSiblingsFlatOrder(withAlias, ["a"], "c", "after", "")?.orderedIds).toEqual([
-			3, 1,
-		]);
+		const move = moveBlock(withAlias, ["a"], beside("c", "after"), tags, {}, { b: 1 });
+		expect(move?.orderedIds).toEqual([3, 1]);
 	});
 
 	it("treats a root leaf whose name contains '/' as a root sibling (no-split flat view)", () => {
-		// Flat view: "Europe/France" is one leaf at root, not a child of "Europe".
-		const flat = buildTagTree(
-			[mkTag(1, "Europe/France"), mkTag(2, "Red"), mkTag(3, "Blue")],
-			"default",
-			NO_COUNTS,
-			{},
-			{},
-			false,
-		);
-		expect(
-			reorderSiblingsFlatOrder(flat, ["Europe/France"], "Blue", "after", "")?.orderedIds,
-		).toEqual([2, 3, 1]);
+		const tags = [mkTag(1, "Europe"), mkTag(2, "Europe/France"), mkTag(3, "Red"), mkTag(4, "Blue")];
+		const flat = buildTagTree(tags, "default", NO_COUNTS, {}, {}, false);
+		const move = moveBlock(flat, ["Europe/France"], beside("Blue", "after"), tags, {}, {});
+		expect(move?.tagRenames).toEqual([]);
+		expect(move?.orderedIds).toEqual([1, 3, 4, 2]);
 	});
 
 	it("moves a non-contiguous block after a target, preserving relative order", () => {
-		expect(reorderSiblingsFlatOrder(tree5(), ["b", "d"], "e", "after", "")?.orderedIds).toEqual([
-			1, 3, 5, 2, 4,
-		]);
+		expect(movedOrder(abcde, ["b", "d"], beside("e", "after"))).toEqual([1, 3, 5, 2, 4]);
 	});
 
 	it("moves a block before the first sibling", () => {
-		expect(reorderSiblingsFlatOrder(tree5(), ["c", "e"], "a", "before", "")?.orderedIds).toEqual([
-			3, 5, 1, 2, 4,
-		]);
-	});
-
-	it("returns null when the target is part of the block", () => {
-		expect(reorderSiblingsFlatOrder(tree, ["a", "c"], "c", "after", "")).toBeNull();
-	});
-
-	it("ignores block paths outside the sibling group", () => {
-		const nested = buildTagTree(
-			[mkTag(10, "p/x"), mkTag(11, "p/y"), mkTag(20, "q"), mkTag(30, "r")],
-			"default",
-			NO_COUNTS,
-		);
-		// p/x isn't a root sibling; only q moves.
-		expect(reorderSiblingsFlatOrder(nested, ["q", "p/x"], "r", "after", "")?.orderedIds).toEqual([
-			30, 20, 10, 11,
-		]);
+		expect(movedOrder(abcde, ["c", "e"], beside("a", "before"))).toEqual([3, 5, 1, 2, 4]);
 	});
 });
 
@@ -590,7 +559,7 @@ describe("syncAliasSegments", () => {
 	});
 });
 
-describe("canDropInto / moveIntoFolder", () => {
+describe("canDropInto / moveBlock", () => {
 	// Root pills Red(1), Blue(2); folder Cars { a(3), b(4), Old { c(5) } }.
 	const baseTags = [
 		mkTag(1, "Red"),
@@ -613,7 +582,7 @@ describe("canDropInto / moveIntoFolder", () => {
 	it("allows a segment collision with the target's children", () => {
 		const tags = [...baseTags, mkTag(6, "Cars/Red")];
 		expect(canDropInto(tree(tags), ["Red"], "Cars")).toBe(true);
-		const move = moveIntoFolder(tree(tags), ["Red"], "Cars", tags, {}, {});
+		const move = moveBlock(tree(tags), ["Red"], { path: "Cars", position: "into" }, tags, {}, {});
 		expect(move?.tagRenames).toContainEqual({ id: 1, name: "Cars/Red" });
 	});
 
@@ -632,20 +601,20 @@ describe("canDropInto / moveIntoFolder", () => {
 	});
 
 	it("moves a folder's tag to the top level: bare name, ordered after the last root node", () => {
-		const move = moveIntoFolder(tree(), ["Cars/a"], "", baseTags, {}, {});
+		const move = moveBlock(tree(), ["Cars/a"], { path: "", position: "into" }, baseTags, {}, {});
 		expect(move!.tagRenames).toEqual([{ id: 3, name: "a" }]);
 		expect(move!.orderedIds).toEqual([1, 2, 4, 5, 3]);
 	});
 
 	it("moves a nested folder to the top level: cascades and remaps its path", () => {
-		const move = moveIntoFolder(tree(), ["Cars/Old"], "", baseTags, {}, {});
+		const move = moveBlock(tree(), ["Cars/Old"], { path: "", position: "into" }, baseTags, {}, {});
 		expect(move!.tagRenames).toEqual([{ id: 5, name: "Old/c" }]);
 		expect(move!.pathRemaps).toEqual([["Cars/Old", "Old"]]);
 		expect(move!.orderedIds).toEqual([1, 2, 3, 4, 5]);
 	});
 
 	it("moves a pill into a folder: rename + order appended at the end of the folder", () => {
-		const move = moveIntoFolder(tree(), ["Red"], "Cars", baseTags, {}, {});
+		const move = moveBlock(tree(), ["Red"], { path: "Cars", position: "into" }, baseTags, {}, {});
 		expect(move).not.toBeNull();
 		expect(move!.tagRenames).toEqual([{ id: 1, name: "Cars/Red" }]);
 		expect(move!.orderedIds).toEqual([2, 3, 4, 5, 1]);
@@ -653,7 +622,14 @@ describe("canDropInto / moveIntoFolder", () => {
 	});
 
 	it("moves a block of pills keeping relative order", () => {
-		const move = moveIntoFolder(tree(), ["Red", "Blue"], "Cars", baseTags, {}, {});
+		const move = moveBlock(
+			tree(),
+			["Red", "Blue"],
+			{ path: "Cars", position: "into" },
+			baseTags,
+			{},
+			{},
+		);
 		expect(move!.tagRenames).toEqual([
 			{ id: 1, name: "Cars/Red" },
 			{ id: 2, name: "Cars/Blue" },
@@ -664,10 +640,10 @@ describe("canDropInto / moveIntoFolder", () => {
 	it("moves a folder: cascades descendants, remaps the path, rewrites settings keys", () => {
 		const tags = [...baseTags, mkTag(6, "Misc/x")];
 		const aliases = { "Misc/redAlias": 1 };
-		const move = moveIntoFolder(
+		const move = moveBlock(
 			tree(tags, aliases),
 			["Misc"],
-			"Cars",
+			{ path: "Cars", position: "into" },
 			tags,
 			{ Misc: { color: "#aaa" } },
 			aliases,
@@ -682,28 +658,29 @@ describe("canDropInto / moveIntoFolder", () => {
 	});
 
 	it("returns null on an invalid drop", () => {
-		expect(moveIntoFolder(tree(), ["Cars"], "Cars/Old", baseTags, {}, {})).toBeNull();
+		expect(
+			moveBlock(tree(), ["Cars"], { path: "Cars/Old", position: "into" }, baseTags, {}, {}),
+		).toBeNull();
 	});
 
 	it("lands a block beside its anchor in the target folder", () => {
-		const into = (anchor: { path: string; position: "before" | "after" }, paths = ["Red"]) =>
-			moveIntoFolder(tree(), paths, "Cars", baseTags, {}, {}, anchor)!.orderedIds;
-		expect(into({ path: "Cars/a", position: "before" })).toEqual([2, 1, 3, 4, 5]);
-		expect(into({ path: "Cars/a", position: "after" })).toEqual([2, 3, 1, 4, 5]);
-		expect(into({ path: "Cars/b", position: "after" })).toEqual([2, 3, 4, 1, 5]);
-		expect(into({ path: "Cars/a", position: "after" }, ["Red", "Blue"])).toEqual([3, 1, 2, 4, 5]);
+		const into = (drop: DropTarget, paths = ["Red"]) =>
+			moveBlock(tree(), paths, drop, baseTags, {}, {})!.orderedIds;
+		expect(into(beside("Cars/a", "before", "Cars"))).toEqual([2, 1, 3, 4, 5]);
+		expect(into(beside("Cars/a", "after", "Cars"))).toEqual([2, 3, 1, 4, 5]);
+		expect(into(beside("Cars/b", "after", "Cars"))).toEqual([2, 3, 4, 1, 5]);
+		expect(into(beside("Cars/a", "after", "Cars"), ["Red", "Blue"])).toEqual([3, 1, 2, 4, 5]);
 	});
 
 	it("lands a block beside its anchor on the top level", () => {
-		const anchor = { path: "Red", position: "after" as const };
-		const move = moveIntoFolder(tree(), ["Cars/b"], "", baseTags, {}, {}, anchor);
+		const move = moveBlock(tree(), ["Cars/b"], beside("Red", "after"), baseTags, {}, {});
 		expect(move!.tagRenames).toEqual([{ id: 4, name: "b" }]);
 		expect(move!.orderedIds).toEqual([1, 4, 2, 3, 5]);
 	});
 
 	it("returns null when the anchor is not a child of the target", () => {
-		const anchor = { path: "Red", position: "before" as const };
-		expect(moveIntoFolder(tree(), ["Cars/a"], "Cars/Old", baseTags, {}, {}, anchor)).toBeNull();
+		const drop = beside("Red", "before", "Cars/Old");
+		expect(moveBlock(tree(), ["Cars/a"], drop, baseTags, {}, {})).toBeNull();
 	});
 });
 
@@ -829,18 +806,18 @@ describe("declared empty folders (virtualTags)", () => {
 		expect(canDropInto(tree, ["x"], "y")).toBe(false);
 	});
 
-	it("moveIntoFolder into an empty folder renames the tag under it", () => {
+	it("moveBlock into an empty folder renames the tag under it", () => {
 		const tags = [mkTag(1, "x")];
 		const tree = buildTagTree(tags, "default", NO_COUNTS, { E: {} });
-		const move = moveIntoFolder(tree, ["x"], "E", tags, { E: {} }, {});
+		const move = moveBlock(tree, ["x"], { path: "E", position: "into" }, tags, { E: {} }, {});
 		expect(move!.tagRenames).toEqual([{ id: 1, name: "E/x" }]);
 		expect(move!.virtualTags).toEqual({ E: {} });
 	});
 
-	it("moveIntoFolder moves an empty folder as a pure virtualTags rewrite, placed after the target's tags", () => {
+	it("moveBlock moves an empty folder as a pure virtualTags rewrite, placed after the target's tags", () => {
 		const tags = [mkTag(1, "F/u")];
 		const tree = buildTagTree(tags, "default", NO_COUNTS, { E: {} });
-		const move = moveIntoFolder(tree, ["E"], "F", tags, { E: {} }, {});
+		const move = moveBlock(tree, ["E"], { path: "F", position: "into" }, tags, { E: {} }, {});
 		expect(move!.tagRenames).toEqual([]);
 		expect(move!.virtualTags).toEqual({ "F/E": { order: 0.5 } });
 		expect(move!.orderedIds).toEqual([1]);
@@ -869,7 +846,7 @@ describe("declared empty folders keep their place", () => {
 
 	it("dragging it between two folders stores a position that holds after the rebuild", () => {
 		const tree = buildTagTree(tags, "default", NO_COUNTS, { B: {} });
-		const order = reorderSiblingsFlatOrder(tree, ["B"], "A", "after", "", { B: {} })!;
+		const order = moveBlock(tree, ["B"], beside("A", "after"), tags, { B: {} }, {})!;
 		expect(order.orderedIds).toEqual([1, 2]);
 		expect(segs(applied(tags, order))).toEqual(["A", "B", "C"]);
 	});
@@ -877,7 +854,7 @@ describe("declared empty folders keep their place", () => {
 	it("keeps its place relative to its neighbours when the tags around it are reordered", () => {
 		const vt = { B: { order: 0.5 } };
 		const tree = buildTagTree(tags, "default", NO_COUNTS, vt);
-		const order = reorderSiblingsFlatOrder(tree, ["C"], "A", "before", "", vt)!;
+		const order = moveBlock(tree, ["C"], beside("A", "before"), tags, vt, {})!;
 		expect(order.orderedIds).toEqual([2, 1]);
 		expect(segs(applied(tags, order))).toEqual(["C", "A", "B"]);
 	});
@@ -885,32 +862,32 @@ describe("declared empty folders keep their place", () => {
 	it("a declared folder its last tag moves out of gets a place of its own", () => {
 		const fTags = [mkTag(1, "F/u", "#888888", 0), mkTag(2, "G", "#888888", 1)];
 		const tree = buildTagTree(fTags, "default", NO_COUNTS, { F: {} });
-		const move = moveIntoFolder(tree, ["F/u"], "", fTags, { F: {} }, {})!;
+		const move = moveBlock(tree, ["F/u"], { path: "", position: "into" }, fTags, { F: {} }, {})!;
 		expect(move.virtualTags.F.order).toBeTypeOf("number");
 	});
 });
 
-describe("stepSiblingFlatOrder", () => {
-	const tree = tree3();
+describe("stepDrop", () => {
+	const step = (path: string, delta: -1 | 1, tags = abc) => {
+		const tree = buildTagTree(tags, "default", NO_COUNTS);
+		const drop = stepDrop(tree, findNode(tree, path)!, delta);
+		return drop && moveBlock(tree, [path], drop, tags, {}, {})!.orderedIds;
+	};
 
 	it("moves a node up one slot", () => {
-		expect(stepSiblingFlatOrder(tree, "c", "", -1)?.orderedIds).toEqual([1, 3, 2]);
+		expect(step("c", -1)).toEqual([1, 3, 2]);
 	});
 
 	it("moves a node down one slot", () => {
-		expect(stepSiblingFlatOrder(tree, "a", "", 1)?.orderedIds).toEqual([2, 1, 3]);
+		expect(step("a", 1)).toEqual([2, 1, 3]);
 	});
 
 	it("stops at either end", () => {
-		expect(stepSiblingFlatOrder(tree, "a", "", -1)).toBeNull();
-		expect(stepSiblingFlatOrder(tree, "c", "", 1)).toBeNull();
+		expect(step("a", -1)).toBeNull();
+		expect(step("c", 1)).toBeNull();
 	});
 
 	it("steps within a parent and leaves other subtrees alone", () => {
-		expect(stepSiblingFlatOrder(pxyzq(), "p/z", "p", -1)?.orderedIds).toEqual([20, 10, 12, 11]);
-	});
-
-	it("returns null for a path that isn't under the given parent", () => {
-		expect(stepSiblingFlatOrder(tree, "nope", "", 1)).toBeNull();
+		expect(step("p/z", -1, pxyzq)).toEqual([20, 10, 12, 11]);
 	});
 });

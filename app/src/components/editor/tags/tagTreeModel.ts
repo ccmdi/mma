@@ -459,23 +459,25 @@ export function cascadeRename(
 const findByPath = (tree: TagTreeNode[], path: string): TagTreeNode | null =>
 	findPathNode(tree, path);
 
-/** Whether the sibling block `dragPaths` may drop INTO folder `targetPath`: the target is
- *  a folder (branch or declared empty folder) outside the block and its subtrees, and
- *  isn't the block's current parent (no-op). A name already taken in the target is
- *  allowed -- the rename that follows merges the two tags, as typing the same path in
- *  the rename dialog does. */
-export function canDropInto(tree: TagTreeNode[], dragPaths: string[], targetPath: string): boolean {
-	const targetChildren = targetPath === "" ? tree : findByPath(tree, targetPath)?.children;
-	if (!targetChildren) return false;
+/** Whether the sibling block `dragPaths` may land among the children of `targetPath`: the
+ *  target is the top level or a folder (branch or declared empty folder) outside the block
+ *  and its subtrees. A name already taken in the target is allowed -- the rename that
+ *  follows merges the two tags, as typing the same path in the rename dialog does. */
+function canLandIn(tree: TagTreeNode[], dragPaths: string[], targetPath: string): boolean {
 	if (targetPath !== "") {
-		const target = findByPath(tree, targetPath)!;
-		if (isLeafTag(target) || target.isAlias) return false;
+		const target = findByPath(tree, targetPath);
+		if (!target || isLeafTag(target) || target.isAlias) return false;
 	}
 	const nodes = dragPaths.map((p) => findByPath(tree, p));
 	if (nodes.length === 0 || nodes.some((n) => !n || n.isAlias)) return false;
-	if (dragPaths.some((p) => isAtOrUnder(targetPath, p))) return false;
-	return nodes[0]!.parentPath !== targetPath;
+	return !dragPaths.some((p) => isAtOrUnder(targetPath, p));
 }
+
+/** Whether the sibling block `dragPaths` may drop INTO folder `targetPath`: it may land
+ *  there, and the target isn't the block's current parent (no-op). */
+export const canDropInto = (tree: TagTreeNode[], dragPaths: string[], targetPath: string) =>
+	canLandIn(tree, dragPaths, targetPath) &&
+	findByPath(tree, dragPaths[0])!.parentPath !== targetPath;
 
 /** Into a folder, or beside a node under `parent`. */
 export type DropTarget =
@@ -557,32 +559,34 @@ function flatten(items: FlatItem[], virtualTags: Record<string, VirtualTag>): Fl
 	return { orderedIds, virtualTags: next };
 }
 
-export interface TagMoveResult {
+export interface TagMoveResult extends FlatOrder {
 	tagRenames: TagNameChange[];
-	virtualTags: Record<string, VirtualTag>;
 	aliases: Record<string, number>;
-	/** Full DFS tag-id order with the block landed at its anchor, or at the end of the target's children. */
-	orderedIds: number[];
 	/** Old -> new path for each moved branch, for remapExpanded. */
 	pathRemaps: [string, string][];
 }
 
-/** Move the sibling block `dragPaths` into folder `targetPath` (`""` is the top level):
- *  cascadeRename each block member to `targetPath/<segment>` (tags, virtualTags, and alias
- *  keys all follow), and rebase the global order so the block lands contiguously beside
- *  the `anchor` child, or at the end of the target's children, keeping its relative order.
- *  Returns null when the drop isn't allowed. */
-export function moveIntoFolder(
+/** Move the sibling block `dragPaths` to `drop`: into a folder (`""` is the top level), or
+ *  beside a node, on the block's own level or another. cascadeRename each block member to
+ *  `<target>/<segment>` (tags, virtualTags, and alias keys all follow), and rebase the
+ *  global order so the block lands contiguously beside the anchor, or at the end of the
+ *  target's children, keeping its relative order. Returns null when the drop isn't allowed. */
+export function moveBlock(
 	tree: TagTreeNode[],
 	dragPaths: string[],
-	targetPath: string,
+	drop: DropTarget,
 	tags: Tag[],
 	virtualTags: Record<string, VirtualTag>,
 	aliases: Record<string, number>,
-	anchor?: { path: string; position: "before" | "after" },
 ): TagMoveResult | null {
-	if (!canDropInto(tree, dragPaths, targetPath)) return null;
-	if (anchor && findByPath(tree, anchor.path)?.parentPath !== targetPath) return null;
+	const anchor = drop.position === "into" ? null : drop;
+	const targetPath = anchor ? anchor.parent : drop.path;
+	const allowed = anchor
+		? canLandIn(tree, dragPaths, targetPath) &&
+			!dragPaths.includes(anchor.path) &&
+			findByPath(tree, anchor.path)?.parentPath === targetPath
+		: canDropInto(tree, dragPaths, targetPath);
+	if (!allowed) return null;
 	const nodes = dragPaths.map((p) => findByPath(tree, p)!);
 
 	// Block members are siblings (disjoint prefixes), so the cascades never overlap.
@@ -601,7 +605,8 @@ export function moveIntoFolder(
 		});
 		workingVT = res.virtualTags;
 		workingAliases = res.aliases;
-		if (node.children.length > 0) pathRemaps.push([node.fullPath, newPath]);
+		if (node.children.length > 0 && newPath !== node.fullPath)
+			pathRemaps.push([node.fullPath, newPath]);
 	}
 
 	const dragSet = new Set(dragPaths);
@@ -675,68 +680,16 @@ export function collectDragBlock(
 		.map((n) => n.fullPath);
 }
 
-/** Move one node a single slot among its siblings (-1 up, +1 down). Returns the new flat
- *  DFS tag-id order, or null at either end. Keyboard counterpart to a drag reorder. */
-export function stepSiblingFlatOrder(
-	tree: TagTreeNode[],
-	path: string,
-	parent: string,
-	delta: -1 | 1,
-	virtualTags: Record<string, VirtualTag> = {},
-): FlatOrder | null {
-	const siblings = siblingsAt(tree, parent);
-	const from = siblings.findIndex((n) => n.fullPath === path);
-	if (from === -1) return null;
-	const to = from + delta;
-	const neighbour = siblings[to];
+/** Where `node` lands moved a single slot among its siblings (-1 up, +1 down), or null at
+ *  either end. Keyboard counterpart to a drag reorder. */
+export function stepDrop(tree: TagTreeNode[], node: TagTreeNode, delta: -1 | 1): DropTarget | null {
+	const siblings = siblingsAt(tree, node.parentPath);
+	const from = siblings.findIndex((n) => n.fullPath === node.fullPath);
+	const neighbour = from === -1 ? undefined : siblings[from + delta];
 	if (!neighbour) return null;
-	return reorderSiblingsFlatOrder(
-		tree,
-		[path],
-		neighbour.fullPath,
-		delta < 0 ? "before" : "after",
-		parent,
-		virtualTags,
-	);
-}
-
-/** Full DFS tag-id order, with empty folders placed among it, reflecting an in-level move of
- *  the `dragPaths` block to before/after `dropPath`. The block keeps its relative sibling order and lands as one
- *  contiguous run. `parent` is the block's structural parentPath ("" at root) -- it can't
- *  be derived from the path string, which may contain literal "/" in no-split mode.
- *  Returns null if the target isn't a sibling under `parent`, is part of the block, or
- *  no block member is found. Every other node keeps its relative order; moved nodes
- *  carry their whole subtrees. */
-export function reorderSiblingsFlatOrder(
-	tree: TagTreeNode[],
-	dragPaths: string[],
-	dropPath: string,
-	position: "before" | "after",
-	parent: string,
-	virtualTags: Record<string, VirtualTag> = {},
-): FlatOrder | null {
-	const dragSet = new Set(dragPaths);
-	if (dragSet.has(dropPath)) return null;
-
-	const siblings = siblingsAt(tree, parent);
-	const block = siblings.filter((n) => dragSet.has(n.fullPath));
-	const targetNode = siblings.find((n) => n.fullPath === dropPath);
-	if (block.length === 0 || !targetNode) return null;
-
-	const without = siblings.filter((n) => !dragSet.has(n.fullPath));
-	let idx = without.indexOf(targetNode);
-	if (position === "after") idx++;
-	without.splice(idx, 0, ...block);
-
-	const items: FlatItem[] = [];
-	const dfs = (nodes: TagTreeNode[], cur: string) => {
-		const ordered = cur === parent ? without : nodes;
-		for (const n of ordered) {
-			const item = flatItem(n);
-			if (item) items.push(item);
-			dfs(n.children, n.fullPath);
-		}
+	return {
+		path: neighbour.fullPath,
+		position: delta < 0 ? "before" : "after",
+		parent: node.parentPath,
 	};
-	dfs(tree, "");
-	return flatten(items, virtualTags);
 }

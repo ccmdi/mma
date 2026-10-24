@@ -4,7 +4,7 @@ import type { Tag } from "@/types";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TagTreeView } from "@/components/editor/tags/TagTree";
-import type { FlatOrder } from "@/components/editor/tags/tagTreeModel";
+import type { TagMoveResult } from "@/components/editor/tags/tagTreeModel";
 import type { TagSortMode } from "@/types";
 
 const tags: Tag[] = [
@@ -29,7 +29,7 @@ afterEach(() => {
 	container.remove();
 });
 
-function render(onReorder: (order: FlatOrder) => void, sortMode: TagSortMode = "default") {
+function render(onMove: (move: TagMoveResult) => void, sortMode: TagSortMode = "default") {
 	act(() =>
 		root.render(
 			<TagTreeView
@@ -43,8 +43,7 @@ function render(onReorder: (order: FlatOrder) => void, sortMode: TagSortMode = "
 				onEditVirtual={() => {}}
 				onAddAlias={() => {}}
 				onRemoveAlias={() => {}}
-				onReorder={onReorder}
-				onMoveInto={() => {}}
+				onMove={onMove}
 				onNewFolder={() => {}}
 				onDeleteFolder={() => {}}
 				filterText=""
@@ -55,8 +54,8 @@ function render(onReorder: (order: FlatOrder) => void, sortMode: TagSortMode = "
 
 describe("TagTreeView keyboard reorder", () => {
 	it("alt+arrow on a focused tag commits a reorder", () => {
-		const onReorder = vi.fn();
-		render(onReorder);
+		const onMove = vi.fn();
+		render(onMove);
 		const els = [...container.querySelectorAll<HTMLElement>("[data-tag-id]")];
 		expect(els.map((e) => e.dataset.tagId)).toEqual(["1", "2", "3"]);
 
@@ -70,24 +69,30 @@ describe("TagTreeView keyboard reorder", () => {
 				new KeyboardEvent("keydown", { key: "ArrowDown", altKey: true, bubbles: true }),
 			);
 		});
-		expect(onReorder).toHaveBeenCalledWith({ orderedIds: [2, 1, 3], virtualTags: {} });
+		expect(onMove).toHaveBeenCalledWith({
+			orderedIds: [2, 1, 3],
+			virtualTags: {},
+			tagRenames: [],
+			aliases: {},
+			pathRemaps: [],
+		});
 	});
 
 	it("ignores an unmodified arrow", () => {
-		const onReorder = vi.fn();
-		render(onReorder);
+		const onMove = vi.fn();
+		render(onMove);
 		const first = container.querySelector<HTMLElement>("[data-tag-id]")!;
 		act(() => first.focus());
 		act(() => {
 			first.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
 		});
-		expect(onReorder).not.toHaveBeenCalled();
+		expect(onMove).not.toHaveBeenCalled();
 	});
 
 	// A derived sort has no order a reorder could rewrite; moving into a folder still does.
 	it("ignores alt+arrow outside the default sort", () => {
-		const onReorder = vi.fn();
-		render(onReorder, "name");
+		const onMove = vi.fn();
+		render(onMove, "name");
 		const first = container.querySelector<HTMLElement>("[data-tag-id]")!;
 		act(() => first.focus());
 		act(() => {
@@ -95,12 +100,12 @@ describe("TagTreeView keyboard reorder", () => {
 				new KeyboardEvent("keydown", { key: "ArrowDown", altKey: true, bubbles: true }),
 			);
 		});
-		expect(onReorder).not.toHaveBeenCalled();
+		expect(onMove).not.toHaveBeenCalled();
 	});
 
 	it("stops at the end of the list", () => {
-		const onReorder = vi.fn();
-		render(onReorder);
+		const onMove = vi.fn();
+		render(onMove);
 		const first = container.querySelector<HTMLElement>("[data-tag-id]")!;
 		act(() => first.focus());
 		act(() => {
@@ -108,6 +113,6 @@ describe("TagTreeView keyboard reorder", () => {
 				new KeyboardEvent("keydown", { key: "ArrowUp", altKey: true, bubbles: true }),
 			);
 		});
-		expect(onReorder).not.toHaveBeenCalled();
+		expect(onMove).not.toHaveBeenCalled();
 	});
 });

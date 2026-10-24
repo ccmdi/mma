@@ -53,8 +53,9 @@ export function findPathNode<N extends PathTreeNode<N>>(
 	path: string,
 ): N | null {
 	for (const n of tree) {
-		if (isAtOrUnder(path, n.fullPath))
-			return n.fullPath === path ? n : findPathNode(n.children, path);
+		if (n.fullPath === path) return n;
+		const found = isAtOrUnder(path, n.fullPath) ? findPathNode(n.children, path) : null;
+		if (found) return found;
 	}
 	return null;
 }

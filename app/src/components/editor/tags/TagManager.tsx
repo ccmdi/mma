@@ -39,7 +39,6 @@ import {
 	syncAliasSegments,
 	type TagTreeNode,
 	type TagMoveResult,
-	type FlatOrder,
 } from "./tagTreeModel";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
@@ -121,12 +120,7 @@ export function TagManager() {
 		},
 		[preview],
 	);
-	const commitReorder = useCallback(
-		({ orderedIds, virtualTags }: FlatOrder) =>
-			commit({ tags: orderedIds.map((id, i) => ({ id, order: i })), virtualTags }),
-		[commit],
-	);
-	const commitMoveInto = useCallback(
+	const commitMove = useCallback(
 		(move: TagMoveResult) => {
 			// One merged patch per id -- the optimistic reducer applies the first match only.
 			const patchById = new Map<number, Patch<Tag>>();
@@ -282,8 +276,7 @@ export function TagManager() {
 					onEditVirtual={setEditingVirtualPath}
 					onAddAlias={addAlias}
 					onRemoveAlias={removeAlias}
-					onReorder={commitReorder}
-					onMoveInto={commitMoveInto}
+					onMove={commitMove}
 					onNewFolder={setNewFolderParent}
 					onDeleteFolder={deleteFolder}
 					filterText={filterText}

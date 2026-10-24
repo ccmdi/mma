@@ -25,11 +25,10 @@ import { TagContextMenu } from "./TagContextMenu";
 import { rebasePath } from "@/lib/data/tagPaths";
 import {
 	rangeToggleTagIds,
-	reorderSiblingsFlatOrder,
-	stepSiblingFlatOrder,
+	stepDrop,
 	collectDragBlock,
 	isEffectivelySelected,
-	moveIntoFolder,
+	moveBlock,
 	hoverDrop,
 	useTagTree,
 	type TagTreeSource,
@@ -40,7 +39,6 @@ import {
 	type TagTreeNode,
 	type TagMoveResult,
 	type TagTreeExpansionIntent,
-	type FlatOrder,
 	type DropTarget,
 } from "./tagTreeModel";
 import { t } from "@/lib/i18n";
@@ -85,12 +83,9 @@ interface TagTreeViewProps extends TagTreeSource {
 	onEditVirtual: (fullPath: string) => void;
 	onAddAlias: (tag: { id: number; name: string }) => void;
 	onRemoveAlias: (aliasPath: string) => void;
-	/** Commit a drag reorder (full DFS tag-id order, empty folders placed among it). Must
-	 *  render the new order optimistically -- the drop handler clears its drag state synchronously. */
-	onReorder: (order: FlatOrder) => void;
-	/** Commit a drag-into-folder move (renames + settings rewrites + order rebase).
-	 *  Same optimistic contract as onReorder. */
-	onMoveInto: (move: TagMoveResult) => void;
+	/** Commit a move (renames + settings rewrites + order rebase). Must render it
+	 *  optimistically -- the drop handler clears its drag state synchronously. */
+	onMove: (move: TagMoveResult) => void;
 	/** Open the new-folder dialog under `parentPath` ("" = root). */
 	onNewFolder: (parentPath: string) => void;
 	/** Delete a declared folder subtree (only offered when it holds no tags). */
@@ -111,8 +106,7 @@ export function TagTreeView({
 	onEditVirtual,
 	onAddAlias,
 	onRemoveAlias,
-	onReorder,
-	onMoveInto,
+	onMove,
 	onNewFolder,
 	onDeleteFolder,
 	filterText,
@@ -272,37 +266,13 @@ export function TagTreeView({
 				const over = (me.target as Element).closest?.("[data-tree-path]");
 				if (!over && dropTargetRef.current) applyDropTarget(null);
 			},
-			// onReorder/onMoveInto render optimistically, so clearing in the same
-			// batch settles the drop instantly with no flash back to the old slot.
+			// onMove renders optimistically, so clearing in the same batch settles the
+			// drop instantly with no flash back to the old slot.
 			onDrop: () => {
 				const dropT = dropTargetRef.current;
-				if (!dropT) return;
-				const paths = [...block];
-				if (dropT.position !== "into" && dropT.parent === node.parentPath) {
-					const order = reorderSiblingsFlatOrder(
-						treeRef.current,
-						paths,
-						dropT.path,
-						dropT.position,
-						node.parentPath,
-						virtualTags,
-					);
-					if (order) onReorder(order);
-					return;
-				}
 				const move =
-					dropT.position === "into"
-						? moveIntoFolder(treeRef.current, paths, dropT.path, tags, virtualTags, aliases)
-						: moveIntoFolder(
-								treeRef.current,
-								paths,
-								dropT.parent,
-								tags,
-								virtualTags,
-								aliases,
-								dropT,
-							);
-				if (move) onMoveInto(move);
+					dropT && moveBlock(treeRef.current, [...block], dropT, tags, virtualTags, aliases);
+				if (move) onMove(move);
 			},
 			onEnd: () => {
 				document.body.classList.remove("mm-tag-dragging");
@@ -340,17 +310,13 @@ export function TagTreeView({
 	const handleDragKeyDown = useStableHandler((e: React.KeyboardEvent, node: TagTreeNode) => {
 		if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
 		if (!dragEnabled || !reorderEnabled || node.isAlias) return;
-		const order = stepSiblingFlatOrder(
-			treeRef.current,
-			node.fullPath,
-			node.parentPath,
-			e.key === "ArrowUp" ? -1 : 1,
-			virtualTags,
-		);
-		if (!order) return;
+		const drop = stepDrop(treeRef.current, node, e.key === "ArrowUp" ? -1 : 1);
+		const move =
+			drop && moveBlock(treeRef.current, [node.fullPath], drop, tags, virtualTags, aliases);
+		if (!move) return;
 		e.preventDefault();
 		e.stopPropagation();
-		onReorder(order);
+		onMove(move);
 	});
 
 	const drag: TreeDragHandlers = useMemo(
