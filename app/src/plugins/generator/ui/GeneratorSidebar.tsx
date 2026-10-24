@@ -246,11 +246,9 @@ function summarizeSettings(s: GeneratorSettings): string {
 }
 
 export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
-	const [settings, setSettings] = useState<GeneratorSettings>(() =>
-		normalizeGeneratorSettings(project.settings.get()),
-	);
+	const settings = normalizeGeneratorSettings(project.settings.use()[0]);
 	const [meta, setMeta] = useState<Map<string, GeneratorRegionMeta>>(sessionMeta);
-	const [tagName, setTagName] = useState(project.tagName.get);
+	const [tagName, setTagName] = project.tagName.use();
 	const status = usePluginEvent(GENERATOR_CHANGED, getGeneratorStatus);
 	const running = status !== "idle";
 	const paused = status === "paused";
@@ -271,12 +269,9 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	const updateSettings = useCallback((patch: Partial<GeneratorSettings>) => {
-		setSettings((prev) => {
-			const next = { ...prev, ...patch };
-			project.settings.set(next);
-			updateGenerationSettings(next);
-			return next;
-		});
+		const next = { ...normalizeGeneratorSettings(project.settings.get()), ...patch };
+		project.settings.set(next);
+		updateGenerationSettings(next);
 	}, []);
 
 	const handleMetaChange = useCallback((next: Map<string, GeneratorRegionMeta>) => {
@@ -352,10 +347,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			return;
 		}
 		if (preset.settings) updateSettings(preset.settings);
-		if (preset.tagName !== null) {
-			setTagName(preset.tagName);
-			project.tagName.set(preset.tagName);
-		}
+		if (preset.tagName !== null) project.tagName.set(preset.tagName);
 		await Edit.selections(
 			addSelection(...preset.polygons.map((polygon) => ({ type: "Polygon" as const, polygon }))),
 		);
@@ -363,10 +355,8 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 
 	const handleReset = useCallback(() => {
 		const fresh = normalizeGeneratorSettings(undefined);
-		setSettings(fresh);
 		updateGenerationSettings(fresh);
 		project.settings.set(fresh);
-		setTagName("");
 		project.tagName.set("");
 	}, []);
 
@@ -443,10 +433,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 					<TextInput
 						type="text"
 						value={tagName}
-						onChange={(e) => {
-							setTagName(e.target.value);
-							project.tagName.set(e.target.value);
-						}}
+						onChange={(e) => setTagName(e.target.value)}
 						placeholder={t("None")}
 						disabled={running}
 					/>

@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import {
-  getLayers,
-  getCustomGradients,
+  useLayers,
+  useCustomGradients,
   updateLayer,
   addLayer,
   removeLayer,
@@ -9,7 +9,6 @@ import {
   addCustomGradient,
   updateCustomGradient,
   removeCustomGradient,
-  setOnSettingsChange,
   type HeatmapLayerSettings,
 } from "./heatmap";
 import {
@@ -42,16 +41,7 @@ const {
 } = MMA;
 
 export function HeatmapSidebar({ onClose }: { onClose: () => void }) {
-  const [, rerender] = useState(0);
-  const layers = getLayers();
-
-  useEffect(() => {
-    setOnSettingsChange(() => rerender((n) => n + 1));
-    return () => {
-      setOnSettingsChange(null);
-    };
-  }, []);
-
+  const layers = useLayers();
   const allCount = Store.use((s) => s.locationCount);
   const selectedIds = Scene.useSelected();
 
@@ -183,7 +173,7 @@ function GradientPicker({
   onSelect: (id: string) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const customs = getCustomGradients();
+  const customs = useCustomGradients();
   const current = resolveGradient(gradientId, customs);
   const editing = customs.find((g) => g.id === editingId) ?? null;
 

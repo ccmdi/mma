@@ -121,9 +121,10 @@ vi.mock("@/store/selectionList", () => ({
 }));
 
 vi.mock("@/plugins/pluginStorage", () => ({
-	pluginSetting: (_id: string, key: string, fallback: unknown) => ({
-		perMap: () => ({ get: () => (key in h.saved ? h.saved[key] : fallback), set: () => {} }),
-	}),
+	pluginSetting: (_id: string, key: string, fallback: unknown) => {
+		const get = () => (key in h.saved ? h.saved[key] : fallback);
+		return { perMap: () => ({ get, set: () => {}, use: () => [get(), () => {}] }) };
+	},
 }));
 vi.mock("@/plugins/generator/ui/SettingsPanel", () => ({ SettingsPanel: () => null }));
 

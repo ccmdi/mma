@@ -5,6 +5,7 @@ import { Autosave } from "@/store/autosave";
 import type { MapMeta } from "@/bindings.gen";
 import { pluginSetting } from "@/plugins/pluginStorage";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
+import { emit } from "@/lib/events";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@/store/maps", () => ({
@@ -22,15 +23,22 @@ vi.mock("@/lib/commands", () => ({
 type Heatmap = typeof import("../../../plugins/heatmap/src/heatmap");
 let heatmap: Heatmap;
 let cleanup: (() => void) | null = null;
+let drawn: { id: string; opacity: number }[] = [];
 
 const SHARED_KEY = "mma_plugin:heatmap";
 
-function openMap(id: string, settings: MapMeta["settings"] = {}) {
+function setOpenMap(id: string, settings: MapMeta["settings"]) {
 	const s = Store.get() as Record<string, unknown>;
 	s.mapId = id;
 	s.map = { id, settings };
+}
+
+function openMap(id: string, settings: MapMeta["settings"] = {}) {
+	setOpenMap(id, settings);
 	cleanup = heatmap.init();
 }
+
+const drawnIds = () => drawn.map((l) => l.id.replace("mma-heatmap-", ""));
 
 const ownProject = () => Store.get().map?.settings.pluginData?.heatmap;
 
@@ -45,7 +53,12 @@ beforeAll(async () => {
 		selectorForPick: () => ({ type: "Everything" }),
 		MapHost: {
 			get: () => ({
-				createDeckOverlay: () => ({ setProps: () => {}, finalize: () => {} }),
+				createDeckOverlay: () => ({
+					setProps: ({ layers }: { layers: { props: { id: string; opacity: number } }[] }) => {
+						drawn = layers.map((l) => l.props);
+					},
+					finalize: () => {},
+				}),
 			}),
 		},
 		on: () => () => {},
@@ -55,6 +68,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
 	localStorage.clear();
+	drawn = [];
 	setLocal(SHARED_KEY, { layers: [{ id: "shared", opacity: 0.2 }] });
 });
 
@@ -68,9 +82,10 @@ afterEach(async () => {
 });
 
 describe("heatmap setup per map", () => {
-	it("reads the shared layers until the map saves its own", () => {
+	it("reads the shared layers until the map saves its own", async () => {
 		openMap("a");
-		expect(heatmap.getLayers().map((l) => [l.id, l.opacity])).toEqual([["shared", 0.2]]);
+		await vi.waitFor(() => expect(drawn.map((l) => l.opacity)).toEqual([0.2]));
+		expect(drawnIds()).toEqual(["shared"]);
 		expect(ownProject()).toBeUndefined();
 	});
 
@@ -85,19 +100,29 @@ describe("heatmap setup per map", () => {
 		expect(getLocal(SHARED_KEY, {})).toEqual({ layers: [{ id: "shared", opacity: 0.2 }] });
 	});
 
-	it("resumes the map's own layers", () => {
+	it("resumes the map's own layers", async () => {
 		openMap("a", { pluginData: { heatmap: { layers: [{ id: "mine", opacity: 0.5 }] } } });
-		expect(heatmap.getLayers().map((l) => l.id)).toEqual(["mine"]);
+		await vi.waitFor(() => expect(drawnIds()).toEqual(["mine"]));
+	});
+
+	it("follows layers another window saves, and edits on top of them", async () => {
+		openMap("a", { pluginData: { heatmap: { layers: [{ id: "mine" }] } } });
+		await vi.waitFor(() => expect(drawnIds()).toEqual(["mine"]));
+		setOpenMap("a", { pluginData: { heatmap: { layers: [{ id: "theirs" }] } } });
+		emit("snapshot:changed");
+		await vi.waitFor(() => expect(drawnIds()).toEqual(["theirs"]));
+		heatmap.updateLayer("theirs", { opacity: 0.9 });
+		await vi.waitFor(() =>
+			expect(ownProject()?.layers).toEqual([
+				expect.objectContaining({ id: "theirs", opacity: 0.9 }),
+			]),
+		);
 	});
 
 	it("resets to one default layer and no custom gradients, not to the shared setup", async () => {
 		openMap("a", { pluginData: { heatmap: { gradients: [{ id: "g", stops: [] }] } } });
 		heatmap.resetProject();
-		await vi.waitFor(() => expect(ownProject()?.gradients).toEqual([]));
-		const own = ownProject() as { layers: { id: string }[]; gradients: unknown[] };
-		expect(own.gradients).toEqual([]);
-		expect(own.layers).toHaveLength(1);
-		expect(own.layers[0].id).not.toBe("shared");
-		expect(heatmap.getCustomGradients()).toEqual([]);
+		await vi.waitFor(() => expect(ownProject()).toEqual({ layers: [], gradients: [] }));
+		await vi.waitFor(() => expect(drawnIds()).toEqual(["first"]));
 	});
 });

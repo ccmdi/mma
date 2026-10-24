@@ -1191,6 +1191,11 @@ function newLayer() {
     ...LAYER_DEFAULTS
   };
 }
+var FIRST_LAYER = {
+  id: "first",
+  source: { pick: "all" },
+  ...LAYER_DEFAULTS
+};
 function migrateSource(source) {
   if (!source || typeof source !== "object") return void 0;
   if ("pick" in source)
@@ -1199,80 +1204,55 @@ function migrateSource(source) {
   return source.kind === "selected" ? { pick: "selection" } : { pick: "all" };
 }
 function migrateLayer(stored) {
-  const layer = { ...newLayer(), ...stored };
+  const layer = { ...FIRST_LAYER, ...stored };
   const source = migrateSource(stored.source);
   if (source) layer.source = source;
   return layer;
 }
-function loadLayers() {
-  const stored = project.layers.get();
-  if (stored.length) return stored.map(migrateLayer);
-  return [newLayer()];
-}
-function loadGradients() {
-  return project.gradients.get().map(normalizeGradient);
+var layersIn = (stored) => stored.length ? stored.map(migrateLayer) : [FIRST_LAYER];
+var gradientsIn = (stored) => stored.map(normalizeGradient);
+var layers = () => layersIn(project.layers.get());
+var customGradients = () => gradientsIn(project.gradients.get());
+var useLayers = () => layersIn(project.layers.use()[0]);
+var useCustomGradients = () => gradientsIn(project.gradients.use()[0]);
+function editLayers(edit) {
+  project.layers.set(edit(layers()));
 }
 var overlay = null;
-var layers = [];
-var customGradients = [];
-var onSettingsChange = null;
-function getLayers() {
-  return layers;
-}
-function getCustomGradients() {
-  return customGradients;
-}
-function setOnSettingsChange(cb) {
-  onSettingsChange = cb;
-}
-function commit() {
-  project.layers.set(layers);
-  rebuild();
-  onSettingsChange?.();
-}
 function updateLayer(id, patch) {
-  layers = layers.map((l) => l.id === id ? { ...l, ...patch } : l);
-  commit();
+  editLayers((ls) => ls.map((l) => l.id === id ? { ...l, ...patch } : l));
 }
 function addLayer() {
-  layers = [...layers, newLayer()];
-  commit();
+  editLayers((ls) => [...ls, newLayer()]);
 }
 function removeLayer(id) {
-  layers = layers.filter((l) => l.id !== id);
-  commit();
+  editLayers((ls) => ls.filter((l) => l.id !== id));
 }
 function resetProject() {
-  layers = [newLayer()];
-  customGradients = [];
-  commitGradients();
-}
-function commitGradients() {
-  project.gradients.set(customGradients);
-  commit();
+  project.layers.set([]);
+  project.gradients.set([]);
 }
 function addCustomGradient(layerId, from) {
   const gradient = newCustomGradient(from);
-  customGradients = [...customGradients, gradient];
-  layers = layers.map(
-    (l) => l.id === layerId ? { ...l, gradientId: gradient.id } : l
+  project.gradients.set([...customGradients(), gradient]);
+  editLayers(
+    (ls) => ls.map((l) => l.id === layerId ? { ...l, gradientId: gradient.id } : l)
   );
-  commitGradients();
   return gradient;
 }
 function updateCustomGradient(id, patch) {
   if (isBuiltinGradient(id)) return;
-  customGradients = customGradients.map(
-    (g) => g.id === id ? { ...g, ...patch } : g
+  project.gradients.set(
+    customGradients().map((g) => g.id === id ? { ...g, ...patch } : g)
   );
-  commitGradients();
 }
 function removeCustomGradient(id) {
-  customGradients = customGradients.filter((g) => g.id !== id);
-  layers = layers.map(
-    (l) => l.gradientId === id ? { ...l, gradientId: DEFAULT_GRADIENT_ID } : l
+  project.gradients.set(customGradients().filter((g) => g.id !== id));
+  editLayers(
+    (ls) => ls.map(
+      (l) => l.gradientId === id ? { ...l, gradientId: DEFAULT_GRADIENT_ID } : l
+    )
   );
-  commitGradients();
 }
 async function sourceData(source) {
   const ids = source.pick === "all" ? null : new Set(await Query.read(selectorForPick(source), { kind: "ids" }));
@@ -1288,7 +1268,8 @@ var rebuildToken = 0;
 async function rebuild() {
   if (!overlay) return;
   const token = ++rebuildToken;
-  const visible = layers.filter((l) => l.visible);
+  const visible = layers().filter((l) => l.visible);
+  const gradients = customGradients();
   const datas = await Promise.all(visible.map((l) => sourceData(l.source)));
   if (token !== rebuildToken || !overlay) return;
   const deckLayers = visible.map(
@@ -1302,7 +1283,7 @@ async function rebuild() {
       threshold: l.threshold,
       opacity: l.opacity,
       colorRange: sampleColorRange(
-        resolveGradient(l.gradientId, customGradients).stops
+        resolveGradient(l.gradientId, gradients).stops
       ),
       debounceTimeout: 100
     })
@@ -1312,28 +1293,25 @@ async function rebuild() {
 function init() {
   const host = MapHost.get();
   if (!host) throw new Error("No map instance");
-  layers = loadLayers();
-  customGradients = loadGradients();
   overlay = host.createDeckOverlay();
   void rebuild();
-  onSettingsChange?.();
   let rebuildTimer;
-  const onChange = () => {
+  const rebuildSoon = () => {
     clearTimeout(rebuildTimer);
     rebuildTimer = setTimeout(() => void rebuild(), 100);
-    onSettingsChange?.();
   };
-  const unsub = on("scene:changed", onChange);
+  const offs = [
+    on("scene:changed", rebuildSoon),
+    project.layers.on(() => void rebuild()),
+    project.gradients.on(() => void rebuild())
+  ];
   return () => {
-    unsub();
+    offs.forEach((off) => off());
     clearTimeout(rebuildTimer);
     if (overlay) {
       overlay.finalize();
       overlay = null;
     }
-    layers = [];
-    customGradients = [];
-    onSettingsChange = null;
   };
 }
 
@@ -1359,14 +1337,7 @@ var {
   ui: { Button, ConfirmButton, Field, Section, SelectorPicker, Sidebar, Slider, Switch, TextInput }
 } = MMA;
 function HeatmapSidebar({ onClose }) {
-  const [, rerender] = (0, import_react.useState)(0);
-  const layers2 = getLayers();
-  (0, import_react.useEffect)(() => {
-    setOnSettingsChange(() => rerender((n) => n + 1));
-    return () => {
-      setOnSettingsChange(null);
-    };
-  }, []);
+  const layers2 = useLayers();
   const allCount = Store.use((s) => s.locationCount);
   const selectedIds = Scene2.useSelected();
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -1490,7 +1461,7 @@ function GradientPicker({
   onSelect
 }) {
   const [editingId, setEditingId] = (0, import_react.useState)(null);
-  const customs = getCustomGradients();
+  const customs = useCustomGradients();
   const current = resolveGradient(gradientId, customs);
   const editing = customs.find((g) => g.id === editingId) ?? null;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Field, { label: "Gradient", children: [

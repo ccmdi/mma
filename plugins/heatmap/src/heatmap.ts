@@ -51,6 +51,12 @@ function newLayer(): HeatmapLayerSettings {
   };
 }
 
+const FIRST_LAYER: HeatmapLayerSettings = {
+  id: "first",
+  source: { pick: "all" },
+  ...LAYER_DEFAULTS,
+};
+
 // Pre-1.2 versions stored the source as the old `{ kind }` scope. A saved-selection
 // source is no longer offered and falls back to all locations.
 function migrateSource(source: unknown): SelectorPick | undefined {
@@ -62,69 +68,45 @@ function migrateSource(source: unknown): SelectorPick | undefined {
 }
 
 function migrateLayer(stored: Partial<HeatmapLayerSettings>): HeatmapLayerSettings {
-  const layer = { ...newLayer(), ...stored };
+  const layer = { ...FIRST_LAYER, ...stored };
   const source = migrateSource(stored.source);
   if (source) layer.source = source;
   return layer;
 }
 
-function loadLayers(): HeatmapLayerSettings[] {
-  const stored = project.layers.get();
-  if (stored.length) return stored.map(migrateLayer);
-  return [newLayer()];
-}
+const layersIn = (stored: Partial<HeatmapLayerSettings>[]): HeatmapLayerSettings[] =>
+  stored.length ? stored.map(migrateLayer) : [FIRST_LAYER];
 
-function loadGradients(): HeatmapGradient[] {
-  return project.gradients.get().map(normalizeGradient);
+const gradientsIn = (stored: HeatmapGradient[]): HeatmapGradient[] =>
+  stored.map(normalizeGradient);
+
+const layers = () => layersIn(project.layers.get());
+const customGradients = () => gradientsIn(project.gradients.get());
+
+export const useLayers = () => layersIn(project.layers.use()[0]);
+export const useCustomGradients = () => gradientsIn(project.gradients.use()[0]);
+
+function editLayers(edit: (layers: HeatmapLayerSettings[]) => HeatmapLayerSettings[]) {
+  project.layers.set(edit(layers()));
 }
 
 let overlay: DeckOverlayHandle | null = null;
-let layers: HeatmapLayerSettings[] = [];
-let customGradients: HeatmapGradient[] = [];
-let onSettingsChange: (() => void) | null = null;
-
-export function getLayers(): HeatmapLayerSettings[] {
-  return layers;
-}
-
-export function getCustomGradients(): HeatmapGradient[] {
-  return customGradients;
-}
-
-export function setOnSettingsChange(cb: (() => void) | null) {
-  onSettingsChange = cb;
-}
-
-function commit() {
-  project.layers.set(layers);
-  rebuild();
-  onSettingsChange?.();
-}
 
 export function updateLayer(id: string, patch: Partial<HeatmapLayerSettings>) {
-  layers = layers.map((l) => (l.id === id ? { ...l, ...patch } : l));
-  commit();
+  editLayers((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 }
 
 export function addLayer() {
-  layers = [...layers, newLayer()];
-  commit();
+  editLayers((ls) => [...ls, newLayer()]);
 }
 
 export function removeLayer(id: string) {
-  layers = layers.filter((l) => l.id !== id);
-  commit();
+  editLayers((ls) => ls.filter((l) => l.id !== id));
 }
 
 export function resetProject() {
-  layers = [newLayer()];
-  customGradients = [];
-  commitGradients();
-}
-
-function commitGradients() {
-  project.gradients.set(customGradients);
-  commit();
+  project.layers.set([]);
+  project.gradients.set([]);
 }
 
 /** Adds an editable copy of `from` and points `layerId` at it. Returns the new gradient. */
@@ -133,11 +115,10 @@ export function addCustomGradient(
   from: HeatmapGradient,
 ): HeatmapGradient {
   const gradient = newCustomGradient(from);
-  customGradients = [...customGradients, gradient];
-  layers = layers.map((l) =>
-    l.id === layerId ? { ...l, gradientId: gradient.id } : l,
+  project.gradients.set([...customGradients(), gradient]);
+  editLayers((ls) =>
+    ls.map((l) => (l.id === layerId ? { ...l, gradientId: gradient.id } : l)),
   );
-  commitGradients();
   return gradient;
 }
 
@@ -146,20 +127,20 @@ export function updateCustomGradient(
   patch: Partial<Omit<HeatmapGradient, "id">>,
 ) {
   if (isBuiltinGradient(id)) return;
-  customGradients = customGradients.map((g) =>
-    g.id === id ? { ...g, ...patch } : g,
+  project.gradients.set(
+    customGradients().map((g) => (g.id === id ? { ...g, ...patch } : g)),
   );
-  commitGradients();
 }
 
 export function removeCustomGradient(id: string) {
-  customGradients = customGradients.filter((g) => g.id !== id);
+  project.gradients.set(customGradients().filter((g) => g.id !== id));
   // Layers always point at a gradient that exists, so the swatch grid can't end up
   // with nothing selected.
-  layers = layers.map((l) =>
-    l.gradientId === id ? { ...l, gradientId: DEFAULT_GRADIENT_ID } : l,
+  editLayers((ls) =>
+    ls.map((l) =>
+      l.gradientId === id ? { ...l, gradientId: DEFAULT_GRADIENT_ID } : l,
+    ),
   );
-  commitGradients();
 }
 
 async function sourceData(source: SelectorPick): Promise<LatLng[]> {
@@ -183,7 +164,8 @@ async function rebuild() {
   if (!overlay) return;
   const token = ++rebuildToken;
 
-  const visible = layers.filter((l) => l.visible);
+  const visible = layers().filter((l) => l.visible);
+  const gradients = customGradients();
   const datas = await Promise.all(visible.map((l) => sourceData(l.source)));
   if (token !== rebuildToken || !overlay) return;
 
@@ -199,7 +181,7 @@ async function rebuild() {
         threshold: l.threshold,
         opacity: l.opacity,
         colorRange: sampleColorRange(
-          resolveGradient(l.gradientId, customGradients).stops,
+          resolveGradient(l.gradientId, gradients).stops,
         ),
         debounceTimeout: 100,
       }),
@@ -212,29 +194,26 @@ export function init(): () => void {
   const host = MapHost.get();
   if (!host) throw new Error("No map instance");
 
-  layers = loadLayers();
-  customGradients = loadGradients();
   overlay = host.createDeckOverlay();
   void rebuild();
-  onSettingsChange?.();
 
   let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
-  const onChange = () => {
+  const rebuildSoon = () => {
     clearTimeout(rebuildTimer);
     rebuildTimer = setTimeout(() => void rebuild(), 100);
-    onSettingsChange?.();
   };
-  const unsub = on("scene:changed", onChange);
+  const offs = [
+    on("scene:changed", rebuildSoon),
+    project.layers.on(() => void rebuild()),
+    project.gradients.on(() => void rebuild()),
+  ];
 
   return () => {
-    unsub();
+    offs.forEach((off) => off());
     clearTimeout(rebuildTimer);
     if (overlay) {
       overlay.finalize();
       overlay = null;
     }
-    layers = [];
-    customGradients = [];
-    onSettingsChange = null;
   };
 }
