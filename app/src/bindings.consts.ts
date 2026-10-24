@@ -303,7 +303,7 @@ export const KNOWN_FIELDS = [{"key":"altitude","type":"number","label":"Altitude
 export const DEFAULT_MARKER_COLOR = [42,42,42] as const;
 
 /** @api @unstable */
-export const PROJECTIONS = [{"id":"value","appliesTo":["string","enum","boolean","number","month","array"],"needsTz":false},{"id":"year","appliesTo":["date","month"],"needsTz":true},{"id":"yearMonth","appliesTo":["date"],"needsTz":true},{"id":"day","appliesTo":["date"],"needsTz":true},{"id":"monthOfYear","appliesTo":["date","month"],"needsTz":true},{"id":"hourOfDay","appliesTo":["date"],"needsTz":true}] as const;
+export const PROJECTIONS = [{"id":"value","appliesTo":["string","enum","boolean","number","month","array"],"needsTz":false},{"id":"day","appliesTo":["date"],"needsTz":true},{"id":"yearMonth","appliesTo":["date"],"needsTz":true},{"id":"year","appliesTo":["date","month"],"needsTz":true},{"id":"monthOfYear","appliesTo":["date","month"],"needsTz":true},{"id":"hourOfDay","appliesTo":["date"],"needsTz":true}] as const;
 
 /** Every sync provider: which way it carries changes, and what it keeps of a map. @api @unstable */
 export const SYNC_PROVIDERS = {"file":{"direction":"pullOnly","shape":"local"},"geoguessr":{"direction":"bidirectional","shape":"geoguessr"},"map-making.app":{"direction":"bidirectional","shape":"mapMaking"}} as const;

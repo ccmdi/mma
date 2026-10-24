@@ -71,8 +71,8 @@ pub const PROJECTIONS: &[Projection] = {
             needs_tz: false,
         },
         Projection {
-            id: "year",
-            applies_to: &[Date, Month],
+            id: "day",
+            applies_to: &[Date],
             needs_tz: true,
         },
         Projection {
@@ -81,8 +81,8 @@ pub const PROJECTIONS: &[Projection] = {
             needs_tz: true,
         },
         Projection {
-            id: "day",
-            applies_to: &[Date],
+            id: "year",
+            applies_to: &[Date, Month],
             needs_tz: true,
         },
         Projection {

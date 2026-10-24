@@ -291,9 +291,9 @@ describe("projectionsForType", () => {
 		expect(projectionsForType("number").map((p) => p.id)).toEqual(["value"]);
 		expect(projectionsForType("month").map((p) => p.id)).toEqual(["value", "year", "monthOfYear"]);
 		expect(projectionsForType("date").map((p) => p.id)).toEqual([
-			"year",
-			"yearMonth",
 			"day",
+			"yearMonth",
+			"year",
 			"monthOfYear",
 			"hourOfDay",
 		]);

@@ -483,16 +483,16 @@ declare const PROJECTIONS: readonly [{
     readonly appliesTo: readonly ["string", "enum", "boolean", "number", "month", "array"];
     readonly needsTz: false;
 }, {
-    readonly id: "year";
-    readonly appliesTo: readonly ["date", "month"];
+    readonly id: "day";
+    readonly appliesTo: readonly ["date"];
     readonly needsTz: true;
 }, {
     readonly id: "yearMonth";
     readonly appliesTo: readonly ["date"];
     readonly needsTz: true;
 }, {
-    readonly id: "day";
-    readonly appliesTo: readonly ["date"];
+    readonly id: "year";
+    readonly appliesTo: readonly ["date", "month"];
     readonly needsTz: true;
 }, {
     readonly id: "monthOfYear";
