@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback, useOptimistic, startTransition 
 import { SelectionList } from "@/store/selectionList";
 import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
+import { Edit } from "@/store/edit";
 import type { Patch } from "@/types";
 import { HslColorPicker } from "react-colorful";
 import type { TagSortMode } from "@/types";
@@ -49,6 +50,13 @@ import { SearchInput } from "@/components/primitives/SearchInput";
 const NO_VIRTUAL_TAGS = {};
 const NO_ALIASES = {};
 
+/** One change to the tag tree: tag patches and the map's folder and alias settings. */
+interface TagTreeEdit {
+	tags?: Patch<Tag>[];
+	virtualTags?: Record<string, VirtualTag>;
+	aliases?: Record<string, number>;
+}
+
 export function TagManager() {
 	const map = Store.use((s) => s.map);
 	const selectedTagIds = Store.use(SelectionList.tagIds);
@@ -56,8 +64,8 @@ export function TagManager() {
 	const tagViewMode = useSetting("tagViewMode");
 	const [filterText, setFilterText] = useState("");
 	const sortMode = useSetting("tagSortMode");
-	const [virtualTags, setVirtualTags] = useMapSetting("virtualTags", NO_VIRTUAL_TAGS);
-	const [aliases, setAliases] = useMapSetting("aliases", NO_ALIASES);
+	const [storeVirtualTags] = useMapSetting("virtualTags", NO_VIRTUAL_TAGS);
+	const [storeAliases] = useMapSetting("aliases", NO_ALIASES);
 	const [addingAliasFor, setAddingAliasFor] = useState<{ id: number; name: string } | null>(null);
 	const [editingTag, setEditingTag] = useState<Tag | null>(null);
 	const [editingVirtualPath, setEditingVirtualPath] = useState<string | null>(null);
@@ -82,35 +90,41 @@ export function TagManager() {
 	// selection toggles (which never touch tags) and fresh on any tag mutation.
 	const storeTags = Store.use(Tag.visible);
 
-	// Preview tag edits immediately, then drop the optimistic patches once
-	// the store has applied them.
-	const [tags, addOptimisticTags] = useOptimistic(storeTags, (cur: Tag[], updates: Patch<Tag>[]) =>
-		cur.map((t) => {
-			const u = updates.find((x) => x.id === t.id);
-			if (!u) return t;
-			return {
-				...t,
-				...(u.name != null ? { name: u.name } : {}),
-				...(u.color != null ? { color: u.color } : {}),
-				...(u.order != null ? { order: u.order } : {}),
-			};
+	// Preview an edit to the tree immediately, then drop it once the store has applied it.
+	const [{ tags, virtualTags, aliases }, preview] = useOptimistic(
+		{ tags: storeTags, virtualTags: storeVirtualTags, aliases: storeAliases },
+		(cur, edit: TagTreeEdit) => ({
+			tags: cur.tags.map((t) => {
+				const u = edit.tags?.find((x) => x.id === t.id);
+				if (!u) return t;
+				return {
+					...t,
+					...(u.name != null ? { name: u.name } : {}),
+					...(u.color != null ? { color: u.color } : {}),
+					...(u.order != null ? { order: u.order } : {}),
+				};
+			}),
+			virtualTags: edit.virtualTags ?? cur.virtualTags,
+			aliases: edit.aliases ?? cur.aliases,
 		}),
 	);
-	const commitTags = useCallback(
-		(updates: Patch<Tag>[]) => {
+	const commit = useCallback(
+		(edit: TagTreeEdit) => {
 			startTransition(async () => {
-				addOptimisticTags(updates);
-				await Tag.update(updates);
+				preview(edit);
+				await Promise.all([
+					edit.tags && Tag.update(edit.tags),
+					(edit.virtualTags || edit.aliases) &&
+						Edit.meta({ settings: { virtualTags: edit.virtualTags, aliases: edit.aliases } }),
+				]);
 			});
 		},
-		[addOptimisticTags],
+		[preview],
 	);
 	const commitReorder = useCallback(
-		({ orderedIds, virtualTags }: FlatOrder) => {
-			commitTags(orderedIds.map((id, i) => ({ id, order: i })));
-			setVirtualTags(virtualTags);
-		},
-		[commitTags, setVirtualTags],
+		({ orderedIds, virtualTags }: FlatOrder) =>
+			commit({ tags: orderedIds.map((id, i) => ({ id, order: i })), virtualTags }),
+		[commit],
 	);
 	const commitMoveInto = useCallback(
 		(move: TagMoveResult) => {
@@ -119,19 +133,21 @@ export function TagManager() {
 			move.orderedIds.forEach((id, i) => patchById.set(id, { id, order: i }));
 			for (const r of move.tagRenames)
 				patchById.set(r.id, { ...patchById.get(r.id), id: r.id, name: r.name });
-			commitTags([...patchById.values()]);
-			setVirtualTags(move.virtualTags);
-			setAliases(move.aliases);
+			commit({
+				tags: [...patchById.values()],
+				virtualTags: move.virtualTags,
+				aliases: move.aliases,
+			});
 			for (const [oldPath, newPath] of move.pathRemaps)
 				treeRef.current?.remapExpanded(oldPath, newPath);
 		},
-		[commitTags, setVirtualTags, setAliases],
+		[commit],
 	);
 
 	// Stamp `color` onto `tagIds`, and with a `root` onto every folder node at or under it too.
 	const recolor = (tagIds: number[], root: string | null, color: string) => {
-		commitTags(tagIds.map((id) => ({ id, color })));
-		if (root == null) return;
+		const tagColors = tagIds.map((id) => ({ id, color }));
+		if (root == null) return commit({ tags: tagColors });
 		const nextVT = { ...virtualTags };
 		for (const t of tags) {
 			const parts = t.name.split("/");
@@ -140,7 +156,7 @@ export function TagManager() {
 				if (isAtOrUnder(folder, root)) nextVT[folder] = { ...nextVT[folder], color };
 			}
 		}
-		setVirtualTags(nextVT);
+		commit({ tags: tagColors, virtualTags: nextVT });
 	};
 	// Move folder `oldPath` and everything under it to `newPath`; `folder` is merged into its own entry.
 	const renameFolder = (oldPath: string, newPath: string, folder?: VirtualTag) => {
@@ -149,10 +165,12 @@ export function TagManager() {
 			virtualTags: nextVT,
 			aliases: nextAliases,
 		} = cascadeRename(oldPath, newPath, tags, virtualTags, aliases);
-		if (tagRenames.length) commitTags(tagRenames.map((r) => ({ id: r.id, name: r.name })));
 		if (folder) nextVT[newPath] = { ...nextVT[newPath], ...folder };
-		setVirtualTags(nextVT);
-		setAliases(nextAliases);
+		commit({
+			tags: tagRenames.map((r) => ({ id: r.id, name: r.name })),
+			virtualTags: nextVT,
+			aliases: nextAliases,
+		});
 		treeRef.current?.remapExpanded(oldPath, newPath);
 	};
 	const siblingPath = (path: string, segment: string) => {
@@ -167,9 +185,9 @@ export function TagManager() {
 		(aliasPath: string) => {
 			const next = { ...(Store.get().map?.settings.aliases ?? {}) };
 			delete next[aliasPath];
-			setAliases(next);
+			commit({ aliases: next });
 		},
-		[setAliases],
+		[commit],
 	);
 	// Deletes the declared subtree (only reachable when no tags live under `path`).
 	const deleteFolder = useCallback(
@@ -179,9 +197,9 @@ export function TagManager() {
 			for (const [k, v] of Object.entries(vt)) {
 				if (!isAtOrUnder(k, path)) next[k] = v;
 			}
-			setVirtualTags(next);
+			commit({ virtualTags: next });
 		},
-		[setVirtualTags],
+		[commit],
 	);
 
 	// Collapsed-state pill preview only; the open list is rendered by TagTreeView.
@@ -276,9 +294,8 @@ export function TagManager() {
 				<EditTagDialog
 					open
 					tag={editingTag}
-					commit={commitTags}
+					commit={commit}
 					aliases={aliases}
-					setAliases={setAliases}
 					onOpenChange={(open) => !open && setEditingTag(null)}
 				/>
 			)}
@@ -298,7 +315,7 @@ export function TagManager() {
 					onReset={() => {
 						const next = { ...virtualTags };
 						delete next[editingVirtualPath];
-						setVirtualTags(next);
+						commit({ virtualTags: next });
 						setEditingVirtualPath(null);
 					}}
 				/>
@@ -346,7 +363,7 @@ export function TagManager() {
 					aliases={aliases}
 					onOpenChange={(open) => !open && setNewFolderParent(null)}
 					onSave={(path) => {
-						setVirtualTags({ ...virtualTags, [path]: {} });
+						commit({ virtualTags: { ...virtualTags, [path]: {} } });
 						setNewFolderParent(null);
 					}}
 				/>
@@ -362,8 +379,12 @@ export function TagManager() {
 					onOpenChange={(open) => !open && setAddingAliasFor(null)}
 					onSave={(aliasPath, folder) => {
 						// Declared, so the folder outlives the alias like one made with New folder.
-						if (folder && !virtualTags[folder]) setVirtualTags({ ...virtualTags, [folder]: {} });
-						setAliases({ ...aliases, [aliasPath]: addingAliasFor.id });
+						commit({
+							...(folder && !virtualTags[folder]
+								? { virtualTags: { ...virtualTags, [folder]: {} } }
+								: {}),
+							aliases: { ...aliases, [aliasPath]: addingAliasFor.id },
+						});
 						setAddingAliasFor(null);
 					}}
 				/>
@@ -406,13 +427,11 @@ function EditTagDialog({
 	tag,
 	commit,
 	aliases,
-	setAliases,
 }: DialogProps & {
 	tag: { id: number; name: string; color: string };
-	/** Routes tag updates through the optimistic overlay. */
-	commit: (updates: Patch<Tag>[]) => void;
+	/** Routes the edit through the optimistic overlay. */
+	commit: (edit: TagTreeEdit) => void;
 	aliases: Record<string, number>;
-	setAliases: (v: Record<string, number>) => void;
 }) {
 	const close = () => onOpenChange(false);
 	const [name, setName] = useState(tag.name);
@@ -428,11 +447,13 @@ function EditTagDialog({
 
 	const handleSave = () => {
 		const newName = name.trim() || tag.name;
-		commit([{ id: tag.id, name: newName, color: hexValue }]);
-		if (newName !== tag.name) {
-			const synced = syncAliasSegments(aliases, [{ id: tag.id, oldName: tag.name, newName }]);
-			if (synced) setAliases(synced);
-		}
+		const synced =
+			newName !== tag.name &&
+			syncAliasSegments(aliases, [{ id: tag.id, oldName: tag.name, newName }]);
+		commit({
+			tags: [{ id: tag.id, name: newName, color: hexValue }],
+			...(synced ? { aliases: synced } : {}),
+		});
 		const cur = bindings ?? [];
 		if ((getTagBindingKey(cur, tag.id) ?? "") !== hotkey) {
 			setBindings(withTagKeyBinding(cur, tag.id, hotkey));
