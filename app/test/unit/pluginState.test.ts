@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createElement, act } from "react";
 import { mount as mountRoot } from "./fixtures/harness";
-import { usePluginState, storage, reloadStorage } from "@/plugins/pluginStorage";
+import { pluginSetting, usePluginState, storage, reloadStorage } from "@/plugins/pluginStorage";
 
 type AnyResult = readonly [unknown, (v: unknown) => void];
 
@@ -86,5 +86,35 @@ describe("usePluginState", () => {
 	it("does not write to storage until set is called", () => {
 		mount("untouched", "k", "default");
 		expect(storage("untouched").keys()).not.toContain("k");
+	});
+});
+
+describe("pluginSetting", () => {
+	it("reads a stored value of another type than its fallback as the fallback", () => {
+		storage("p1").set("n", "seven");
+		storage("p1").set("list", { 0: 1 });
+		expect(pluginSetting("p1", "n", 3).get()).toBe(3);
+		expect(pluginSetting("p1", "list", [1, 2]).get()).toEqual([1, 2]);
+	});
+
+	it("takes any stored value when its fallback is null", () => {
+		storage("p1").set("k", { pick: "all" });
+		expect(pluginSetting<{ pick: string } | null>("p1", "k", null).get()).toEqual({ pick: "all" });
+	});
+
+	it("re-renders every reader on a write from anywhere", () => {
+		mount("p1", "k", "a");
+		act(() => pluginSetting("p1", "k", "a").set("b"));
+		expect(result[0]).toBe("b");
+	});
+
+	it("tells a listener about its own key's changes only", () => {
+		const seen: number[] = [];
+		const off = pluginSetting("p1", "n", 0).on((v) => seen.push(v));
+		storage("p1").set("other", "x");
+		pluginSetting("p1", "n", 0).set(4);
+		off();
+		pluginSetting("p1", "n", 0).set(5);
+		expect(seen).toEqual([4]);
 	});
 });

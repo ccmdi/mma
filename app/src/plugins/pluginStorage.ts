@@ -1,9 +1,15 @@
-import { useState, useCallback, type SetStateAction } from "react";
+import { useCallback, useMemo, useState, type SetStateAction } from "react";
 import { Store } from "@/store/store";
 import { Edit } from "@/store/edit";
 import type { Op } from "@/bindings.gen";
 import type { MapDetails } from "@/store/store";
-import { getLocal, reloadLocal, setLocal } from "@/lib/hooks/useLocalStorage";
+import {
+	getLocal,
+	reloadLocal,
+	setLocal,
+	subscribeLocal,
+	useLocalStorage,
+} from "@/lib/hooks/useLocalStorage";
 
 export interface PluginStorage {
 	get<T = unknown>(key: string, fallback?: T): T;
@@ -92,23 +98,55 @@ export function reloadStorage(id: string) {
 	reloadLocal(pluginStoreKey(id), {});
 }
 
+/** One typed value in a plugin's persistent store, read anywhere and live in React. @api */
+export interface PluginSetting<T> {
+	/** The stored value, or the fallback while nothing of its type is stored. */
+	get(): T;
+	set(value: T): void;
+	/** React hook: the value and its setter, re-rendering on every write. */
+	use(): readonly [T, (value: T) => void];
+	/** Call `listener` with each new value; returns the unsubscribe. */
+	on(listener: (value: T) => void): () => void;
+}
+
+const sameKind = (a: unknown, b: unknown) =>
+	typeof a === typeof b && Array.isArray(a) === Array.isArray(b);
+
+/** A typed value under `key` in the plugin's persistent store. A stored value of another
+ *  type than `fallback` reads as `fallback`. @api */
+export function pluginSetting<T>(pluginId: string, key: string, fallback: T): PluginSetting<T> {
+	const valueIn = (data: Entries): T => {
+		const typed = fallback === null || fallback === undefined || sameKind(data[key], fallback);
+		return key in data && typed ? (data[key] as T) : fallback;
+	};
+	const get = () => valueIn(readPluginStore(pluginId));
+	const set = (value: T) => storage(pluginId).set(key, value);
+	return {
+		get,
+		set,
+		use: () => [valueIn(useLocalStorage<Entries>(pluginStoreKey(pluginId), {})[0]), set] as const,
+		on(listener) {
+			let last = get();
+			return subscribeLocal(pluginStoreKey(pluginId), () => {
+				const next = get();
+				if (Object.is(next, last)) return;
+				last = next;
+				listener(next);
+			});
+		},
+	};
+}
+
 /** React state hook backed by the plugin's persistent store. Survives sidebar
  *  unmount and app restart. Values are global, not per-map. @api */
 export function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)) {
-	const [value, setValue] = useState<T>(() => {
-		const data = readPluginStore(pluginId);
-		if (key in data) return data[key] as T;
-		return typeof initial === "function" ? (initial as () => T)() : initial;
-	});
-	const set = useCallback(
-		(action: SetStateAction<T>) => {
-			setValue((prev) => {
-				const next = typeof action === "function" ? (action as (p: T) => T)(prev) : action;
-				storage(pluginId).set(key, next);
-				return next;
-			});
-		},
-		[pluginId, key],
+	const [fallback] = useState(initial);
+	const setting = useMemo(() => pluginSetting(pluginId, key, fallback), [pluginId, key, fallback]);
+	const [value] = setting.use();
+	const update = useCallback(
+		(action: SetStateAction<T>) =>
+			setting.set(typeof action === "function" ? (action as (p: T) => T)(setting.get()) : action),
+		[setting],
 	);
-	return [value, set] as const;
+	return [value, update] as const;
 }

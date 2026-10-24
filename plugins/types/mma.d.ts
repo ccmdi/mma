@@ -1,11 +1,11 @@
 /// <reference types="google.maps" />
 
+import * as react from 'react';
+import { SetStateAction, ComponentType, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
 import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
 import { Channel } from '@tauri-apps/api/core';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
-import * as react from 'react';
-import { SetStateAction, ComponentType, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
 import { Layer as Layer$1, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
 import { Command } from '@tauri-apps/plugin-shell';
@@ -3228,6 +3228,41 @@ export type __TAURI_VARIANT<V> = {
 /** The member of `R` answering the variant `V` was sent as. @unstable */
 type ReplyTo<R, V> = Extract<R, Record<__TAURI_VARIANT<V>, unknown>>[__TAURI_VARIANT<V> & keyof Extract<R, Record<__TAURI_VARIANT<V>, unknown>>];
 
+export interface PluginStorage {
+    get<T = unknown>(key: string, fallback?: T): T;
+    set(key: string, value: unknown): void;
+    remove(key: string): void;
+    keys(): string[];
+}
+/** A plugin's store in the open map. Writes resolve once they are saved. */
+export interface MapPluginStorage {
+    get<T = unknown>(key: string, fallback?: T): T;
+    set(key: string, value: unknown): Promise<void>;
+    remove(key: string): Promise<void>;
+    keys(): string[];
+}
+/** Persistent key-value storage namespaced to a plugin. Survives restarts. @api */
+declare function storage(id: string): PluginStorage;
+/** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
+ *  Each write changes only one key, patched onto the current map settings. @api */
+declare function mapStorage(id: string): MapPluginStorage;
+/** One typed value in a plugin's persistent store, read anywhere and live in React. @api */
+interface PluginSetting<T> {
+    /** The stored value, or the fallback while nothing of its type is stored. */
+    get(): T;
+    set(value: T): void;
+    /** React hook: the value and its setter, re-rendering on every write. */
+    use(): readonly [T, (value: T) => void];
+    /** Call `listener` with each new value; returns the unsubscribe. */
+    on(listener: (value: T) => void): () => void;
+}
+/** A typed value under `key` in the plugin's persistent store. A stored value of another
+ *  type than `fallback` reads as `fallback`. @api */
+declare function pluginSetting<T>(pluginId: string, key: string, fallback: T): PluginSetting<T>;
+/** React state hook backed by the plugin's persistent store. Survives sidebar
+ *  unmount and app restart. Values are global, not per-map. @api */
+declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
+
 /**
  * The global `mma` API available inside procedure modules. Calls are synchronous;
  * pass request lists for concurrency. `map` and `run` receive locations;
@@ -3973,28 +4008,6 @@ declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
  *  abort and end their jobs; entries without a cancel are removed outright. @api @unstable */
 declare function cancelJobs(scope: JobScope): void;
-
-export interface PluginStorage {
-    get<T = unknown>(key: string, fallback?: T): T;
-    set(key: string, value: unknown): void;
-    remove(key: string): void;
-    keys(): string[];
-}
-/** A plugin's store in the open map. Writes resolve once they are saved. */
-export interface MapPluginStorage {
-    get<T = unknown>(key: string, fallback?: T): T;
-    set(key: string, value: unknown): Promise<void>;
-    remove(key: string): Promise<void>;
-    keys(): string[];
-}
-/** Persistent key-value storage namespaced to a plugin. Survives restarts. @api */
-declare function storage(id: string): PluginStorage;
-/** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
- *  Each write changes only one key, patched onto the current map settings. @api */
-declare function mapStorage(id: string): MapPluginStorage;
-/** React state hook backed by the plugin's persistent store. Survives sidebar
- *  unmount and app restart. Values are global, not per-map. @api */
-declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
 
 /** The read-only id-membership surface shared by `Set<number>` and `SelectedIds`, for code
  *  that only needs `size` / `has` / iteration over either. */
@@ -7685,6 +7698,9 @@ export type PluginStorageApi = {
     /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
      *  Each write changes only one key, patched onto the current map settings. */
     mapStorage: typeof mapStorage;
+    /** A typed value under `key` in the plugin's persistent store. A stored value of another
+     *  type than `fallback` reads as `fallback`. */
+    pluginSetting: typeof pluginSetting;
     /** Persistent key-value storage namespaced to a plugin. Survives restarts. */
     storage: typeof storage;
     /** React state hook backed by the plugin's persistent store. Survives sidebar
@@ -8047,4 +8063,4 @@ declare global {
 }
 
 export type { MMA, MMA as MMAApi, commands, events };
-export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CollabCopy, CollabPresence, CollabSession, CollabSessions, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, Edited, EditorImportPreview, EditorImportResult, Edits, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JoinOutcome, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, Member, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Origin, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReplyTo, ReportRef, ResultEntry, RetrySpec, ReviewSession, Rows, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SessionLink, SetOp, Share, Shared, Shares, Shown, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueNames, ValueRecord, Via, VirtualTag, Work, WorkResult };
+export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CollabCopy, CollabPresence, CollabSession, CollabSessions, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, Edited, EditorImportPreview, EditorImportResult, Edits, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JoinOutcome, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, Member, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Origin, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSetting, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReplyTo, ReportRef, ResultEntry, RetrySpec, ReviewSession, Rows, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SessionLink, SetOp, Share, Shared, Shares, Shown, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueNames, ValueRecord, Via, VirtualTag, Work, WorkResult };

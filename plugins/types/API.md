@@ -3513,6 +3513,21 @@ mapStorage(id: string): MapPluginStorage
 Persistent key-value storage a plugin keeps with the open map, so every map has its own.
 Each write changes only one key, patched onto the current map settings.
 
+### pluginSetting
+
+`stable` · unreleased
+
+```ts
+pluginSetting<T>(
+  pluginId: string,
+  key: string,
+  fallback: T,
+): PluginSetting<T>
+```
+
+A typed value under `key` in the plugin's persistent store. A stored value of another
+type than `fallback` reads as `fallback`.
+
 ### storage
 
 `stable` · since v0.6.1
