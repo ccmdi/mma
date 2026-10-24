@@ -4,7 +4,7 @@
 //! Values are visible while rows reference them; empty records remain available for reuse.
 
 use super::*;
-use crate::selections::{self, Index};
+use crate::selections::{self, Need};
 use crate::store::maps::{FieldDef, IndexShape};
 use crate::types::{AppError, AppResult, Location};
 use crate::util::Rgb;
@@ -174,18 +174,13 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
     }
 
     /// Build missing field indexes together in one walk over the current rows.
-    pub(super) fn prepare(&mut self, indexes: impl IntoIterator<Item = Index>) {
+    pub(super) fn prepare(&mut self, needs: impl IntoIterator<Item = (String, Need)>) {
         let mut missing = HashMap::new();
-        for index in indexes {
-            let (field, presence) = match index {
-                Index::Presence(field) => (field, true),
-                Index::Values(field) => (field, false),
-                Index::Spatial => continue,
-            };
+        for (field, need) in needs {
             let def = self.store.registry().get(&field);
             let shape = def.map_or(IndexShape::None, FieldDef::index_shape);
             if (self.includes)(def)
-                && (presence || shape != IndexShape::None)
+                && (matches!(need, Need::Presence) || shape != IndexShape::None)
                 && !self.store.field_indexes.contains_key(&field)
             {
                 missing.insert(field, shape);
@@ -248,7 +243,7 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
         mut self,
         rows: &Change<Location>,
     ) -> HashMap<String, selections::Projection> {
-        let indexes: Vec<_> = self
+        let needs: Vec<_> = self
             .store
             .registry()
             .iter()
@@ -256,15 +251,12 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
             .flat_map(|(field, def)| {
                 def.builtin
                     .is_some()
-                    .then(|| selections::Index::Values(field.to_string()))
+                    .then(|| (field.to_string(), Need::Values))
                     .into_iter()
-                    .chain(
-                        def.interned
-                            .then(|| selections::Index::Presence(field.to_string())),
-                    )
+                    .chain(def.interned.then(|| (field.to_string(), Need::Presence)))
             })
             .collect();
-        self.prepare(indexes);
+        self.prepare(needs);
         self.store
             .field_indexes
             .iter()
@@ -284,7 +276,7 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
         self.prepare(
             fields
                 .iter()
-                .map(|field| selections::Index::Presence(field.as_ref().to_string())),
+                .map(|field| (field.as_ref().to_string(), Need::Presence)),
         );
         let store: &'a Store = self.store;
         fields

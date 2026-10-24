@@ -1,7 +1,7 @@
 //! Read-only queries over the store: bounds, spatial lookups, spaced picks, aggregates.
 
 use super::*;
-use crate::selections::{self, Index, Selector, Thinning};
+use crate::selections::{self, Index, Need, Selector, Thinning};
 use crate::store::id_set::IdSet;
 use crate::store::maps::MapMeta;
 use crate::store::storage;
@@ -259,18 +259,15 @@ impl Store {
     }
 
     pub(super) fn prepare(&mut self, indexes: impl IntoIterator<Item = Index>) {
-        let mut spatial = false;
-        self.fields().prepare(indexes.into_iter().filter(|index| {
-            if matches!(index, Index::Spatial) {
-                spatial = true;
-                false
-            } else {
-                true
-            }
-        }));
-        if spatial {
+        let indexes: Vec<_> = indexes.into_iter().collect();
+        if indexes.iter().any(|index| matches!(index, Index::Spatial)) {
             Ensured::<SpatialIndex>::with(self, |_, _| ());
         }
+        self.fields()
+            .prepare(indexes.into_iter().filter_map(|index| match index {
+                Index::Field(field, need) => Some((field, need)),
+                Index::Spatial => None,
+            }));
     }
 }
 
@@ -364,7 +361,9 @@ pub enum Ask {
 impl Ask {
     pub(super) fn indexes(&self, fields: impl Iterator<Item = String>) -> Vec<Index> {
         match self {
-            Self::Coverage => fields.map(Index::Presence).collect(),
+            Self::Coverage => fields
+                .map(|field| Index::Field(field, Need::Presence))
+                .collect(),
             Self::NearAny { .. } => vec![Index::Spatial],
             Self::Ids
             | Self::Spacing

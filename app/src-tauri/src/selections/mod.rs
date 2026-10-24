@@ -361,9 +361,13 @@ impl Selection {
 }
 
 pub(crate) enum Index {
-    Presence(String),
-    Values(String),
+    Field(String, Need),
     Spatial,
+}
+
+pub(crate) enum Need {
+    Presence,
+    Values,
 }
 
 impl Selector {
@@ -431,8 +435,8 @@ impl Selector {
             Self::Filter {
                 field,
                 test: FilterOp::Has | FilterOp::Nothas,
-            } => indexes.push(Index::Presence(field.clone())),
-            Self::Filter { field, .. } => indexes.push(Index::Values(field.clone())),
+            } => indexes.push(Index::Field(field.clone(), Need::Presence)),
+            Self::Filter { field, .. } => indexes.push(Index::Field(field.clone(), Need::Values)),
             Self::Nearby { .. } | Self::Nearest { .. } => indexes.push(Index::Spatial),
             _ => {}
         });
