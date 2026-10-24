@@ -54,7 +54,9 @@ function TagContextMenuItems({
 	const targets = useMemo(() => menuTargetTagIds(node, selectedTagIds), [node, selectedTagIds]);
 	const nodeTargets = useMemo(() => [...new Set(node.subtreeTagIds)], [node]);
 	const multi = targets.length > nodeTargets.length;
-	const [counts, setCounts] = useState({ total: 0, own: 0, inSel: 0, nodeInSel: 0 });
+	const own = Store.use(() => (tagId == null ? 0 : (Tag.counts()[tagId] ?? 0)));
+	const [counts, setCounts] = useState({ targets: 0, inSel: 0, nodeInSel: 0 });
+	const total = multi ? counts.targets : (node.count ?? 0);
 
 	useEffect(() => {
 		const carriers = any(...targets.map(tagSelector));
@@ -62,16 +64,15 @@ function TagContextMenuItems({
 		const nodeScope = selectionWithout(nodeTargets);
 		void Query.read(
 			[
-				carriers,
-				tagId == null ? any() : tagSelector(tagId),
+				multi ? carriers : any(),
 				scope.selections.length > 0 ? all(carriers, scope) : any(),
 				multi && nodeTargets.length > 0 && nodeScope.selections.length > 0
 					? all(any(...nodeTargets.map(tagSelector)), nodeScope)
 					: any(),
 			],
 			{ kind: "count" },
-		).then(([total, own, inSel, nodeInSel]) => setCounts({ total, own, inSel, nodeInSel }));
-	}, [tagId, targets, nodeTargets, multi]);
+		).then(([targets, inSel, nodeInSel]) => setCounts({ targets, inSel, nodeInSel }));
+	}, [targets, nodeTargets, multi]);
 
 	return (
 		<>
@@ -84,14 +85,14 @@ function TagContextMenuItems({
 										one: "Remove {tags} tags from all ({n} location)",
 										other: "Remove {tags} tags from all ({n} locations)",
 									},
-									{ n: counts.total, tags: targets.length },
+									{ n: total, tags: targets.length },
 								)
 							: t(
 									{
 										one: "Remove from all ({n} location)",
 										other: "Remove from all ({n} locations)",
 									},
-									{ n: counts.total },
+									{ n: total },
 								)}
 					</MenuItem>
 					{!multi && tagId != null && nodeTargets.length > 1 && (
@@ -101,7 +102,7 @@ function TagContextMenuItems({
 									one: "Remove this tag only ({n} location)",
 									other: "Remove this tag only ({n} locations)",
 								},
-								{ n: counts.own },
+								{ n: own },
 							)}
 						</MenuItem>
 					)}
@@ -165,7 +166,7 @@ function TagContextMenuItems({
 					)}
 					{multi && (
 						<MenuItem
-							disabled={counts.total === 0}
+							disabled={total === 0}
 							onClick={() =>
 								openDialog("rename-tags", {
 									tagIds: targets,
@@ -179,7 +180,7 @@ function TagContextMenuItems({
 									one: "Rename {tags} tags in all ({n} location)",
 									other: "Rename {tags} tags in all ({n} locations)",
 								},
-								{ n: counts.total, tags: targets.length },
+								{ n: total, tags: targets.length },
 							)}
 						</MenuItem>
 					)}

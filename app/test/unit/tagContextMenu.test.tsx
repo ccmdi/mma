@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
 	countIn: vi.fn(async (_s: unknown) => 0),
 	openDialog: vi.fn(),
 	selectedTagIds: new Set<number>(),
+	tagCounts: {} as Record<number, number>,
 	active: [] as import("@/bindings.gen").Selection[],
 	work: vi.fn(async () => {}),
 }));
@@ -23,6 +24,7 @@ vi.mock("@/store/tag", async (importOriginal) => ({
 	Tag: {
 		...(await importOriginal<typeof import("@/store/tag")>()).Tag,
 		remove: h.deleteTags,
+		counts: () => h.tagCounts,
 	},
 }));
 vi.mock("@/store/query", async (importOriginal) => ({
@@ -50,7 +52,6 @@ vi.mock("@/store/selectionList", async (importOriginal) => ({
 import { TagContextMenu } from "@/components/editor/tags/TagContextMenu";
 import { buildTagTree, type TagTreeNode } from "@/components/editor/tags/tagTreeModel";
 
-const NO_COUNTS = { tags: {}, folders: new Map<string, number>() };
 import { all, any, tagSelector } from "@/store/selections";
 import { mountAsync } from "./fixtures/harness";
 import { findNode, mkTag } from "./fixtures/tagFixtures";
@@ -61,6 +62,7 @@ beforeEach(() => {
 	h.countIn.mockReset();
 	h.countIn.mockResolvedValue(0);
 	h.selectedTagIds = new Set();
+	h.tagCounts = {};
 	h.active = [];
 	h.work.mockClear();
 });
@@ -77,7 +79,7 @@ const tree = buildTagTree(
 		mkTag(8, "V/y"),
 	],
 	"default",
-	NO_COUNTS,
+	{ tags: { 4: 3 }, folders: new Map([["F", 7]]) },
 );
 const node = (path: string) => findNode(tree, path)!;
 
@@ -99,7 +101,6 @@ const countFor = (tagIds: number[], n: number) =>
 
 describe("tag context menu", () => {
 	it("removes a folder tag from all together with every tag under it", async () => {
-		countFor([1, 2, 3], 7);
 		const [removeAll] = await openMenu(node("F"));
 		expect(removeAll.textContent).toBe("Remove from all (7 locations)");
 
@@ -108,14 +109,19 @@ describe("tag context menu", () => {
 	});
 
 	it("offers removing a folder tag on its own, leaving the tags under it", async () => {
-		h.countIn.mockImplementation(async (s) =>
-			JSON.stringify(s) === JSON.stringify(tagSelector(1)) ? 2 : 0,
-		);
+		h.tagCounts = { 1: 2 };
 		const items = await openMenu(node("F"));
 		const only = items.find((i) => i.textContent === "Remove this tag only (2 locations)")!;
 
 		act(() => only.click());
 		expect(h.deleteTags).toHaveBeenCalledWith([1]);
+	});
+
+	it("reads a lone node's totals from the tree, querying only the selection", async () => {
+		const [removeAll] = await openMenu(node("c"));
+		expect(removeAll.textContent).toBe("Remove from all (3 locations)");
+		const carriers = JSON.stringify(any(tagSelector(4)));
+		expect(h.countIn.mock.calls.some(([s]) => JSON.stringify(s) === carriers)).toBe(false);
 	});
 
 	it("does not offer removing a leaf on its own", async () => {
