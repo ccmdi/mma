@@ -264,7 +264,7 @@ function webviewKeepsKey(e: KeyboardEvent): boolean {
 		if (IS_MAC && !e.metaKey) return true;
 		return TEXT_EDITING_KEYS.has(key);
 	}
-	return mod && !e.altKey && (key === "c" || key === "a");
+	return mod && !e.altKey && (key === "c" || key === "a" || key === "v");
 }
 
 /** The app owns every shortcut, the context menu and the mouse back/forward buttons: anything
