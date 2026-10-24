@@ -17,7 +17,7 @@ import { EntryCard, EntryList } from "@/components/primitives/EntryList";
 import { Slider } from "@/components/primitives/Slider";
 import { NSelect } from "@/components/primitives/NSelect";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
-import { usePluginState } from "@/plugins/pluginStorage";
+import { pluginSetting } from "@/plugins/pluginStorage";
 import { useSelectorPick } from "@/store/selectorPick";
 import { selection } from "@/store/selections";
 import { useScoreMaxError } from "@/lib/geo/scoring";
@@ -61,7 +61,7 @@ import {
 import { RoundPlayer } from "./RoundPlayer";
 import { Summary } from "./Summary";
 import { PastStats } from "./PastStats";
-import { useAvatarPinSetting, useGitHubAvatar } from "./gameMap";
+import { avatarPinSetting, useGitHubAvatar } from "./gameMap";
 import "./localguessr.css";
 import { IconButton } from "@/components/primitives/IconButton";
 import { Editor } from "@/store/editor";
@@ -208,8 +208,10 @@ function PastGamesModal({
 	);
 }
 
+const configSetting = pluginSetting<GameConfig>("localguessr", "config", DEFAULT_CONFIG);
+
 export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
-	const [stored, setStored] = usePluginState<GameConfig>("localguessr", "config", DEFAULT_CONFIG);
+	const [stored, setStored] = configSetting.use();
 	const config = useMemo<GameConfig>(() => ({ ...DEFAULT_CONFIG, ...stored }), [stored]);
 	const map = Store.use((s) => s.map);
 	const locationCount = Store.use((s) => s.locationCount);
@@ -222,7 +224,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	const [past, setPast] = useState<Session | null>(null);
 	const [showHistory, setShowHistory] = useState(false);
 	const signedIn = useGitHubAvatar() !== null;
-	const [avatarPin, setAvatarPin] = useAvatarPinSetting();
+	const [avatarPin, setAvatarPin] = avatarPinSetting.use();
 
 	const patch = (p: Partial<GameConfig>) => setStored({ ...config, ...p });
 

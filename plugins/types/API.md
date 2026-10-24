@@ -3127,6 +3127,20 @@ Reactive slice of the map state. Re-renders only when the selected value's
 reference changes (`Object.is`), so selectors must return state fields or
 memoized values, not a new value per call.
 
+### usePluginState
+
+`stable` · `deprecated` · since v0.7.4
+
+```ts
+usePluginState<T>(
+  pluginId: string,
+  key: string,
+  initial: T | (() => T),
+): readonly [T, (action: SetStateAction<T>) => void]
+```
+
+**Deprecated in v0.13.1.** Use `MMA.pluginSetting(pluginId, key, fallback).use()`.
+
 ### waitForGoogleMap
 
 `unstable` · `deprecated` · since v0.5.0
@@ -3531,21 +3545,6 @@ storage(id: string): PluginStorage
 ```
 
 Persistent key-value storage namespaced to a plugin. Survives restarts.
-
-### usePluginState
-
-`stable` · since v0.7.4
-
-```ts
-usePluginState<T>(
-  pluginId: string,
-  key: string,
-  initial: T | (() => T),
-): readonly [T, (action: SetStateAction<T>) => void]
-```
-
-React state hook backed by the plugin's persistent store. Survives sidebar
-unmount and app restart. Values are global, not per-map.
 
 ## Procedure
 

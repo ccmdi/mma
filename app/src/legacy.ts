@@ -19,7 +19,8 @@ import { emit, subscribe } from "@/lib/events";
 import type { CountBy, KeySpec, PartitionBucket, Target } from "@/bindings.gen";
 import type { EnrichFieldOption } from "@/lib/data/fieldDefs";
 import { Provider } from "@/lib/data/provider";
-import { storage } from "@/plugins/pluginStorage";
+import { pluginSetting, storage } from "@/plugins/pluginStorage";
+import { useCallback, useMemo, useState, type SetStateAction } from "react";
 import { sidecar, type SidecarOptions } from "@/plugins/sidecar";
 import type { MaybeLocation, Selector } from "@/types";
 import type { FieldDef } from "@/bindings.gen";
@@ -469,3 +470,16 @@ export const registerProvider: typeof Provider.register = Provider.register;
 
 /** @deprecated v0.13.0. Use `MMA.Scene.positions`. @api @unstable */
 export const getScenePositions: typeof Scene.positions = Scene.positions;
+
+/** @deprecated v0.13.1. Use `MMA.pluginSetting(pluginId, key, fallback).use()`. @api */
+export function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)) {
+	const [fallback] = useState(initial);
+	const setting = useMemo(() => pluginSetting(pluginId, key, fallback), [pluginId, key, fallback]);
+	const [value] = setting.use();
+	const update = useCallback(
+		(action: SetStateAction<T>) =>
+			setting.set(typeof action === "function" ? (action as (p: T) => T)(setting.get()) : action),
+		[setting],
+	);
+	return [value, update] as const;
+}

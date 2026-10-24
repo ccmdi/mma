@@ -5,7 +5,7 @@ import { ProgressRow } from "@/components/primitives/ProgressRow";
 import { cmd } from "@/lib/commands";
 import { getSettings } from "@/store/settings";
 import { changedLocations, subscribe } from "@/lib/events";
-import { usePluginState, storage } from "@/plugins/pluginStorage";
+import { pluginSetting, storage } from "@/plugins/pluginStorage";
 import "./distribution.css";
 import { t } from "@/lib/i18n";
 import { countryName } from "@/lib/util/format";
@@ -31,11 +31,13 @@ function toDistribution(
 	return { entries, unknown: total - known };
 }
 
+const sourceSetting = pluginSetting<Source>("distribution", "source", "coords");
+
 export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	const [entries, setEntries] = useState<CountryEntry[]>([]);
 	const [unknown, setUnknown] = useState(0);
 	const [total, setTotal] = useState(0);
-	const [source, setSource] = usePluginState<Source>("distribution", "source", "coords");
+	const [source, setSource] = sourceSetting.use();
 	const [metaAvailable, setMetaAvailable] = useState(false);
 	// A persisted choice counts as already defaulted — don't auto-flip it.
 	const autoDefaulted = useRef(storage("distribution").keys().includes("source"));

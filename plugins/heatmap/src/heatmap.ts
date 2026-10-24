@@ -10,7 +10,7 @@ import {
   type HeatmapGradient,
 } from "./gradients";
 
-const { storage, mapStorage, Scene, Query, MapHost, selectorForPick, on } = MMA;
+const { pluginSetting, Scene, Query, MapHost, selectorForPick, on } = MMA;
 
 export interface HeatmapLayerSettings {
   id: string;
@@ -32,16 +32,10 @@ export const LAYER_DEFAULTS: Omit<HeatmapLayerSettings, "id" | "source"> = {
   gradientId: DEFAULT_GRADIENT_ID,
 };
 
-/** The setup every map shares until it saves its own. */
-const sharedStore = storage("heatmap");
-
-function project<T>(key: string): T | undefined {
-  return mapStorage("heatmap").get<T | undefined>(key, sharedStore.get<T>(key));
-}
-
-function saveProject(key: string, value: unknown) {
-  void mapStorage("heatmap").set(key, value);
-}
+const project = {
+  layers: pluginSetting<Partial<HeatmapLayerSettings>[]>("heatmap", "layers", []).perMap(),
+  gradients: pluginSetting<HeatmapGradient[]>("heatmap", "gradients", []).perMap(),
+};
 
 function defaultSource(): SelectorPick {
   return Scene.selected().size > 0
@@ -75,15 +69,13 @@ function migrateLayer(stored: Partial<HeatmapLayerSettings>): HeatmapLayerSettin
 }
 
 function loadLayers(): HeatmapLayerSettings[] {
-  const stored = project<Partial<HeatmapLayerSettings>[]>("layers");
-  if (stored?.length) return stored.map(migrateLayer);
+  const stored = project.layers.get();
+  if (stored.length) return stored.map(migrateLayer);
   return [newLayer()];
 }
 
 function loadGradients(): HeatmapGradient[] {
-  return (project<HeatmapGradient[]>("gradients") ?? []).map(
-    normalizeGradient,
-  );
+  return project.gradients.get().map(normalizeGradient);
 }
 
 let overlay: DeckOverlayHandle | null = null;
@@ -104,7 +96,7 @@ export function setOnSettingsChange(cb: (() => void) | null) {
 }
 
 function commit() {
-  saveProject("layers", layers);
+  project.layers.set(layers);
   rebuild();
   onSettingsChange?.();
 }
@@ -131,7 +123,7 @@ export function resetProject() {
 }
 
 function commitGradients() {
-  saveProject("gradients", customGradients);
+  project.gradients.set(customGradients);
   commit();
 }
 

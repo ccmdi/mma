@@ -28,7 +28,7 @@ import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { changedLocations, subscribe } from "@/lib/events";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { compareNatural } from "@/lib/util/util";
-import { usePluginState } from "@/plugins/pluginStorage";
+import { pluginSetting } from "@/plugins/pluginStorage";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { useSelectorPick } from "@/store/selectorPick";
 import {
@@ -347,17 +347,20 @@ function AxisControls({
 	);
 }
 
+const settings = {
+	rows: pluginSetting<Axis>("pivot", "rows", { kind: "active" }),
+	cols: pluginSetting<Axis>("pivot", "cols", { kind: "field", key: "", buckets: DEFAULT_BUCKETS }),
+	valueMode: pluginSetting<ValueMode>("pivot", "valueMode", "count"),
+	includeNa: pluginSetting("pivot", "includeNa", true),
+};
+
 export function PivotSidebar({ onClose }: { onClose: () => void }) {
-	const [rowsRaw, setRows] = usePluginState<Axis>("pivot", "rows", { kind: "active" });
+	const [rowsRaw, setRows] = settings.rows.use();
 	// Empty resolves to nothing, so the effective field falls back to the default.
-	const [colsRaw, setCols] = usePluginState<Axis>("pivot", "cols", {
-		kind: "field",
-		key: "",
-		buckets: DEFAULT_BUCKETS,
-	});
+	const [colsRaw, setCols] = settings.cols.use();
 	const scope = useSelectorPick({ pick: "all" });
-	const [valueMode, setValueMode] = usePluginState<ValueMode>("pivot", "valueMode", "count");
-	const [includeNa, setIncludeNa] = usePluginState<boolean>("pivot", "includeNa", true);
+	const [valueMode, setValueMode] = settings.valueMode.use();
+	const [includeNa, setIncludeNa] = settings.includeNa.use();
 
 	const allFields = useExtraFieldKeys();
 	const knownKeys = getKnownFieldKeys();

@@ -1168,7 +1168,7 @@ function hexToRgb(hex) {
 }
 
 // heatmap/src/heatmap.ts
-var { storage, mapStorage, Scene, Query, MapHost, selectorForPick, on } = MMA;
+var { pluginSetting, Scene, Query, MapHost, selectorForPick, on } = MMA;
 var LAYER_DEFAULTS = {
   visible: true,
   intensity: 1,
@@ -1177,13 +1177,10 @@ var LAYER_DEFAULTS = {
   threshold: 0.05,
   gradientId: DEFAULT_GRADIENT_ID
 };
-var sharedStore = storage("heatmap");
-function project(key) {
-  return mapStorage("heatmap").get(key, sharedStore.get(key));
-}
-function saveProject(key, value) {
-  void mapStorage("heatmap").set(key, value);
-}
+var project = {
+  layers: pluginSetting("heatmap", "layers", []).perMap(),
+  gradients: pluginSetting("heatmap", "gradients", []).perMap()
+};
 function defaultSource() {
   return Scene.selected().size > 0 ? { pick: "selection" } : { pick: "all" };
 }
@@ -1208,14 +1205,12 @@ function migrateLayer(stored) {
   return layer;
 }
 function loadLayers() {
-  const stored = project("layers");
-  if (stored?.length) return stored.map(migrateLayer);
+  const stored = project.layers.get();
+  if (stored.length) return stored.map(migrateLayer);
   return [newLayer()];
 }
 function loadGradients() {
-  return (project("gradients") ?? []).map(
-    normalizeGradient
-  );
+  return project.gradients.get().map(normalizeGradient);
 }
 var overlay = null;
 var layers = [];
@@ -1231,7 +1226,7 @@ function setOnSettingsChange(cb) {
   onSettingsChange = cb;
 }
 function commit() {
-  saveProject("layers", layers);
+  project.layers.set(layers);
   rebuild();
   onSettingsChange?.();
 }
@@ -1253,7 +1248,7 @@ function resetProject() {
   commitGradients();
 }
 function commitGradients() {
-  saveProject("gradients", customGradients);
+  project.gradients.set(customGradients);
   commit();
 }
 function addCustomGradient(layerId, from) {

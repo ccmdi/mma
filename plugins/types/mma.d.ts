@@ -1,13 +1,13 @@
 /// <reference types="google.maps" />
 
-import * as react from 'react';
-import { SetStateAction, ComponentType, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
 import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
 import { Channel } from '@tauri-apps/api/core';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
 import { Layer as Layer$1, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
+import * as react from 'react';
+import { SetStateAction, ComponentType, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
 import { Command } from '@tauri-apps/plugin-shell';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import * as _base_ui_components_react_dialog from '@base-ui-components/react/dialog';
@@ -3277,13 +3277,12 @@ interface PluginSetting<T> {
     use(): readonly [T, (value: T) => void];
     /** Call `listener` with each new value; returns the unsubscribe. */
     on(listener: (value: T) => void): () => void;
+    /** The same setting kept with the open map, reading the shared value until the map saves its own. */
+    perMap(): PluginSetting<T>;
 }
 /** A typed value under `key` in the plugin's persistent store. A stored value of another
  *  type than `fallback` reads as `fallback`. @api */
 declare function pluginSetting<T>(pluginId: string, key: string, fallback: T): PluginSetting<T>;
-/** React state hook backed by the plugin's persistent store. Survives sidebar
- *  unmount and app restart. Values are global, not per-map. @api */
-declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
 
 /**
  * The global `mma` API available inside procedure modules. Calls are synchronous;
@@ -5963,6 +5962,8 @@ declare const waitForMapHost: typeof MapHost.wait;
 declare const registerProvider: typeof Provider.register;
 /** @deprecated v0.13.0. Use `MMA.Scene.positions`. @api @unstable */
 declare const getScenePositions: typeof Scene.positions;
+/** @deprecated v0.13.1. Use `MMA.pluginSetting(pluginId, key, fallback).use()`. @api */
+declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
 
 /** @unstable */
 export type PanoDestination = string | google.maps.LatLngLiteral;
@@ -7692,6 +7693,8 @@ export type LegacyApi = {
     useMapList: typeof useMapList;
     /** @deprecated v0.12.0. Use `MMA.Store.use`. */
     useMapState: typeof useMapState;
+    /** @deprecated v0.13.1. Use `MMA.pluginSetting(pluginId, key, fallback).use()`. */
+    usePluginState: typeof usePluginState;
     /** @deprecated v0.8.1. Use `MMA.MapHost.wait()`. @unstable */
     waitForGoogleMap: typeof waitForGoogleMap;
     /** @deprecated v0.12.0. Use `MMA.MapHost.wait`. */
@@ -7726,9 +7729,6 @@ export type PluginStorageApi = {
     pluginSetting: typeof pluginSetting;
     /** Persistent key-value storage namespaced to a plugin. Survives restarts. */
     storage: typeof storage;
-    /** React state hook backed by the plugin's persistent store. Survives sidebar
-     *  unmount and app restart. Values are global, not per-map. */
-    usePluginState: typeof usePluginState;
 };
 export type ProcedureApi = {
     /** Procedure modules: ask one a question, or run one over locations. */

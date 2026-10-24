@@ -19,7 +19,7 @@ import type * as maplibregl from "maplibre-gl";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { useSetting } from "@/store/settings";
-import { usePluginState } from "@/plugins/pluginStorage";
+import { pluginSetting } from "@/plugins/pluginStorage";
 import { clamp, range } from "@/types/util";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { t } from "@/lib/i18n";
@@ -85,6 +85,11 @@ function poolLayer(positions: Float32Array, color: RGB) {
 	});
 }
 
+const settings = {
+	mapScale: pluginSetting("localguessr", "mapScale", 1),
+	showPool: pluginSetting("localguessr", "showPool", false),
+};
+
 /**
  * The guess map. One MapHost for the whole game: toggling play/result only swaps
  * CSS and layers, because recreating it burns a WebGL context every round.
@@ -113,8 +118,8 @@ export function GuessMap({
 }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
-	const [scale, setScale] = usePluginState<number>("localguessr", "mapScale", 1);
-	const [showPool, setShowPool] = usePluginState<boolean>("localguessr", "showPool", false);
+	const [scale, setScale] = settings.mapScale.use();
+	const [showPool, setShowPool] = settings.showPool.use();
 	const sampling = useJob<Float32Array>();
 	const pool = sampling.ok();
 	const closeDelay = useSetting("fullscreenMinimapCloseDelay");
@@ -347,7 +352,7 @@ export function GuessMap({
 					<button
 						type="button"
 						className={`lg-guess-map__control${showPool ? " is-active" : ""}`}
-						onClick={() => setShowPool((v) => !v)}
+						onClick={() => setShowPool(!showPool)}
 						aria-label={showPool ? t("Hide map locations") : t("Show map locations")}
 					>
 						<Icon path={mdiScatterPlot} size={16} />

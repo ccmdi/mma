@@ -16,7 +16,7 @@ import {
 } from "@mdi/js";
 import { getSettings, setSetting, useSettings } from "@/store/settings";
 import { sendHideCar, Compass, CompassTape } from "@/components/editor/location/PanoControls";
-import { usePluginState } from "@/plugins/pluginStorage";
+import { pluginSetting } from "@/plugins/pluginStorage";
 import { t } from "@/lib/i18n";
 import { toast } from "@/lib/util/toast";
 import { formatDistance } from "@/lib/util/format";
@@ -116,6 +116,8 @@ function streakMessage(
 	});
 }
 
+const showTagsSetting = pluginSetting("localguessr", "showTags", false);
+
 export function RoundPlayer({
 	game,
 	showResult,
@@ -145,7 +147,7 @@ export function RoundPlayer({
 	const settings = useSettings();
 	const [hideCar, setHideCar] = useState(!getSettings().showCar);
 	// Persisted: the tag bar is a working preference, not per-round state.
-	const [showTags, setShowTags] = usePluginState<boolean>("localguessr", "showTags", false);
+	const [showTags, setShowTags] = showTagsSetting.use();
 	const lastResult = game.results.at(-1) ?? null;
 	const last = isLastRound(game);
 	const pano = usePano();
@@ -483,7 +485,7 @@ export function RoundPlayer({
 							<button
 								type="button"
 								className={`lg-tag-btn${showTags ? " is-active" : ""}`}
-								onClick={() => setShowTags((v) => !v)}
+								onClick={() => setShowTags(!showTags)}
 							>
 								<Icon path={mdiTagOutline} size={18} />
 								<span>{t("Tags")}</span>

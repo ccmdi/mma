@@ -21,7 +21,7 @@ import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { compareNatural } from "@/lib/util/util";
-import { usePluginState } from "@/plugins/pluginStorage";
+import { pluginSetting } from "@/plugins/pluginStorage";
 import { useSetting } from "@/store/settings";
 import "./gradient.css";
 import { t, msg } from "@/lib/i18n";
@@ -109,13 +109,21 @@ function defaultGradientField(fields: FieldEntry[]): string {
 	return (fields.find((f) => f.key === "altitude") ?? fields[0])?.key ?? "";
 }
 
+const settings = {
+	fieldKey: pluginSetting("gradient", "fieldKey", ""),
+	projectionId: pluginSetting("gradient", "projectionId", RANGE_ID),
+	presetIdx: pluginSetting("gradient", "presetIdx", 0),
+	bucketCount: pluginSetting("gradient", "bucketCount", 10),
+	reversed: pluginSetting("gradient", "reversed", false),
+};
+
 export function GradientSidebar({ onClose }: { onClose: () => void }) {
 	// Empty resolves to nothing, so the effective field falls back to the default below.
-	const [fieldKeyRaw, setFieldKey] = usePluginState<string>("gradient", "fieldKey", "");
-	const [projectionIdRaw, setProjectionId] = usePluginState("gradient", "projectionId", RANGE_ID);
-	const [presetIdxRaw, setPresetIdx] = usePluginState("gradient", "presetIdx", 0);
-	const [bucketCount, setBucketCount] = usePluginState("gradient", "bucketCount", 10);
-	const [reversed, setReversed] = usePluginState("gradient", "reversed", false);
+	const [fieldKeyRaw, setFieldKey] = settings.fieldKey.use();
+	const [projectionIdRaw, setProjectionId] = settings.projectionId.use();
+	const [presetIdxRaw, setPresetIdx] = settings.presetIdx.use();
+	const [bucketCount, setBucketCount] = settings.bucketCount.use();
+	const [reversed, setReversed] = settings.reversed.use();
 	const [applying, setApplying] = useState(false);
 	const [lastResult, setLastResult] = useState<{
 		groups: number;

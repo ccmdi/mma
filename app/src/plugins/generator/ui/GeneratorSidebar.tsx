@@ -9,7 +9,7 @@ import { google } from "@/lib/sv/opensv";
 import { addSelection } from "@/store/selections";
 import { usePluginEvent } from "@/plugins/scope";
 import type { Selection } from "@/bindings.gen";
-import { mapStorage, storage } from "@/plugins/pluginStorage";
+import { pluginSetting } from "@/plugins/pluginStorage";
 import { Sidebar, Section } from "@/components/primitives/Sidebar";
 import { searchCoverage } from "../searchCoverage";
 import {
@@ -54,20 +54,10 @@ import { readGeneratorPreset, writeGeneratorPreset } from "../presetFile";
 import { Edit } from "@/store/edit";
 
 const GENERATOR_ID = "map-generator";
-/** The setup every map shares until it saves its own. */
-const sharedStore = storage(GENERATOR_ID);
-
-function project<T>(key: string): T {
-	return mapStorage(GENERATOR_ID).get<T>(key, sharedStore.get<T>(key));
-}
-
-function saveProject(key: string, value: unknown) {
-	void mapStorage(GENERATOR_ID).set(key, value);
-}
-
-function loadSettings(): GeneratorSettings {
-	return normalizeGeneratorSettings(project<unknown>("settings"));
-}
+const project = {
+	settings: pluginSetting<unknown>(GENERATOR_ID, "settings", null).perMap(),
+	tagName: pluginSetting(GENERATOR_ID, "tagName", "").perMap(),
+};
 
 function selectionToRegion(sel: Selection, meta: GeneratorRegionMeta): GeneratorRegion | null {
 	if (sel.selector.type !== "Polygon") return null;
@@ -256,9 +246,11 @@ function summarizeSettings(s: GeneratorSettings): string {
 }
 
 export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
-	const [settings, setSettings] = useState<GeneratorSettings>(loadSettings);
+	const [settings, setSettings] = useState<GeneratorSettings>(() =>
+		normalizeGeneratorSettings(project.settings.get()),
+	);
 	const [meta, setMeta] = useState<Map<string, GeneratorRegionMeta>>(sessionMeta);
-	const [tagName, setTagName] = useState(() => project<string | undefined>("tagName") ?? "");
+	const [tagName, setTagName] = useState(project.tagName.get);
 	const status = usePluginEvent(GENERATOR_CHANGED, getGeneratorStatus);
 	const running = status !== "idle";
 	const paused = status === "paused";
@@ -281,7 +273,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	const updateSettings = useCallback((patch: Partial<GeneratorSettings>) => {
 		setSettings((prev) => {
 			const next = { ...prev, ...patch };
-			saveProject("settings", next);
+			project.settings.set(next);
 			updateGenerationSettings(next);
 			return next;
 		});
@@ -362,7 +354,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 		if (preset.settings) updateSettings(preset.settings);
 		if (preset.tagName !== null) {
 			setTagName(preset.tagName);
-			saveProject("tagName", preset.tagName);
+			project.tagName.set(preset.tagName);
 		}
 		await Edit.selections(
 			addSelection(...preset.polygons.map((polygon) => ({ type: "Polygon" as const, polygon }))),
@@ -373,9 +365,9 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 		const fresh = normalizeGeneratorSettings(undefined);
 		setSettings(fresh);
 		updateGenerationSettings(fresh);
-		saveProject("settings", fresh);
+		project.settings.set(fresh);
 		setTagName("");
-		saveProject("tagName", "");
+		project.tagName.set("");
 	}, []);
 
 	const handleClose = useCallback(() => {
@@ -453,7 +445,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 						value={tagName}
 						onChange={(e) => {
 							setTagName(e.target.value);
-							saveProject("tagName", e.target.value);
+							project.tagName.set(e.target.value);
 						}}
 						placeholder={t("None")}
 						disabled={running}

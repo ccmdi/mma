@@ -7,7 +7,7 @@ import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { getLocal } from "@/lib/hooks/useLocalStorage";
 import { Account } from "@/lib/account";
 import { useAsync } from "@/lib/hooks/useAsync";
-import { usePluginState } from "@/plugins/pluginStorage";
+import { pluginSetting } from "@/plugins/pluginStorage";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { rgbCss } from "@/lib/util/color";
 import type { RGB } from "@/bindings.gen";
@@ -246,13 +246,11 @@ export function useGitHubAvatar(): string | null {
 	return Account.use()?.avatarUrl ?? null;
 }
 
-export function useAvatarPinSetting() {
-	return usePluginState<boolean>("localguessr", "avatarPin", true);
-}
+export const avatarPinSetting = pluginSetting("localguessr", "avatarPin", true);
 
 /** The player's guess pin: their GitHub avatar when signed in and chosen, else the default. */
 export function useGuessPin(): () => PinIcon {
-	const [avatarPin] = useAvatarPinSetting();
+	const [avatarPin] = avatarPinSetting.use();
 	const avatarUrl = useGitHubAvatar();
 	const avatar = useAsync(
 		() =>

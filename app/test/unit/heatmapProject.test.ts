@@ -3,7 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { Store } from "@/store/store";
 import { Autosave } from "@/store/autosave";
 import type { MapMeta } from "@/bindings.gen";
-import { mapStorage, storage } from "@/plugins/pluginStorage";
+import { pluginSetting } from "@/plugins/pluginStorage";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -36,8 +36,7 @@ const ownProject = () => Store.get().map?.settings.pluginData?.heatmap;
 
 beforeAll(async () => {
 	vi.stubGlobal("MMA", {
-		storage,
-		mapStorage,
+		pluginSetting,
 		Scene: {
 			selected: () => new Set(),
 			positions: () => ({ ids: new Uint32Array(), positions: new Float32Array() }),

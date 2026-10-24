@@ -193,6 +193,7 @@ import {
 	useMapBadges,
 	useMapList,
 	useMapState,
+	usePluginState,
 	waitForGoogleMap,
 	waitForMapHost,
 } from "@/legacy";
@@ -201,7 +202,7 @@ import { MapHost } from "@/lib/map/mapHost";
 import { Maps } from "@/store/maps";
 import { Mutation } from "@/store/mutation";
 import { Pano } from "@/lib/sv/pano";
-import { mapStorage, pluginSetting, storage, usePluginState } from "@/plugins/pluginStorage";
+import { mapStorage, pluginSetting, storage } from "@/plugins/pluginStorage";
 import { Procedure } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
 import {
@@ -787,6 +788,8 @@ type LegacyApi = {
 	useMapList: typeof useMapList;
 	/** @deprecated v0.12.0. Use `MMA.Store.use`. */
 	useMapState: typeof useMapState;
+	/** @deprecated v0.13.1. Use `MMA.pluginSetting(pluginId, key, fallback).use()`. */
+	usePluginState: typeof usePluginState;
 	/** @deprecated v0.8.1. Use `MMA.MapHost.wait()`. @unstable */
 	waitForGoogleMap: typeof waitForGoogleMap;
 	/** @deprecated v0.12.0. Use `MMA.MapHost.wait`. */
@@ -821,9 +824,6 @@ type PluginStorageApi = {
 	pluginSetting: typeof pluginSetting;
 	/** Persistent key-value storage namespaced to a plugin. Survives restarts. */
 	storage: typeof storage;
-	/** React state hook backed by the plugin's persistent store. Survives sidebar
-	 *  unmount and app restart. Values are global, not per-map. */
-	usePluginState: typeof usePluginState;
 };
 type ProcedureApi = {
 	/** Procedure modules: ask one a question, or run one over locations. */
@@ -1412,6 +1412,7 @@ const mma: MMA = {
 	useMapBadges,
 	useMapList,
 	useMapState,
+	usePluginState,
 	waitForGoogleMap,
 	waitForMapHost,
 	Location,
@@ -1422,7 +1423,6 @@ const mma: MMA = {
 	mapStorage,
 	pluginSetting,
 	storage,
-	usePluginState,
 	Procedure,
 	Provider,
 	BUILTIN_PROVIDERS,

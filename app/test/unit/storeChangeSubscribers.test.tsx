@@ -40,10 +40,9 @@ vi.mock("@/lib/commands", () => ({
 }));
 vi.mock("@/store/settings", () => ({ getSettings: () => ({ borderDetail: 0 }) }));
 vi.mock("@/plugins/pluginStorage", () => ({
-	usePluginState: (_plugin: string, key: string, fallback: unknown) => {
-		const forced = key === "rows" || key === "cols" ? { kind: "all" } : fallback;
-		return useState(forced);
-	},
+	pluginSetting: (_plugin: string, key: string, fallback: unknown) => ({
+		use: () => useState(key === "rows" || key === "cols" ? { kind: "all" } : fallback),
+	}),
 	storage: () => ({ keys: () => ["source"] }),
 }));
 vi.mock("@/store/selectionList", () => ({ SelectionList: { active: () => [], listed: () => [] } }));
