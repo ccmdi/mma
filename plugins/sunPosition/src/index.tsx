@@ -1,13 +1,5 @@
-import { useState } from "react";
 import { LineLayer } from "@deck.gl/layers";
-import type {
-	DeckOverlayHandle,
-	FieldDef,
-	MapHost,
-	RGB,
-	RGBA,
-	Selector,
-} from "mma-plugin-types";
+import type { DeckOverlayHandle, FieldDef, MapHost, RGB, SelectorPick } from "mma-plugin-types";
 
 const {
 	registerPlugin,
@@ -15,20 +7,25 @@ const {
 	waitForMapHost,
 	fetchColumns,
 	on,
-	storage,
-	usePluginState,
-	ui: { Sidebar, Section, SwitchRow, Field, Slider, ColorPicker },
+	pluginSetting,
+	all,
+	has,
+	selectorForPick,
+	useSelectorPick,
+	ui: { Sidebar, Section, SwitchRow, Field, Slider, ColorPicker, SelectorPicker },
 } = MMA;
 
 const PLUGIN_ID = "sunPosition";
-const RAYS_KEY = "showRays";
-const LENGTH_KEY = "rayLength";
-const COLOR_KEY = "rayColor";
-const DEFAULT_LENGTH = 28;
 const LENGTH_RANGE = { min: 8, max: 96 };
-const DEFAULT_COLOR: RGB = [255, 179, 0];
 const WORLD_PX = 256;
 const RAD = Math.PI / 180;
+
+const settings = {
+	rays: pluginSetting(PLUGIN_ID, "showRays", false),
+	length: pluginSetting(PLUGIN_ID, "rayLength", 28),
+	color: pluginSetting<RGB>(PLUGIN_ID, "rayColor", [255, 179, 0]),
+	source: pluginSetting<SelectorPick>(PLUGIN_ID, "source", { pick: "all" }),
+};
 
 const FIELDS: Record<string, FieldDef> = {
 	sunAzimuth: {
@@ -45,27 +42,8 @@ const FIELDS: Record<string, FieldDef> = {
 	},
 };
 
-const ENRICHED: Selector = { type: "Filter", field: "sunAzimuth", test: { op: "has" } };
-
 export function sunIsUp(altitude: unknown): boolean {
 	return typeof altitude === "number" && altitude > 0;
-}
-
-export function rayLength(value: unknown): number {
-	const px = Math.round(Number(value));
-	return Number.isFinite(px) && px > 0 ? px : DEFAULT_LENGTH;
-}
-
-function isRgb(value: unknown): value is RGB {
-	return (
-		Array.isArray(value) &&
-		value.length === 3 &&
-		value.every((c) => Number.isInteger(c) && c >= 0 && c <= 255)
-	);
-}
-
-export function rayColor(value: unknown): RGB {
-	return isRgb(value) ? value : DEFAULT_COLOR;
 }
 
 export interface SunRays {
@@ -119,8 +97,6 @@ let overlay: DeckOverlayHandle | null = null;
 let rays = NO_RAYS;
 
 function draw(host: MapHost) {
-	const stored = storage(PLUGIN_ID);
-	const color: RGBA = [...rayColor(stored.get(COLOR_KEY)), 255];
 	overlay?.setProps({
 		layers: [
 			new LineLayer({
@@ -130,12 +106,12 @@ function draw(host: MapHost) {
 					attributes: {
 						getSourcePosition: { value: rays.source, size: 2 },
 						getTargetPosition: {
-							value: rayTargets(rays, rayLength(stored.get(LENGTH_KEY)), host.getZoom()),
+							value: rayTargets(rays, settings.length.get(), host.getZoom()),
 							size: 2,
 						},
 					},
 				},
-				getColor: color,
+				getColor: [...settings.color.get(), 255],
 				getWidth: 2,
 				widthUnits: "pixels",
 			}),
@@ -143,17 +119,14 @@ function draw(host: MapHost) {
 	});
 }
 
-let redraw: (() => void) | null = null;
 let loadToken = 0;
 
 async function load(host: MapHost) {
 	const token = ++loadToken;
-	const [lats, lngs, azimuths, altitudes] = await fetchColumns(ENRICHED, [
-		"lat",
-		"lng",
-		"sunAzimuth",
-		"sunAltitude",
-	]);
+	const [lats, lngs, azimuths, altitudes] = await fetchColumns(
+		all(selectorForPick(settings.source.get()), has("sunAzimuth")),
+		["lat", "lng", "sunAzimuth", "sunAltitude"],
+	);
 	if (token !== loadToken || !overlay) return;
 	rays = daylightRays(lats, lngs, azimuths, altitudes);
 	draw(host);
@@ -168,11 +141,17 @@ function start(host: MapHost): () => void {
 		clearTimeout(reloadTimer);
 		reloadTimer = setTimeout(() => void load(host), 100);
 	};
-	redraw = () => draw(host);
+	const redraw = () => draw(host);
 	const unsubs = [
 		on("store:change", (e) => {
 			if (e.added.length + e.updated.length + e.removed.length > 0) reload();
 		}),
+		on("selection:change", () => {
+			if (settings.source.get().pick === "selection") reload();
+		}),
+		settings.source.on(reload),
+		settings.length.on(redraw),
+		settings.color.on(redraw),
 		host.on("zoom", redraw),
 	];
 
@@ -181,7 +160,6 @@ function start(host: MapHost): () => void {
 		clearTimeout(reloadTimer);
 		overlay?.finalize();
 		overlay = null;
-		redraw = null;
 		rays = NO_RAYS;
 	};
 }
@@ -202,37 +180,32 @@ export function showRays(visible: boolean) {
 	});
 }
 
-function useRayStyle<T>(key: string, parse: (value: unknown) => T) {
-	const [value, setValue] = useState(() => parse(storage(PLUGIN_ID).get(key)));
-	const set = (next: T) => {
-		setValue(next);
-		storage(PLUGIN_ID).set(key, next);
-		redraw?.();
-	};
-	return [value, set] as const;
-}
-
 function SunSidebar({ onClose }: { onClose: () => void }) {
-	const [visible, setVisible] = usePluginState<boolean>(PLUGIN_ID, RAYS_KEY, false);
-	const [length, setLength] = useRayStyle(LENGTH_KEY, rayLength);
-	const [color, setColor] = useRayStyle(COLOR_KEY, rayColor);
+	const [visible, setVisible] = settings.rays.use();
+	const [length, setLength] = settings.length.use();
+	const [color, setColor] = settings.color.use();
+	const picker = useSelectorPick(settings.source.get());
 	return (
 		<Sidebar title="Sun Position" onBack={onClose}>
 			<Section title="Overlay">
-				<SwitchRow
-					label="Sun rays"
-					checked={visible}
-					onChange={(value) => {
-						setVisible(value);
-						showRays(value);
-					}}
-				/>
+				<SwitchRow label="Sun rays" checked={visible} onChange={setVisible} />
+				<Field label="Locations">
+					<SelectorPicker
+						ctl={{
+							...picker,
+							setChoice: (pick) => {
+								picker.setChoice(pick);
+								settings.source.set(pick);
+							},
+						}}
+					/>
+				</Field>
 				<Field label="Length">
 					<Slider
 						min={LENGTH_RANGE.min}
 						max={LENGTH_RANGE.max}
 						value={length}
-						onChange={(e) => setLength(rayLength(e.target.value))}
+						onChange={(e) => setLength(Number(e.target.value))}
 						format={(v) => `${v}px`}
 					/>
 				</Field>
@@ -258,8 +231,11 @@ registerPlugin({
 			},
 		});
 
-		showRays(storage(PLUGIN_ID).get<boolean>(RAYS_KEY, false));
-
-		return () => showRays(false);
+		showRays(settings.rays.get());
+		const off = settings.rays.on(showRays);
+		return () => {
+			off();
+			showRays(false);
+		};
 	},
 });

@@ -24,13 +24,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// mma-ext:react
-var require_react = __commonJS({
-  "mma-ext:react"(exports, module) {
-    module.exports = globalThis.__mma_require("react");
-  }
-});
-
 // mma-ext:@deck.gl/layers
 var require_layers = __commonJS({
   "mma-ext:@deck.gl/layers"(exports, module) {
@@ -46,7 +39,6 @@ var require_jsx_runtime = __commonJS({
 });
 
 // sunPosition/src/index.tsx
-var import_react = __toESM(require_react());
 var import_layers = __toESM(require_layers());
 var import_jsx_runtime = __toESM(require_jsx_runtime());
 var {
@@ -55,19 +47,23 @@ var {
   waitForMapHost,
   fetchColumns,
   on,
-  storage,
-  usePluginState,
-  ui: { Sidebar, Section, SwitchRow, Field, Slider, ColorPicker }
+  pluginSetting,
+  all,
+  has,
+  selectorForPick,
+  useSelectorPick,
+  ui: { Sidebar, Section, SwitchRow, Field, Slider, ColorPicker, SelectorPicker }
 } = MMA;
 var PLUGIN_ID = "sunPosition";
-var RAYS_KEY = "showRays";
-var LENGTH_KEY = "rayLength";
-var COLOR_KEY = "rayColor";
-var DEFAULT_LENGTH = 28;
 var LENGTH_RANGE = { min: 8, max: 96 };
-var DEFAULT_COLOR = [255, 179, 0];
 var WORLD_PX = 256;
 var RAD = Math.PI / 180;
+var settings = {
+  rays: pluginSetting(PLUGIN_ID, "showRays", false),
+  length: pluginSetting(PLUGIN_ID, "rayLength", 28),
+  color: pluginSetting(PLUGIN_ID, "rayColor", [255, 179, 0]),
+  source: pluginSetting(PLUGIN_ID, "source", { pick: "all" })
+};
 var FIELDS = {
   sunAzimuth: {
     type: "number",
@@ -82,19 +78,8 @@ var FIELDS = {
     comparison: null
   }
 };
-var ENRICHED = { type: "Filter", field: "sunAzimuth", test: { op: "has" } };
 function sunIsUp(altitude) {
   return typeof altitude === "number" && altitude > 0;
-}
-function rayLength(value) {
-  const px = Math.round(Number(value));
-  return Number.isFinite(px) && px > 0 ? px : DEFAULT_LENGTH;
-}
-function isRgb(value) {
-  return Array.isArray(value) && value.length === 3 && value.every((c) => Number.isInteger(c) && c >= 0 && c <= 255);
-}
-function rayColor(value) {
-  return isRgb(value) ? value : DEFAULT_COLOR;
 }
 var NO_RAYS = { source: new Float64Array(0), bearing: new Float64Array(0) };
 function daylightRays(lats, lngs, azimuths, altitudes) {
@@ -130,8 +115,6 @@ function rayTargets(rays2, lengthPx, zoom) {
 var overlay = null;
 var rays = NO_RAYS;
 function draw(host) {
-  const stored = storage(PLUGIN_ID);
-  const color = [...rayColor(stored.get(COLOR_KEY)), 255];
   overlay?.setProps({
     layers: [
       new import_layers.LineLayer({
@@ -141,28 +124,25 @@ function draw(host) {
           attributes: {
             getSourcePosition: { value: rays.source, size: 2 },
             getTargetPosition: {
-              value: rayTargets(rays, rayLength(stored.get(LENGTH_KEY)), host.getZoom()),
+              value: rayTargets(rays, settings.length.get(), host.getZoom()),
               size: 2
             }
           }
         },
-        getColor: color,
+        getColor: [...settings.color.get(), 255],
         getWidth: 2,
         widthUnits: "pixels"
       })
     ]
   });
 }
-var redraw = null;
 var loadToken = 0;
 async function load(host) {
   const token = ++loadToken;
-  const [lats, lngs, azimuths, altitudes] = await fetchColumns(ENRICHED, [
-    "lat",
-    "lng",
-    "sunAzimuth",
-    "sunAltitude"
-  ]);
+  const [lats, lngs, azimuths, altitudes] = await fetchColumns(
+    all(selectorForPick(settings.source.get()), has("sunAzimuth")),
+    ["lat", "lng", "sunAzimuth", "sunAltitude"]
+  );
   if (token !== loadToken || !overlay) return;
   rays = daylightRays(lats, lngs, azimuths, altitudes);
   draw(host);
@@ -175,11 +155,17 @@ function start(host) {
     clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => void load(host), 100);
   };
-  redraw = () => draw(host);
+  const redraw = () => draw(host);
   const unsubs = [
     on("store:change", (e) => {
       if (e.added.length + e.updated.length + e.removed.length > 0) reload();
     }),
+    on("selection:change", () => {
+      if (settings.source.get().pick === "selection") reload();
+    }),
+    settings.source.on(reload),
+    settings.length.on(redraw),
+    settings.color.on(redraw),
     host.on("zoom", redraw)
   ];
   return () => {
@@ -187,7 +173,6 @@ function start(host) {
     clearTimeout(reloadTimer);
     overlay?.finalize();
     overlay = null;
-    redraw = null;
     rays = NO_RAYS;
   };
 }
@@ -205,38 +190,32 @@ function showRays(visible) {
     if (showing && !stop) stop = start(host);
   });
 }
-function useRayStyle(key, parse) {
-  const [value, setValue] = (0, import_react.useState)(() => parse(storage(PLUGIN_ID).get(key)));
-  const set = (next) => {
-    setValue(next);
-    storage(PLUGIN_ID).set(key, next);
-    redraw?.();
-  };
-  return [value, set];
-}
 function SunSidebar({ onClose }) {
-  const [visible, setVisible] = usePluginState(PLUGIN_ID, RAYS_KEY, false);
-  const [length, setLength] = useRayStyle(LENGTH_KEY, rayLength);
-  const [color, setColor] = useRayStyle(COLOR_KEY, rayColor);
+  const [visible, setVisible] = settings.rays.use();
+  const [length, setLength] = settings.length.use();
+  const [color, setColor] = settings.color.use();
+  const picker = useSelectorPick(settings.source.get());
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sidebar, { title: "Sun Position", onBack: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Section, { title: "Overlay", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      SwitchRow,
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SwitchRow, { label: "Sun rays", checked: visible, onChange: setVisible }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Locations", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      SelectorPicker,
       {
-        label: "Sun rays",
-        checked: visible,
-        onChange: (value) => {
-          setVisible(value);
-          showRays(value);
+        ctl: {
+          ...picker,
+          setChoice: (pick) => {
+            picker.setChoice(pick);
+            settings.source.set(pick);
+          }
         }
       }
-    ),
+    ) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Length", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       Slider,
       {
         min: LENGTH_RANGE.min,
         max: LENGTH_RANGE.max,
         value: length,
-        onChange: (e) => setLength(rayLength(e.target.value)),
+        onChange: (e) => setLength(Number(e.target.value)),
         format: (v) => `${v}px`
       }
     ) }),
@@ -256,14 +235,16 @@ registerPlugin({
         batch: { mode: "chunk", size: 1e4 }
       }
     });
-    showRays(storage(PLUGIN_ID).get(RAYS_KEY, false));
-    return () => showRays(false);
+    showRays(settings.rays.get());
+    const off = settings.rays.on(showRays);
+    return () => {
+      off();
+      showRays(false);
+    };
   }
 });
 export {
   daylightRays,
-  rayColor,
-  rayLength,
   rayTargets,
   showRays,
   sunIsUp

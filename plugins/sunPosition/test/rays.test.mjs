@@ -9,12 +9,11 @@ globalThis.MMA = {
 	waitForMapHost: () => new Promise(() => {}),
 	fetchColumns: async () => [],
 	on: () => () => {},
-	storage: () => ({ get: (_key, fallback) => fallback }),
-	usePluginState: () => [false, () => {}],
+	pluginSetting: (_id, _key, fallback) => ({ get: () => fallback, on: () => () => {} }),
 	ui: {},
 };
 
-const { sunIsUp, rayLength, rayColor, daylightRays, rayTargets } = await import(
+const { sunIsUp, daylightRays, rayTargets } = await import(
 	new URL("../index.js", import.meta.url).href
 );
 
@@ -80,20 +79,4 @@ test("ray length scales the screen ray and nothing else", () => {
 	const long = screenRay(47.3769, 8.5417, 120, 40, 12);
 	assert.ok(Math.abs(long.pixels / short.pixels - 4) < 0.01);
 	assert.ok(Math.abs(long.bearing - short.bearing) < 0.01);
-});
-
-test("a bad length or colour falls back to the declared default", () => {
-	assert.equal(rayLength(40), 40);
-	assert.equal(rayLength("40"), 40);
-	assert.equal(rayLength(40.4), 40);
-	assert.equal(rayLength(0), 28);
-	assert.equal(rayLength(-5), 28);
-	assert.equal(rayLength("wide"), 28);
-	assert.equal(rayLength(undefined), 28);
-
-	assert.deepEqual(rayColor([0, 255, 136]), [0, 255, 136]);
-	assert.deepEqual(rayColor([0, 256, 136]), [255, 179, 0]);
-	assert.deepEqual(rayColor([0, 255]), [255, 179, 0]);
-	assert.deepEqual(rayColor("#00ff88"), [255, 179, 0]);
-	assert.deepEqual(rayColor(undefined), [255, 179, 0]);
 });
