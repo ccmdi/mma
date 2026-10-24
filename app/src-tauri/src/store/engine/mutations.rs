@@ -931,7 +931,7 @@ pub(crate) fn merge_group(
         .fold(None, |held, m| held.patched(&m.extra.to_patch()));
 
     let mut new_survivor = survivor.clone();
-    for key in fields.interned() {
+    for key in fields.interned().keys() {
         if fields.get(key).map(maps::FieldDef::index_shape) != Some(maps::IndexShape::Multi) {
             continue;
         }

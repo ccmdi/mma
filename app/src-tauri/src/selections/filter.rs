@@ -430,23 +430,23 @@ fn builtins() -> &'static Builtins {
 /// Every field a map's rows can hold, by key: the built-ins in declaration order, then
 /// the map's own definitions. A built-in shadows a map definition of the same key.
 #[derive(Clone, Copy)]
-pub struct FieldRegistry<'a> {
+pub struct FieldRegistry<'a, F = fn(Option<&FieldDef>) -> bool> {
     map: &'a HashMap<String, FieldDef>,
+    includes: F,
 }
 
 impl<'a> FieldRegistry<'a> {
     pub fn new(map: &'a HashMap<String, FieldDef>) -> Self {
-        Self { map }
+        Self {
+            map,
+            includes: |_| true,
+        }
     }
 
     /// The registry of a map that defines no fields of its own.
     pub fn builtins() -> FieldRegistry<'static> {
         static NONE: OnceLock<HashMap<String, FieldDef>> = OnceLock::new();
         FieldRegistry::new(NONE.get_or_init(HashMap::new))
-    }
-
-    pub fn get(&self, key: &str) -> Option<&'a FieldDef> {
-        builtins().defs.get(key).or_else(|| self.map.get(key))
     }
 
     /// Leave to assign `key`. A key no field declares is an `extra` key, always writable.
@@ -474,15 +474,38 @@ impl<'a> FieldRegistry<'a> {
             .map(|address| FieldWriter { key, address })
             .ok_or_else(|| AppError(format!("'{key}' cannot be {verb}")))
     }
+}
 
-    /// The fields whose values are ids the map allocates.
-    pub fn interned(&self) -> impl Iterator<Item = &'a str> + 'a {
-        self.iter()
-            .filter(|(_, def)| def.interned)
-            .map(|(key, _)| key)
+impl<'a, F: Fn(Option<&FieldDef>) -> bool + Clone> FieldRegistry<'a, F> {
+    pub fn filter(
+        self,
+        includes: impl Fn(&FieldDef) -> bool + Clone,
+    ) -> FieldRegistry<'a, impl Fn(Option<&FieldDef>) -> bool + Clone> {
+        FieldRegistry {
+            map: self.map,
+            includes: move |field: Option<&FieldDef>| {
+                (self.includes)(field) && field.is_some_and(&includes)
+            },
+        }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&'a str, &'a FieldDef)> + 'a {
+    pub fn interned(self) -> FieldRegistry<'a, impl Fn(Option<&FieldDef>) -> bool + Clone> {
+        self.filter(|field| field.interned)
+    }
+
+    pub fn get(&self, key: &str) -> Option<&'a FieldDef> {
+        builtins()
+            .defs
+            .get(key)
+            .or_else(|| self.map.get(key))
+            .filter(|def| (self.includes)(Some(def)))
+    }
+
+    pub fn keys(self) -> impl Iterator<Item = &'a str> {
+        self.iter().map(|(key, _)| key)
+    }
+
+    pub fn iter(self) -> impl Iterator<Item = (&'a str, &'a FieldDef)> {
         let builtins = builtins();
         builtins
             .order
@@ -494,6 +517,7 @@ impl<'a> FieldRegistry<'a> {
                     .filter(|(key, _)| !builtins.defs.contains_key(key.as_str()))
                     .map(|(key, def)| (key.as_str(), def)),
             )
+            .filter(move |(_, def)| (self.includes)(Some(def)))
     }
 }
 

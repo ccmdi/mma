@@ -4424,7 +4424,7 @@ fn builtins_and_map_fields_answer_through_one_lookup() {
     assert_eq!(keys.iter().filter(|key| **key == "heading").count(), 1);
     assert_eq!(keys.first(), Some(&"id"));
     assert_eq!(keys.last(), Some(&"cameraType"));
-    assert_eq!(fields.interned().collect::<Vec<_>>(), ["tags"]);
+    assert_eq!(fields.interned().keys().collect::<Vec<_>>(), ["tags"]);
 }
 
 #[test]

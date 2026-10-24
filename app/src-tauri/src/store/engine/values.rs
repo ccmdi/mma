@@ -142,12 +142,12 @@ impl Store {
     }
 }
 
-impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
+impl<'a, F: Fn(Option<&FieldDef>) -> bool + Clone> Fields<'a, F> {
     /// Narrow these fields by their declarations.
     pub(crate) fn filter(
         self,
-        includes: impl Fn(&FieldDef) -> bool,
-    ) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool> {
+        includes: impl Fn(&FieldDef) -> bool + Clone,
+    ) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool + Clone> {
         Fields {
             store: self.store,
             includes: move |field: Option<&FieldDef>| {
@@ -156,11 +156,11 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
         }
     }
 
-    pub(crate) fn interned(self) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool> {
+    pub(crate) fn interned(self) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool + Clone> {
         self.filter(|field| field.interned)
     }
 
-    pub(crate) fn optional(self) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool> {
+    pub(crate) fn optional(self) -> Fields<'a, impl Fn(Option<&FieldDef>) -> bool + Clone> {
         self.filter(FieldDef::optional)
     }
 
@@ -168,9 +168,9 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
     pub(crate) fn keys(&self) -> impl Iterator<Item = String> + '_ {
         self.store
             .registry()
-            .iter()
-            .filter(|(_, def)| (self.includes)(Some(def)))
-            .map(|(field, _)| field.to_string())
+            .filter(|def| (self.includes)(Some(def)))
+            .keys()
+            .map(str::to_string)
     }
 
     /// Build missing field indexes together in one walk over the current rows.
@@ -206,7 +206,7 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
             .iter_mut()
             .map(|(field, index)| (field.as_str(), index))
             .unzip();
-        for row in self.store.all().rows() {
+        for row in self.store.view().all().rows() {
             row.resolve_fields(&names, |i, value| indexes[i].insert(row.id(), &value));
         }
         self.store.field_indexes.extend(built);
@@ -231,10 +231,10 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
 
     /// Discard indexes whose declarations changed.
     pub(super) fn invalidate(self, previous: &HashMap<String, FieldDef>) {
-        let fields = &self.store.field_defs;
-        let registry = selections::FieldRegistry::new(fields);
+        let registry = selections::FieldRegistry::new(&self.store.field_defs);
+        let previous = selections::FieldRegistry::new(previous);
         self.store.field_indexes.retain(|field, _| {
-            !(self.includes)(registry.get(field)) || previous.get(field) == fields.get(field)
+            !(self.includes)(registry.get(field)) || previous.get(field) == registry.get(field)
         });
     }
 
@@ -246,8 +246,8 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
         let needs: Vec<_> = self
             .store
             .registry()
+            .filter(|def| (self.includes)(Some(def)))
             .iter()
-            .filter(|(_, def)| (self.includes)(Some(def)))
             .flat_map(|(field, def)| {
                 def.builtin
                     .is_some()
@@ -278,18 +278,18 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool> Fields<'a, F> {
                 .iter()
                 .map(|field| (field.as_ref().to_string(), Need::Presence)),
         );
-        let store: &'a Store = self.store;
+        let indexes: &'a selections::FieldIndexes = &self.store.field_indexes;
+        let records = &self.store.records;
         fields
             .into_iter()
             .map(|field| {
-                let (field, index) = store
-                    .field_indexes
+                let (field, index) = indexes
                     .get_key_value(field.as_ref())
                     .expect("prepared field index");
                 FieldValues {
                     field,
                     index,
-                    records: store.records.get(field).map(|records| &**records),
+                    records: records.get(field).map(|records| &**records),
                 }
             })
             .collect()

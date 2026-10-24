@@ -767,6 +767,7 @@ pub async fn sync_reconcile(
         let records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> = store
             .registry()
             .interned()
+            .keys()
             .map(|field| (field.to_string(), store.records(field)))
             .collect();
         (pins, records)
@@ -843,7 +844,12 @@ fn apply_pull(
     if edit_count == 0 {
         return Ok((None, Vec::new()));
     }
-    let interned: HashSet<String> = store.registry().interned().map(str::to_string).collect();
+    let interned: HashSet<String> = store
+        .registry()
+        .interned()
+        .keys()
+        .map(str::to_string)
+        .collect();
     let mut records: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>> = HashMap::new();
     let mut piled: HashMap<(String, String), Id<ValueRecord>> = HashMap::new();
     let mut value_of = |field: &str, name: &str| -> Option<Id<ValueRecord>> {

@@ -81,7 +81,12 @@ pub(super) fn stage_parsed(
         mut records,
         ..
     } = parsed;
-    let interned: HashSet<String> = store.registry().interned().map(str::to_string).collect();
+    let interned: HashSet<String> = store
+        .registry()
+        .interned()
+        .keys()
+        .map(str::to_string)
+        .collect();
     records.retain(|field, held| {
         if interned.contains(field) {
             return true;
