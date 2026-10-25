@@ -3525,7 +3525,7 @@ Each write changes only one key, patched onto the current map settings.
 
 ### pluginSetting
 
-`stable` · unreleased
+`stable` · since v0.13.1
 
 ```ts
 pluginSetting<T>(
