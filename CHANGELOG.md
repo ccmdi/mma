@@ -1,3 +1,19 @@
+## v0.13.1 - 2026-10-25
+- Map folders can nest inside each other
+- Drag a map by its name to move it
+- Drop a tag at a specific spot inside another folder
+- Backspace removes the last polygon or measurement point, and polygon points can be dragged or clicked to remove them
+- The exact date tag dialog defaults to the exact day
+- Sun Position rays can draw for all locations or just the selection
+- LocalGuessr's countdown timer goes as low as 5 seconds
+- The Street View trail's arrow points where you're looking
+- Updates, settings and help stay available when the database can't open
+- Fixed pasting locations outside a text field
+- Fixed heatmap and generator settings not following changes made in another window
+- Fixed dragging a tag folder into a sibling folder
+- Fixed tag folder counts counting a location once per tag it holds in the folder
+- Fixed moving a tag showing its folder and alias changes late
+
 ## v0.13.0 - 2026-10-22
 - New experimental Collaboration plugin: work on a map together with others in real time
 - Choose which of a file's tags to import
