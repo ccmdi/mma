@@ -98,6 +98,8 @@ export function bindNodePath(host: MapHost, spec: NodePathSpec): () => void {
 	};
 
 	let pressedAt: { x: number; y: number } | null = null;
+	// Pointer events carry no click count, so the press's mousedown supplies it.
+	let repeatPress = false;
 
 	const onDown = (e: PointerEvent) => {
 		// A drag's click doesn't always fire (the engine drops it after real movement);
@@ -127,7 +129,7 @@ export function bindNodePath(host: MapHost, spec: NodePathSpec): () => void {
 
 	const onUp = (e: PointerEvent) => {
 		if (dragIndex === null) return;
-		if (pressedAt) {
+		if (pressedAt && !repeatPress) {
 			spec.remove(dragIndex);
 			const ll = at(e);
 			if (ll) arm(hitNode(ll) !== null);
@@ -164,6 +166,13 @@ export function bindNodePath(host: MapHost, spec: NodePathSpec): () => void {
 	const ac = new AbortController();
 	const { signal } = ac;
 	div.addEventListener("pointerdown", onDown, { signal });
+	div.addEventListener(
+		"mousedown",
+		(e) => {
+			repeatPress = e.detail >= 2;
+		},
+		{ signal, capture: true },
+	);
 	window.addEventListener("pointermove", onMove, { signal });
 	window.addEventListener("pointerup", onUp, { signal });
 	document.addEventListener("keydown", onKey, { signal });

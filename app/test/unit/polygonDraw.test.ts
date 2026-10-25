@@ -320,6 +320,25 @@ describe("closing a polygon", () => {
 		expect(armed()).toBe(false);
 	});
 
+	it("keeps the vertex a double-click's first press placed when its second press lands on it", () => {
+		const drawn = mount();
+		arm("Draw a polygon selection");
+		press(0, 0);
+		press(0, 1);
+		press(1, 1);
+		press(1, 0);
+		act(() => {
+			div.dispatchEvent(new MouseEvent("pointerdown", { button: 0, clientX: 0, clientY: 1000 }));
+			div.dispatchEvent(
+				new MouseEvent("mousedown", { button: 0, clientX: 0, clientY: 1000, detail: 2 }),
+			);
+			window.dispatchEvent(new MouseEvent("pointerup", { clientX: 0, clientY: 1000 }));
+		});
+		doubleClick();
+		expect(drawn).toHaveLength(1);
+		expect(drawn[0][0]).toHaveLength(5);
+	});
+
 	it("stays open when the double-click pairs a press the engine took as a pan", () => {
 		const drawn = mount();
 		arm("Draw a polygon selection");
