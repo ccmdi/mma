@@ -91,6 +91,10 @@ async function armTool() {
 		api.MapHost.get()!.moveCamera({ center: { lat: 0.5, lng: 10 }, zoom: 13 });
 		return api.Edit.selections({ kind: "set", selections: [] });
 	});
+	await browser.waitUntil(
+		() => withApi((api) => api.MapHost.get()!.containerPxToLatLng(0, 0) !== null),
+		{ timeoutMsg: "the map never projected" },
+	);
 	if (await toolArmed()) await browser.$(TOOL).click();
 	await browser.$(TOOL).click();
 	await browser.waitUntil(toolArmed, { timeoutMsg: "polygon tool never armed" });
