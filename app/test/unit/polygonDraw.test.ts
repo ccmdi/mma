@@ -271,7 +271,7 @@ describe("polygon vertex editing", () => {
 		expect(drawn).toHaveLength(1);
 	});
 
-	it("steps back the last vertex on Backspace or Delete", () => {
+	it("steps back the last vertex on Backspace", () => {
 		mount();
 		arm("Draw a polygon selection");
 		act(() => {
@@ -284,7 +284,7 @@ describe("polygon vertex editing", () => {
 			[0, 0],
 			[0.125, 0],
 		]);
-		key("Delete");
+		key("Backspace");
 		expect(polygonVerticesRef.current).toEqual([[0, 0]]);
 		key("Backspace");
 		expect(polygonVerticesRef.current).toBeNull();

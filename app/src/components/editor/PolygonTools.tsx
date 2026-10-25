@@ -156,7 +156,7 @@ export function PolygonTools({
 	}, [host, mode, freehandPathRef]);
 
 	// Click-vertex polygon (click the first vertex or double-click to close, drag a vertex to
-	// move it, click a vertex or press Backspace/Delete to remove one, Escape cancels).
+	// move it, click a vertex or press Backspace to remove one, Escape cancels).
 	useEffect(() => {
 		if (!host || mode !== "polygon") return;
 

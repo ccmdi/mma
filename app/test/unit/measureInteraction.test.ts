@@ -136,11 +136,11 @@ describe("measure Escape layering", () => {
 	});
 });
 
-describe("measure Backspace and Delete", () => {
+describe("measure Backspace", () => {
 	const press = (key: string, target: EventTarget = div) =>
 		target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
 
-	it("removes the last node on Backspace or Delete", () => {
+	it("removes the last node on Backspace and leaves Delete to the hotkeys", () => {
 		mountMeasuring({ lat: 0.01, lng: 0.01 });
 		MapHost.tryInterceptClick(0.01, 0.1);
 		MapHost.tryInterceptClick(0.01, 0.2);
@@ -150,6 +150,11 @@ describe("measure Backspace and Delete", () => {
 			[0.1, 0.01],
 		]);
 		press("Delete");
+		expect(Measure.points()).toEqual([
+			[0.01, 0.01],
+			[0.1, 0.01],
+		]);
+		press("Backspace");
 		expect(Measure.points()).toEqual([[0.01, 0.01]]);
 	});
 

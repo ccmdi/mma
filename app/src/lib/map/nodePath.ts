@@ -61,7 +61,7 @@ export interface NodePathSpec {
 }
 
 /** Bind the shared node-path interaction: click to place a node, drag a node to move it,
- *  click a node or press Backspace/Delete to remove one, Escape to cancel. */
+ *  click a node or press Backspace to remove one, Escape to cancel. */
 export function bindNodePath(host: MapHost, spec: NodePathSpec): () => void {
 	let dragIndex: number | null = null;
 	let suppressClick = false;
@@ -147,7 +147,7 @@ export function bindNodePath(host: MapHost, spec: NodePathSpec): () => void {
 			return;
 		}
 		if (
-			(e.key === "Backspace" || e.key === "Delete") &&
+			e.key === "Backspace" &&
 			!e.ctrlKey &&
 			!e.metaKey &&
 			!e.altKey &&

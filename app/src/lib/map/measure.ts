@@ -95,7 +95,7 @@ export const Measure = {
 	useLength: (): number => useEventValue("measure:changed", Measure.length),
 
 	/** Binds the drawing interaction while a measurement is running: click to place a node,
-	 *  drag a node to move it, click or Backspace/Delete to remove one, Escape to finish. */
+	 *  drag a node to move it, click or Backspace to remove one, Escape to finish. */
 	useInteraction: (host: MapHost | null) => {
 		const isMeasuring = Measure.useActive();
 
