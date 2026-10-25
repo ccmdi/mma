@@ -59,7 +59,7 @@ describe("plugin build gate", () => {
 			expect(versioned.status, versioned.stderr).toBe(0);
 			expect(JSON.parse(readFileSync(manifestPath, "utf8")).version).toBe("2.0.0");
 		} finally {
-			rmSync(repo, { recursive: true, force: true });
+			rmSync(repo, { recursive: true, force: true, maxRetries: 10 });
 		}
 	});
 
