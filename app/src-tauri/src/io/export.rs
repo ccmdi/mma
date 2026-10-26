@@ -155,11 +155,12 @@ fn location_to_coord(
         }
     }
     if shape.keeps(MapPart::Tags) && !loc.tags.is_empty() {
-        let tags = records.get("tags").cloned().unwrap_or_default();
+        let empty = HashMap::new();
+        let tags = records.get("tags").unwrap_or(&empty);
         let names: Vec<String> = loc
             .tags
             .iter()
-            .map(|&id| engine::value_name(&tags, id))
+            .map(|&id| engine::value_name(tags, id))
             .collect();
         extra.insert("tags".into(), json!(names));
     }
@@ -236,14 +237,15 @@ pub(crate) fn geojson_document(
     locs: &[Location],
     records: &HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
 ) -> serde_json::Value {
-    let tags = records.get("tags").cloned().unwrap_or_default();
+    let empty = HashMap::new();
+    let tags = records.get("tags").unwrap_or(&empty);
     let features: Vec<serde_json::Value> = locs
         .iter()
         .map(|l| {
             let tag_names: Vec<String> = l
                 .tags
                 .iter()
-                .map(|&id| engine::value_name(&tags, id))
+                .map(|&id| engine::value_name(tags, id))
                 .collect();
             serde_json::json!({
                 "type": "Feature",
