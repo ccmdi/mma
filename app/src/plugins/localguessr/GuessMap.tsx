@@ -55,12 +55,8 @@ const PIN_KIND: Record<string, ResultPin | undefined> = {
 };
 
 async function fetchPool(selector: Selector): Promise<Float32Array> {
-	const ids = await Query.read(
-		{ type: "Sample", selection: selection(selector), n: POOL_POINTS },
-		{ kind: "ids" },
-	);
 	const [lng, lat] = await Query.read(
-		{ type: "Locations", locations: ids, name: null },
+		{ type: "Sample", selection: selection(selector), n: POOL_POINTS },
 		{ kind: "columns", fields: ["lng", "lat"] },
 	);
 	const positions = new Float32Array(lat.length * 2);
