@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Query } from "@/store/query";
+import { createLocation } from "@/types";
 import type { Pano } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 import {
 	bestStreak,
 	currentRound,
+	drawRounds,
 	formatElapsed,
 	guessPreview,
+	INFINITE_BATCH,
 	isLastRound,
 	reduce,
 	scoreGuess,
@@ -24,6 +28,48 @@ import {
 	type RoundResult,
 	type View,
 } from "@/plugins/localguessr/game";
+
+describe("drawRounds", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	it.each([5, INFINITE_BATCH])("randomizes an ordered sample of %i locations (#307)", async (n) => {
+		const locations = Array.from({ length: n }, (_, i) => ({
+			...createLocation({ ...loc(i + 1), lng: i / n, heading: i % 360 }),
+			id: i + 1,
+		}));
+		// A valid sample can arrive in geographically clustered storage/ID order.
+		const read = vi.spyOn(Query, "read").mockImplementation(async () => [...locations]);
+		const random = vi.spyOn(Math, "random").mockReturnValue(0);
+		const first = await drawRounds({ type: "Everything" }, n);
+		random.mockReturnValue(0.999999);
+		const second = await drawRounds({ type: "Everything" }, n);
+
+		expect(first).not.toEqual(second);
+		expect(first.map((r) => r.id).sort((a, b) => a - b)).toEqual(locations.map((r) => r.id));
+		expect(first).toHaveLength(n);
+		for (const round of first) expect(locations[round.id - 1]).toMatchObject(round);
+		expect(read).toHaveBeenCalledTimes(2);
+		expect(read).toHaveBeenCalledWith(expect.objectContaining({ type: "Sample", n }), {
+			kind: "locations",
+		});
+	});
+
+	it.each([0, 1, 3])(
+		"accepts %i available locations when fewer than requested exist",
+		async (count) => {
+			const locations = Array.from({ length: count }, (_, i) => ({
+				...createLocation(loc(i + 1)),
+				id: i + 1,
+			}));
+			vi.spyOn(Query, "read").mockResolvedValue(locations);
+			const rounds = await drawRounds({ type: "Everything" }, INFINITE_BATCH);
+			expect(rounds).toHaveLength(count);
+			expect(rounds.map((r) => r.id).sort((a, b) => a - b)).toEqual(
+				locations.map((r) => r.id).sort((a, b) => a - b),
+			);
+		},
+	);
+});
 
 const CONFIG: GameConfig = {
 	movementMode: "moving",

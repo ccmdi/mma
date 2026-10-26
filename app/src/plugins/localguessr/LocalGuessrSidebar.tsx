@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { createPortal } from "react-dom";
 import { mdiDeleteOutline, mdiEarth, mdiHistory } from "@mdi/js";
 import { Store } from "@/store/store";
-import { Query } from "@/store/query";
 import { Sidebar, Section, Field, SegmentedControl } from "@/components/primitives/Sidebar";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -19,14 +18,13 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { pluginSetting } from "@/plugins/pluginStorage";
 import { useSelectorPick } from "@/store/selectorPick";
-import { selection } from "@/store/selections";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { toast } from "@/lib/util/toast";
 import { dateTimeFmt, fmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
-import type { Selector } from "@/types";
 import {
 	DEFAULT_CONFIG,
+	drawRounds,
 	formatElapsed,
 	INFINITE_BATCH,
 	hydrateSession,
@@ -35,12 +33,10 @@ import {
 	pastTotal,
 	reduce,
 	toPastGame,
-	toRoundLocation,
 	type Game,
 	type GameConfig,
 	type MovementMode,
 	type PastGame,
-	type RoundLocation,
 	type RoundMode,
 	type Session,
 	type StreakMode,
@@ -65,19 +61,6 @@ import { avatarPinSetting, useGitHubAvatar } from "./gameMap";
 import "./localguessr.css";
 import { IconButton } from "@/components/primitives/IconButton";
 import { Editor } from "@/store/editor";
-
-async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
-	const ids = await Query.read(
-		{ type: "Sample", selection: selection(selector), n },
-		{ kind: "ids" },
-	);
-	if (ids.length === 0) return [];
-	const locations = await Query.read(
-		{ type: "Locations", locations: ids, name: null },
-		{ kind: "locations" },
-	);
-	return locations.map(toRoundLocation);
-}
 
 function SavedGameCard({
 	game,

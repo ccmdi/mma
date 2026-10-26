@@ -1,5 +1,5 @@
 import type { GeoResult, Location, Pano } from "@/bindings.gen";
-import type { LatLng, PanoCapture } from "@/types";
+import type { LatLng, PanoCapture, Selector } from "@/types";
 import { distMeters } from "@/lib/geo/geo";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
@@ -7,6 +7,9 @@ import { computeScore } from "@/lib/geo/scoring";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
 import { StreetView } from "@/lib/sv/streetView";
+import { Query } from "@/store/query";
+import { selection } from "@/store/selections";
+import { shuffle } from "@/lib/util/util";
 
 export type MovementMode = "moving" | "noMove" | "nmpz";
 export type RoundMode = "classic" | "infinite";
@@ -39,6 +42,15 @@ export const DEFAULT_CONFIG: GameConfig = {
 
 /** How many rounds an infinite game draws up front. Re-drawn when exhausted. */
 export const INFINITE_BATCH = 500;
+
+export async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
+	const locations = await Query.read(
+		{ type: "Sample", selection: selection(selector), n },
+		{ kind: "locations" },
+	);
+	// Sampling chooses membership; shuffle here so storage order never becomes play order.
+	return shuffle(locations).map(toRoundLocation);
+}
 
 /** The subset of a Location a round needs. Kept narrow so a saved game stays small. */
 export type RoundLocation = PanoCapture & Pick<Location, "id">;
