@@ -10201,7 +10201,7 @@ fn a_field_index_is_rebuilt_once_its_definition_changes() {
     };
     store.at(&Target::Map { id: None }).rows(&has);
     assert_eq!(
-        store.field_indexes["n"].shape,
+        store.field_indexes["n"].projection.shape,
         IndexShape::None,
         "an undeclared key is indexed without a shape"
     );
@@ -10219,7 +10219,7 @@ fn a_field_index_is_rebuilt_once_its_definition_changes() {
     };
     store.at(&MAP).write(defs).now();
     store.at(&Target::Map { id: None }).rows(&has);
-    assert_ne!(store.field_indexes["n"].shape, IndexShape::None);
+    assert_ne!(store.field_indexes["n"].projection.shape, IndexShape::None);
 }
 
 #[test]

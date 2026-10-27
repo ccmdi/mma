@@ -4,7 +4,6 @@ use super::*;
 use crate::runs;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
-use crate::selections::neighborhood::coord_key;
 use crate::selections::{self, tree};
 use crate::selections::{FieldRegistry, FieldWriter, Selector};
 use crate::store::maps;
@@ -878,34 +877,6 @@ pub(super) fn created(
 pub struct CopyToMapResult {
     pub copied: u32,
     pub skipped: u32,
-}
-
-/// A map's rows as the duplicate rule sees them: a location is held when a row has its
-/// non-empty pano id, or, for a location without one, its exact coordinates. Fuzzy spatial
-/// matching stays the job of the in-map Duplicates selection.
-pub(crate) struct HeldRows {
-    panos: HashSet<String>,
-    coords: HashSet<(u64, u64)>,
-}
-
-impl HeldRows {
-    pub(crate) fn of(rows: &[Location]) -> Self {
-        Self {
-            panos: rows
-                .iter()
-                .filter_map(|row| row.pano_id.as_deref().filter(|p| !p.is_empty()))
-                .map(str::to_string)
-                .collect(),
-            coords: rows.iter().map(|row| coord_key(row.lat, row.lng)).collect(),
-        }
-    }
-
-    pub(crate) fn holds(&self, row: &Location) -> bool {
-        match &row.pano_id {
-            Some(p) if !p.is_empty() => self.panos.contains(p.as_str()),
-            _ => self.coords.contains(&coord_key(row.lat, row.lng)),
-        }
-    }
 }
 
 /// Merge a non-empty duplicate group into its best-scored survivor.

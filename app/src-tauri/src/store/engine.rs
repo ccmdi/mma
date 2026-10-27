@@ -378,7 +378,7 @@ impl Store {
     pub(crate) fn finish(
         &mut self,
         finished: Finished,
-        projections: &HashMap<String, selections::Projection>,
+        projections: &HashMap<String, selections::FieldContributions>,
     ) -> Mutation {
         let empty = Entry::default();
         let list_only = matches!(&finished, Finished::Entry(entry)

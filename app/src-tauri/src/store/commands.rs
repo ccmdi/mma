@@ -8,6 +8,7 @@ use crate::selections::saved::SelectionEdit;
 use crate::selections::tree::SelectionInput;
 use crate::selections::{self, Selector};
 use crate::store::engine::*;
+use crate::store::index::Index;
 use crate::store::maps::{scratch_map_row, MapMeta, SCRATCH_MAP_ID};
 use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
@@ -476,9 +477,16 @@ async fn copy_locations_to_map(
     };
     let (copied, total) = task::block_in_place(|| {
         with_target(state, label, &there, |target| {
-            let held = HeldRows::of(&target.at(&there).rows(&Selector::Everything));
+            let keys = Location::identity();
+            let mut held = Index::membership(&keys);
+            for row in target.all().rows() {
+                held.insert(row.id(), &row);
+            }
             let total = matched.len() as u32;
-            let fresh: Vec<Location> = matched.into_iter().filter(|row| !held.holds(row)).collect();
+            let fresh: Vec<Location> = matched
+                .into_iter()
+                .filter(|row| !held.matches(&keys.preferred(), row))
+                .collect();
             let records = referenced_records(&records, &fresh);
             let adds = fresh
                 .into_iter()

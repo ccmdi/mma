@@ -1064,7 +1064,10 @@ fn tagged_batch_and_index(locs: &[Location]) -> (RecordBatch, FieldIndexes) {
         }
     }
     let index = FieldIndex {
-        shape: IndexShape::Multi,
+        projection: FieldProjection {
+            field: "tags".into(),
+            shape: IndexShape::Multi,
+        },
         rows: locs.iter().map(|l| l.id).collect(),
         by_value,
     };
@@ -1108,7 +1111,10 @@ fn live_tag_index(view: &LocView) -> FieldIndexes {
         }
     }
     let index = FieldIndex {
-        shape: IndexShape::Multi,
+        projection: FieldProjection {
+            field: "tags".into(),
+            shape: IndexShape::Multi,
+        },
         rows: view.all().ids(),
         by_value,
     };
@@ -4127,7 +4133,10 @@ fn scope_fx() -> Fx {
 
 fn live_index(view: &LocView, field: &str, shape: IndexShape) -> FieldIndex {
     let mut index = FieldIndex {
-        shape,
+        projection: FieldProjection {
+            field: field.into(),
+            shape,
+        },
         rows: IdSet::new(),
         by_value: HashMap::new(),
     };

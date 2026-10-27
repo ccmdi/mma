@@ -15,7 +15,7 @@ use crate::types;
 use crate::types::{wire_str_enum, Location, LocationFlags, RawExtra};
 use crate::util::Rgb;
 use arrow_array::RecordBatch;
-use mma_algebra::{Change, Id};
+use mma_algebra::Id;
 use mma_fields::Children;
 
 mod duplicates;
@@ -23,6 +23,7 @@ mod filter;
 mod geometry;
 pub(crate) mod neighborhood;
 mod partition;
+mod projection;
 pub(crate) mod tree;
 use crate::store::id_set::IdSet;
 pub use duplicates::*;
@@ -30,6 +31,7 @@ pub use filter::*;
 pub(crate) use geometry::*;
 use mma_geo::SpatialIndex;
 pub use partition::*;
+pub(crate) use projection::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -503,84 +505,6 @@ impl Selector {
 // ---------------------------------------------------------------------------
 // Field indexes
 // ---------------------------------------------------------------------------
-
-/// Inverted index over one field: the rows holding it, and for an enumerable field the
-/// member ids of each canonical value. Carries its own shape so a lookup needs no second
-/// trip to the field registry, and so an `extra` field is indexed on exactly the same
-/// terms as a builtin.
-pub struct FieldIndex {
-    pub shape: IndexShape,
-    /// Rows holding a value for the field.
-    pub rows: IdSet<Location>,
-    pub by_value: HashMap<String, IdSet<Location>>,
-}
-
-impl FieldIndex {
-    fn contribution(&self, value: Option<&serde_json::Value>) -> Option<Vec<String>> {
-        value.map(|value| {
-            let mut keys = index_keys(self.shape, value);
-            keys.sort();
-            keys.dedup();
-            keys
-        })
-    }
-
-    fn mark(&mut self, id: Id<Location>, keys: &Option<Vec<String>>, present: bool) {
-        let Some(keys) = keys else {
-            return;
-        };
-        let mark = |ids: &mut IdSet<Location>| {
-            if present {
-                ids.insert(id);
-            } else {
-                ids.remove(id);
-            }
-        };
-        mark(&mut self.rows);
-        for key in keys {
-            mark(self.by_value.entry(key.clone()).or_default());
-        }
-    }
-
-    pub fn insert(&mut self, id: Id<Location>, value: &serde_json::Value) {
-        let keys = self.contribution(Some(value));
-        self.mark(id, &keys, true);
-    }
-
-    /// `change` as the keys each moved row files under `field` here.
-    pub fn project(
-        &self,
-        field: &str,
-        change: &Change<Location>,
-    ) -> Change<(Id<Location>, Option<Vec<String>>)> {
-        change.project(|row| {
-            let value = RowRef::from_loc(row).resolve_field(field);
-            (row.id, self.contribution(value.as_ref()))
-        })
-    }
-
-    pub fn apply(
-        &mut self,
-        change: &Change<(Id<Location>, Option<Vec<String>>)>,
-    ) -> BTreeSet<String> {
-        let mut moved = BTreeSet::new();
-        for ((id, keys), present) in change
-            .before()
-            .map(|row| (row, false))
-            .chain(change.after().map(|row| (row, true)))
-        {
-            self.mark(*id, keys, present);
-            moved.extend(keys.iter().flatten().cloned());
-        }
-        moved
-    }
-}
-
-/// Per-field indexes of live rows, maintained as rows change.
-pub type FieldIndexes = HashMap<String, FieldIndex>;
-
-/// A change projected onto one field: the keys each moved row files under it.
-pub type Projection = Change<(Id<Location>, Option<Vec<String>>)>;
 
 /// Canonical index key for a scalar value. Numbers render through `f64` so a value written
 /// as `1` and one arriving as `1.0` land in the same bucket, matching `same_field_value`.
@@ -1245,7 +1169,7 @@ impl<'v, 'a> Scope<'v, 'a> {
     /// `None` when the field has no index or the operator is not a lookup and needs a scan.
     fn indexed(&self, field: &str, test: &FilterOp) -> Option<IdSet<Location>> {
         let index = self.view.field_indexes?.get(field)?;
-        Some(match (index.shape, test) {
+        Some(match (index.projection.shape, test) {
             (_, FilterOp::Has) => self.clip(index.rows.clone()),
             (_, FilterOp::Nothas) => self.ids() - &index.rows,
             (IndexShape::Scalar, FilterOp::Eq { value })

@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::selections::{self, Need};
+use crate::store::index::Index;
 use crate::store::maps::{FieldDef, IndexShape};
 use crate::types::{AppError, AppResult, Location};
 use crate::util::Rgb;
@@ -192,14 +193,11 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool + Clone> Fields<'a, F> {
         let mut built: Vec<_> = missing
             .into_iter()
             .map(|(field, shape)| {
-                (
-                    field,
-                    selections::FieldIndex {
-                        shape,
-                        rows: IdSet::new(),
-                        by_value: HashMap::new(),
-                    },
-                )
+                let projection = selections::FieldProjection {
+                    field: field.clone(),
+                    shape,
+                };
+                (field, Index::new(projection))
             })
             .collect();
         let (names, mut indexes): (Vec<_>, Vec<_>) = built
@@ -215,7 +213,7 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool + Clone> Fields<'a, F> {
     /// Apply these fields' prepared contributions and return the value keys they moved.
     pub(crate) fn apply(
         self,
-        projections: &HashMap<String, selections::Projection>,
+        projections: &HashMap<String, selections::FieldContributions>,
     ) -> HashMap<String, BTreeSet<String>> {
         let registry = selections::FieldRegistry::new(&self.store.field_defs);
         self.store
@@ -242,7 +240,7 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool + Clone> Fields<'a, F> {
     pub(crate) fn project(
         mut self,
         rows: &Change<Location>,
-    ) -> HashMap<String, selections::Projection> {
+    ) -> HashMap<String, selections::FieldContributions> {
         let needs: Vec<_> = self
             .store
             .registry()
@@ -261,7 +259,7 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool + Clone> Fields<'a, F> {
             .field_indexes
             .iter()
             .filter(|(field, _)| (self.includes)(self.store.registry().get(field)))
-            .map(|(field, index)| (field.clone(), index.project(field, rows)))
+            .map(|(field, index)| (field.clone(), index.project(rows, |row| row.id)))
             .collect()
     }
 
@@ -303,7 +301,7 @@ impl<'a, F: Fn(Option<&FieldDef>) -> bool + Clone> Fields<'a, F> {
     /// Values absent after the projected change, among those moved or explicitly touched.
     pub(crate) fn absent_after(
         self,
-        projections: &HashMap<String, selections::Projection>,
+        projections: &HashMap<String, selections::FieldContributions>,
         touched: impl Fn(&str) -> Vec<String>,
     ) -> HashSet<(String, String)> {
         self.values(projections.keys())
@@ -332,7 +330,7 @@ impl<'a> FieldValues<'a> {
 
     pub(crate) fn absent_after(
         &self,
-        projection: &selections::Projection,
+        projection: &selections::FieldContributions,
         touched: impl IntoIterator<Item = String>,
     ) -> BTreeSet<String> {
         let mut counts =
@@ -347,10 +345,7 @@ impl<'a> FieldValues<'a> {
     }
 
     pub(crate) fn count(&self, key: &str) -> usize {
-        self.index
-            .by_value
-            .get(key)
-            .map_or(0, |ids| ids.len() as usize)
+        self.index.count(key)
     }
 
     /// The records of the values at least one row holds.

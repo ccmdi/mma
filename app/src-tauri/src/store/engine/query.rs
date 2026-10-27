@@ -3,6 +3,7 @@
 use super::*;
 use crate::selections::{self, Index, Need, Selector, Thinning};
 use crate::store::id_set::IdSet;
+use crate::store::index::Index as EqualityIndex;
 use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
@@ -522,10 +523,16 @@ impl Targeted<'_> {
                     groups: scope.duplicate_groups(*distance),
                 },
                 Ask::Held { locations } => {
-                    let rows: Vec<Location> = scope.rows().map(|row| row.to_location()).collect();
-                    let held = HeldRows::of(&rows);
+                    let keys = Location::identity();
+                    let mut held = EqualityIndex::membership(&keys);
+                    for row in scope.rows() {
+                        held.insert(row.id(), &row);
+                    }
                     Answer::Held {
-                        held: locations.iter().map(|l| held.holds(l)).collect(),
+                        held: locations
+                            .iter()
+                            .map(|location| held.matches(&keys.preferred(), location))
+                            .collect(),
                     }
                 }
             })
