@@ -1,3 +1,8 @@
+## v0.13.2 - 2026-10-27
+- Downloads show the name of the file they saved, including Vali's
+- Marginally faster JSON and GeoJSON export on maps with many tags
+- Fixed LocalGuessr rounds following the map's storage order instead of a random one
+
 ## v0.13.1 - 2026-10-25
 - Map folders can nest inside each other
 - Drag a map by its name to move it
