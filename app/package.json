@@ -1,7 +1,7 @@
 {
 	"name": "map-making-app",
 	"private": true,
-	"version": "0.13.1",
+	"version": "0.13.2",
 	"type": "module",
 	"engines": {
 		"node": "^26.0.0"
