@@ -13,6 +13,7 @@ import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { Sidebar } from "@/components/primitives/Sidebar";
 import { ValiDownloadDialog } from "./ValiDownloadDialog";
 import { log } from "@/lib/util/log";
+import { toast } from "@/lib/util/toast";
 import "./vali.css";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
@@ -25,6 +26,7 @@ import { IconButton } from "@/components/primitives/IconButton";
 //   <- iframe  { type: "vali:state", definition, tag }
 //   <- iframe  { type: "vali:generate", data, tag }
 //   <- iframe  { type: "vali:cancel" }
+//   <- iframe  { type: "vali:saved", file }
 //   -> iframe  { type: "vali:progress", progress } (forwarded vali-progress events)
 //   -> iframe  { type: "vali:done", count } | { type: "vali:error", message }
 
@@ -109,6 +111,10 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 			}
 			if (e.data?.type === "vali:state") {
 				saveValiProject({ definition: e.data.definition, tag: String(e.data.tag ?? "") });
+				return;
+			}
+			if (e.data?.type === "vali:saved") {
+				toast(t("Downloaded {file}", { file: String(e.data.file) }));
 				return;
 			}
 			const action = valiMessageAction(e.data?.type, busyRef.current);

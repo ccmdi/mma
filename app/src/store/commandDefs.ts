@@ -66,7 +66,7 @@ import { History } from "@/store/history";
 import { Location } from "@/store/location";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { loadGeoJSON, polygonFeatureCollection } from "@/lib/util/geojson";
-import { downloadBlob } from "@/lib/util/util";
+import { downloadBlob } from "@/lib/util/download";
 import { toggleSeenOverlay } from "@/lib/seen/seenOverlay";
 import { Review } from "@/lib/review/review";
 import { openDialog } from "./dialogBus";

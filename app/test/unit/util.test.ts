@@ -2,6 +2,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import type { Tag } from "@/types";
 import { compareNatural, each, mmaBufUrl, phaseRate, type PhaseRate } from "@/lib/util/util";
+import { downloadBlob } from "@/lib/util/download";
+import { getToasts } from "@/lib/util/toast";
 import { sortTagsByMode, tagColorFor } from "@/lib/data/tags";
 import { ERROR_CODES } from "@/bindings.consts";
 import { initLocale } from "@/lib/i18n";
@@ -290,5 +292,17 @@ describe("each", () => {
 		const seen: number[][] = [];
 		await each(5, async (all: number[]) => (seen.push(all), all));
 		expect(seen).toEqual([[5]]);
+	});
+});
+
+describe("downloadBlob", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	it("names the file it saved, since the desktop webview shows no download bar", () => {
+		vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+		URL.createObjectURL = vi.fn(() => "blob:x");
+		URL.revokeObjectURL = vi.fn();
+		downloadBlob(new Blob(["x"]), "tags.csv");
+		expect(getToasts().map((t) => t.message)).toContain("Downloaded tags.csv");
 	});
 });

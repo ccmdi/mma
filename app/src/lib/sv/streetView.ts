@@ -34,7 +34,8 @@ import { SV_SEARCH_RADIUS, isOfficialPano, isUnofficial } from "@/lib/sv/rules";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { fileTimestamp } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
-import { bestBy, downloadBlob, mmaBufUrl, schemeBase } from "@/lib/util/util";
+import { bestBy, mmaBufUrl, schemeBase } from "@/lib/util/util";
+import { downloadBlob } from "@/lib/util/download";
 import { canvasToBlob, perspectiveView } from "@/lib/util/image";
 
 /** How a coordinate search runs: how far it reaches, which collections it searches, and
@@ -632,12 +633,11 @@ export const StreetView = {
 		return longUrl;
 	},
 
-	/** Download the full panorama as a single stitched JPEG. Toasts on success/failure. */
+	/** Download the full panorama as a single stitched JPEG. Toasts on failure. */
 	download: async (panoId: string, zoom = 5): Promise<void> => {
 		const blob = await fetchImage(panoUrl(panoId, zoom));
 		if (blob) {
 			downloadBlob(blob, `${panoId}.jpg`);
-			toast(t("Panorama downloaded"));
 		} else {
 			toast(t("Panorama download failed"));
 		}

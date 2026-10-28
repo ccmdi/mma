@@ -55,6 +55,7 @@ import {
 import { cmd } from "@/lib/commands";
 import { Commit } from "@/store/commit";
 import { CommitDiff } from "@/store/commitDiff";
+import { downloadBlob } from "@/lib/util/download";
 import { Edit } from "@/store/edit";
 import { Editor } from "@/store/editor";
 import { Field } from "@/store/field";
@@ -334,7 +335,6 @@ import {
 	cmpVersion,
 	compareNatural,
 	copyImageToClipboard,
-	downloadBlob,
 	isPrereleaseVersion,
 	isWeb,
 	mmaBufUrl,
@@ -487,6 +487,10 @@ type CommitApi = {
 type CommitDiffApi = {
 	/** Uncommitted changes and their preview on the map. @unstable */
 	CommitDiff: typeof CommitDiff;
+};
+type DownloadApi = {
+	/** Trigger a browser download from an in-memory Blob. @unstable */
+	downloadBlob: typeof downloadBlob;
 };
 type EditApi = {
 	/** Edit map locations, metadata, value records, and selections. */
@@ -1138,8 +1142,6 @@ type UtilApi = {
 	compareNatural: typeof compareNatural;
 	/** Copy an image Blob to the clipboard. False when the platform refuses it. @unstable */
 	copyImageToClipboard: typeof copyImageToClipboard;
-	/** Trigger a browser download from an in-memory Blob. @unstable */
-	downloadBlob: typeof downloadBlob;
 	/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @unstable */
 	isPrereleaseVersion: typeof isPrereleaseVersion;
 	/** True when the app runs in a browser instead of the desktop app. @unstable */
@@ -1180,6 +1182,7 @@ export interface MMA
 		CommandsApi,
 		CommitApi,
 		CommitDiffApi,
+		DownloadApi,
 		EditApi,
 		EditorApi,
 		FieldApi,
@@ -1276,6 +1279,7 @@ const mma: MMA = {
 	cmd,
 	Commit,
 	CommitDiff,
+	downloadBlob,
 	Edit,
 	Editor,
 	Field,
@@ -1541,7 +1545,6 @@ const mma: MMA = {
 	cmpVersion,
 	compareNatural,
 	copyImageToClipboard,
-	downloadBlob,
 	isPrereleaseVersion,
 	isWeb,
 	mmaBufUrl,

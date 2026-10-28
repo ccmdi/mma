@@ -120,16 +120,6 @@ export function pickFiles(accept: string, opts: { multiple?: boolean } = {}): Pr
 	});
 }
 
-/** Trigger a browser download from an in-memory Blob. @api @unstable */
-export function downloadBlob(blob: Blob, fileName: string) {
-	const url = URL.createObjectURL(blob);
-	const a = document.createElement("a");
-	a.href = url;
-	a.download = fileName;
-	a.click();
-	URL.revokeObjectURL(url);
-}
-
 /** Copy an image Blob to the clipboard. False when the platform refuses it. @api @unstable */
 export async function copyImageToClipboard(blob: Blob): Promise<boolean> {
 	if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") return false;

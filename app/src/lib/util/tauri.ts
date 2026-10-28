@@ -1,7 +1,8 @@
 // Utilities that reach Tauri (dialogs, IPC)
 import { save } from "@tauri-apps/plugin-dialog";
 import { cmd } from "@/lib/commands";
-import { downloadBlob, isWeb, mmaBufUrl } from "@/lib/util/util";
+import { isWeb, mmaBufUrl } from "@/lib/util/util";
+import { downloadBlob } from "@/lib/util/download";
 
 // In a browser (web-serve) there's no native save dialog that returns a path for the
 // backend to write to. Use the File System Access API to let the user pick a destination

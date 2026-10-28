@@ -12,7 +12,7 @@ import {
 	tagIdOf,
 } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
-import { downloadBlob } from "@/lib/util/util";
+import { downloadBlob } from "@/lib/util/download";
 import { polygonFeature } from "@/lib/util/geojson";
 import { stepFilterWindow } from "@/lib/util/date";
 import { dropZone, type DropZone } from "@/lib/util/dom";

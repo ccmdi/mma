@@ -5,6 +5,7 @@ import { Store } from "@/store/store";
 import { Autosave } from "@/store/autosave";
 import type { MapMeta } from "@/bindings.gen";
 import { mount, type Mounted } from "./fixtures/harness";
+import { getToasts } from "@/lib/util/toast";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
@@ -107,5 +108,13 @@ describe("Vali setup per map", () => {
 		await act(async () => button((b) => b.textContent === "Are you sure?").click());
 		expect(ownProject()).toEqual({});
 		expect(toGui).toHaveBeenCalledWith({ type: "vali:load" }, "*");
+	});
+});
+
+describe("Vali saving a file", () => {
+	it("toasts the file name, since the desktop webview saves without a download bar", async () => {
+		openMap();
+		await fromGui(sidebar(), { type: "vali:saved", file: "vali-config.json" });
+		expect(getToasts().map((t) => t.message)).toContain("Downloaded vali-config.json");
 	});
 });

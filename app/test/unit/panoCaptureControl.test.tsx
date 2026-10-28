@@ -30,10 +30,10 @@ vi.mock("@/lib/sv/panoCapture", () => ({
 }));
 vi.mock("@/lib/util/image", () => ({ canvasToBlob: mocks.toBlob }));
 vi.mock("@/lib/util/util", () => ({
-	downloadBlob: mocks.download,
 	copyImageToClipboard: mocks.copyImage,
 	schemeBase: () => "",
 }));
+vi.mock("@/lib/util/download", () => ({ downloadBlob: mocks.download }));
 vi.mock("@/lib/util/toast", () => ({ toast: mocks.toast }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@/store/settings", () => ({
@@ -142,7 +142,7 @@ describe("PanoControls screenshot button", () => {
 			blob,
 			expect.stringMatching(/^pano-id_\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.png$/),
 		);
-		expect(mocks.toast).toHaveBeenCalledWith("Screenshot downloaded");
+		expect(mocks.toast).not.toHaveBeenCalled();
 	});
 
 	it("falls back to downloading when the clipboard refuses the image", async () => {
@@ -155,7 +155,7 @@ describe("PanoControls screenshot button", () => {
 
 		await act(async () => button.click());
 		expect(mocks.download).toHaveBeenCalledOnce();
-		expect(mocks.toast).toHaveBeenCalledWith("Clipboard unavailable, downloaded instead");
+		expect(mocks.toast).not.toHaveBeenCalled();
 	});
 
 	it("toasts and re-enables when capture fails", async () => {

@@ -12,7 +12,8 @@ import { useHotkeyRef } from "@/lib/hooks/useHotkey";
 import { usePano, usePanoEvent } from "@/lib/hooks/usePano";
 import { open } from "@tauri-apps/plugin-shell";
 import { renderPanoView } from "@/lib/sv/panoCapture";
-import { downloadBlob, copyImageToClipboard } from "@/lib/util/util";
+import { copyImageToClipboard } from "@/lib/util/util";
+import { downloadBlob } from "@/lib/util/download";
 import { canvasToBlob } from "@/lib/util/image";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
@@ -383,11 +384,6 @@ export const PanoControls = memo(function PanoControls({
 					} else {
 						const stamp = fileTimestamp();
 						downloadBlob(blob, `${view.panoId}_${stamp}.png`);
-						toast(
-							download
-								? t("Screenshot downloaded")
-								: t("Clipboard unavailable, downloaded instead"),
-						);
 					}
 				});
 			} catch (error) {

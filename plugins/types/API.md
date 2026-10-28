@@ -44,6 +44,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by the file
 - [Color](#color)
 - [Commands](#commands)
 - [Commit diff](#commit-diff)
+- [Download](#download)
 - [Import](#import)
 - [Jobs](#jobs)
 - [Layer](#layer)
@@ -6634,6 +6635,18 @@ CommitDiff.use(): Counts
 
 React hook: the uncommitted add/remove/modify counts.
 
+## Download
+
+### downloadBlob
+
+`unstable` · since v0.10.3
+
+```ts
+downloadBlob(blob: Blob, fileName: string): void
+```
+
+Trigger a browser download from an in-memory Blob.
+
 ## Import
 
 ### Import
@@ -9133,7 +9146,7 @@ Copy a Maps link to the clipboard, shortened unless `long`.
 StreetView.download(panoId: string, zoom?: number): Promise<void>
 ```
 
-Download the full panorama as a single stitched JPEG. Toasts on success/failure.
+Download the full panorama as a single stitched JPEG. Toasts on failure.
 
 #### StreetView.downloadAll
 
@@ -9558,16 +9571,6 @@ copyImageToClipboard(blob: Blob): Promise<boolean>
 ```
 
 Copy an image Blob to the clipboard. False when the platform refuses it.
-
-### downloadBlob
-
-`unstable` · since v0.10.3
-
-```ts
-downloadBlob(blob: Blob, fileName: string): void
-```
-
-Trigger a browser download from an in-memory Blob.
 
 ### isPrereleaseVersion
 

@@ -3613,6 +3613,9 @@ declare const CommitDiff: {
     end: () => void;
 };
 
+/** Trigger a browser download from an in-memory Blob. @api @unstable */
+declare function downloadBlob(blob: Blob, fileName: string): void;
+
 export type Of<K extends string> = Extract<Edits, Record<K, unknown>>[K];
 /** Edit map locations, metadata, value records, and selections. @api */
 declare const Edit: {
@@ -3677,8 +3680,6 @@ declare function isWeb(): boolean;
 declare function pickFiles(accept: string, opts?: {
     multiple?: boolean;
 }): Promise<File[]>;
-/** Trigger a browser download from an in-memory Blob. @api @unstable */
-declare function downloadBlob(blob: Blob, fileName: string): void;
 /** Copy an image Blob to the clipboard. False when the platform refuses it. @api @unstable */
 declare function copyImageToClipboard(blob: Blob): Promise<boolean>;
 /** Compare strings with natural (numeric-aware) ordering. @api @unstable */
@@ -6653,7 +6654,7 @@ declare const StreetView: {
     }) => Promise<void>;
     /** A Maps link shortened through Google's own shortener, or the link unchanged when that fails. @unstable */
     shortenLink: (longUrl: string) => Promise<string>;
-    /** Download the full panorama as a single stitched JPEG. Toasts on success/failure. @unstable */
+    /** Download the full panorama as a single stitched JPEG. Toasts on failure. @unstable */
     download: (panoId: string, zoom?: number) => Promise<void>;
     /** Download panoramas for `locations`, uploading each image into a session dir (via
      *  mma-buf POST) that is packaged into a single file or Stored ZIP. @unstable */
@@ -7398,6 +7399,10 @@ export type CommitDiffApi = {
     /** Uncommitted changes and their preview on the map. @unstable */
     CommitDiff: typeof CommitDiff;
 };
+export type DownloadApi = {
+    /** Trigger a browser download from an in-memory Blob. @unstable */
+    downloadBlob: typeof downloadBlob;
+};
 export type EditApi = {
     /** Edit map locations, metadata, value records, and selections. */
     Edit: typeof Edit;
@@ -8048,8 +8053,6 @@ export type UtilApi = {
     compareNatural: typeof compareNatural;
     /** Copy an image Blob to the clipboard. False when the platform refuses it. @unstable */
     copyImageToClipboard: typeof copyImageToClipboard;
-    /** Trigger a browser download from an in-memory Blob. @unstable */
-    downloadBlob: typeof downloadBlob;
     /** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @unstable */
     isPrereleaseVersion: typeof isPrereleaseVersion;
     /** True when the app runs in a browser instead of the desktop app. @unstable */
@@ -8080,7 +8083,7 @@ export type ValidationCategoriesApi = {
     validationCategory: typeof validationCategory;
 };
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapHostApi, MapsApi, MutationApi, PanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, QueryApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, StreetViewApi, TagApi, TagsApi, TauriApi, TestApiApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidationCategoriesApi {
+interface MMA extends AccountApi, AutosaveApi, BindingsConstsApi, ColorApi, CommandsApi, CommitApi, CommitDiffApi, DownloadApi, EditApi, EditorApi, FieldApi, FieldDefRegistryApi, FieldDefsApi, HistoryApi, ImportApi, JobsApi, LayerApi, LegacyApi, LocationApi, MapHostApi, MapsApi, MutationApi, PanoApi, PluginStorageApi, ProcedureApi, ProviderApi, ProvidersApi, QueryApi, RegistryApi, ReviewApi, SavedSelectionApi, SceneApi, ScopeApi, SeenApi, SelectionListApi, SelectionsApi, SelectorPickApi, SettingsApi, SidecarApi, StoreApi, StreetViewApi, TagApi, TagsApi, TauriApi, TestApiApi, ToastApi, TypesApi, UiApi, UseJobApi, UtilApi, ValidationCategoriesApi {
 }
 
 declare global {

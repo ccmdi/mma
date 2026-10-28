@@ -12,7 +12,8 @@ import { appVersion } from "@/lib/version";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openDialog as openAppDialog } from "@/store/dialogBus";
 import { cmd } from "@/lib/commands";
-import { mmaBufUrl, downloadBlob } from "@/lib/util/util";
+import { mmaBufUrl } from "@/lib/util/util";
+import { downloadBlob } from "@/lib/util/download";
 import { Collapsible } from "@base-ui-components/react/collapsible";
 import {
 	ConfirmDialog,
